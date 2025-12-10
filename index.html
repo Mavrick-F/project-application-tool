@@ -123,6 +123,15 @@
       box-shadow: 0 0 0 2px rgba(21, 101, 192, 0.1);
     }
 
+    /* Project name section - hidden until drawing complete */
+    #projectNameSection {
+      display: none;
+    }
+
+    #projectNameSection.visible {
+      display: block;
+    }
+
     /* Results lists */
     .results-list {
       list-style: none;
@@ -148,6 +157,40 @@
       font-style: italic;
       padding: 5px 0;
     }
+
+    /* Results card styling */
+    .results-card {
+      background-color: white;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border-left: 3px solid #1565C0;
+    }
+
+    .results-card.routes { border-left-color: #0066CC; }
+    .results-card.zones { border-left-color: #FF8C00; }
+    .results-card.bridges { border-left-color: #DC143C; }
+
+    .results-card .section-heading {
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .result-count {
+      display: inline-block;
+      background-color: #E3F2FD;
+      color: #1565C0;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 8px;
+    }
+
+    .results-card.routes .result-count { background-color: #E3F2FD; color: #0066CC; }
+    .results-card.zones .result-count { background-color: #FFF3E0; color: #E65100; }
+    .results-card.bridges .result-count { background-color: #FFEBEE; color: #C62828; }
 
     /* Bridges table */
     #bridgesTable {
@@ -212,10 +255,6 @@
 
     .btn-secondary:hover {
       background-color: #444444;
-    }
-
-    #clearButton {
-      display: none;
     }
 
     .btn-draw {
@@ -334,6 +373,63 @@
       padding: 6px 10px;
       font-size: 12px;
     }
+
+    /* Layer control styling */
+    .leaflet-control-layers {
+      background-color: white;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      padding: 8px 12px;
+    }
+
+    .leaflet-control-layers-list {
+      font-size: 13px;
+    }
+
+    .leaflet-control-layers label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 4px 0;
+      cursor: pointer;
+    }
+
+    .leaflet-control-layers-overlays {
+      padding-top: 5px;
+    }
+
+    /* Zoom extent button styling */
+    .zoom-extent-btn {
+      background-color: white;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-radius: 4px;
+      width: 34px;
+      height: 34px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    }
+
+    .zoom-extent-btn:hover {
+      background-color: #f4f4f4;
+    }
+
+    .zoom-extent-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: #333;
+    }
+
+    /* Scale control styling */
+    .leaflet-control-scale-line {
+      background-color: rgba(255,255,255,0.8);
+      border: 1px solid #666;
+      border-top: none;
+      font-size: 11px;
+      padding: 2px 5px;
+    }
   </style>
 </head>
 <body>
@@ -358,19 +454,6 @@
       <!-- Sidebar -->
       <aside id="sidebar">
         <div class="sidebar-section">
-          <div class="section-heading">Project Information</div>
-          <input
-            type="text"
-            id="projectName"
-            placeholder="Enter project name..."
-            aria-label="Project Name"
-          >
-          <div class="helper-text">Required for PDF generation</div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="sidebar-section">
           <div class="section-heading">Draw Your Project</div>
           <button class="btn btn-draw" id="drawLineButton">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
@@ -388,40 +471,64 @@
             Mark Location (Point)
           </button>
           <div class="helper-text">Choose line for corridor projects or point for specific locations</div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="sidebar-section">
-          <button class="btn btn-primary" id="pdfButton" disabled>
-            Download PDF Report
-          </button>
-
-          <button class="btn btn-secondary" id="clearButton">
-            Clear Drawing & Results
+          <button class="btn btn-secondary" id="zoomExtentButton" style="margin-top: 10px; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+              <path d="M9 3v18M15 3v18M3 9h18M3 15h18"></path>
+            </svg>
+            Zoom to Full Extent
           </button>
         </div>
 
         <div class="divider"></div>
 
         <div class="sidebar-section">
-          <div class="section-heading">MATA Routes</div>
-          <ul class="results-list" id="routesList">
-            <li class="empty-state">Draw a project alignment (line) or location (point) to see results</li>
-          </ul>
+          <div class="section-heading">Analysis Results</div>
+          
+          <div class="results-card routes">
+            <div class="section-heading">MATA Routes <span class="result-count" id="routesCount">0</span></div>
+            <ul class="results-list" id="routesList">
+              <li class="empty-state">Draw a project to see results</li>
+            </ul>
+          </div>
+
+          <div class="results-card zones">
+            <div class="section-heading">Opportunity Zones <span class="result-count" id="zonesCount">0</span></div>
+            <ul class="results-list" id="zonesList">
+              <li class="empty-state">Draw a project to see results</li>
+            </ul>
+          </div>
+
+          <div class="results-card bridges">
+            <div class="section-heading">Bridges (within 300 ft) <span class="result-count" id="bridgesCount">0</span></div>
+            <div id="bridgesContainer">
+              <p class="empty-state">Draw a project to see results</p>
+            </div>
+          </div>
         </div>
 
-        <div class="sidebar-section">
-          <div class="section-heading">Opportunity Zones</div>
-          <ul class="results-list" id="zonesList">
-            <li class="empty-state">Draw a project alignment (line) or location (point) to see results</li>
-          </ul>
-        </div>
+        <!-- Project name and PDF section - hidden until drawing complete -->
+        <div id="projectNameSection">
+          <div class="divider"></div>
+          
+          <div class="sidebar-section">
+            <div class="section-heading">Generate Report</div>
+            <label for="projectName" style="font-size: 13px; color: #666; margin-bottom: 5px; display: block;">Project Name</label>
+            <input
+              type="text"
+              id="projectName"
+              placeholder="Enter project name..."
+              aria-label="Project Name"
+            >
+            <div class="helper-text" style="margin-bottom: 15px;">Required for PDF report</div>
+            
+            <button class="btn btn-primary" id="pdfButton" disabled>
+              Download PDF Report
+            </button>
 
-        <div class="sidebar-section">
-          <div class="section-heading">Bridges (within 300 ft)</div>
-          <div id="bridgesContainer">
-            <p class="empty-state">Draw a project alignment (line) or location (point) to see results</p>
+            <button class="btn btn-secondary" id="clearButton">
+              Clear & Start Over
+            </button>
           </div>
         </div>
       </aside>
@@ -634,9 +741,16 @@
       });
 
       // Add CartoDB Positron basemap (light, clean style)
-      L.tileLayer(CONFIG.basemapUrl, {
+      const basemap = L.tileLayer(CONFIG.basemapUrl, {
         attribution: CONFIG.basemapAttribution,
         maxZoom: 19
+      }).addTo(map);
+
+      // Add scale control (bottom left)
+      L.control.scale({
+        imperial: true,
+        metric: false,
+        position: 'bottomleft'
       }).addTo(map);
     }
 
@@ -669,7 +783,8 @@
             this.setStyle(CONFIG.styles.routes);
           });
         }
-      }).addTo(map);
+      });
+      // Layer NOT added to map by default - will show in PDF only
 
       // ========== OPPORTUNITY ZONES LAYER ==========
       featureLayers.zones = L.geoJSON(geoJsonData.zones, {
@@ -695,7 +810,8 @@
             this.setStyle(CONFIG.styles.zones);
           });
         }
-      }).addTo(map);
+      });
+      // Layer NOT added to map by default - will show in PDF only
 
       // ========== BRIDGES LAYER ==========
       featureLayers.bridges = L.geoJSON(geoJsonData.bridges, {
@@ -728,6 +844,19 @@
             this.setOptions(CONFIG.styles.bridges);
           });
         }
+      });
+      // Layer NOT added to map by default - will show in PDF only
+
+      // ========== LAYER CONTROL ==========
+      const overlayLayers = {
+        '<span style="color:#0066CC;">●</span> MATA Routes': featureLayers.routes,
+        '<span style="color:#FFD700;">■</span> Opportunity Zones': featureLayers.zones,
+        '<span style="color:#DC143C;">●</span> Bridges': featureLayers.bridges
+      };
+
+      L.control.layers(null, overlayLayers, {
+        collapsed: false,
+        position: 'topright'
       }).addTo(map);
     }
 
@@ -841,8 +970,8 @@
       // Display results in sidebar
       displayResults(results);
 
-      // Show clear button
-      document.getElementById('clearButton').style.display = 'block';
+      // Show project name/PDF section
+      document.getElementById('projectNameSection').classList.add('visible');
 
       // Focus project name input
       document.getElementById('projectName').focus();
@@ -863,8 +992,8 @@
       // Clear results
       clearResults();
 
-      // Hide clear button
-      document.getElementById('clearButton').style.display = 'none';
+      // Hide project name/PDF section
+      document.getElementById('projectNameSection').classList.remove('visible');
     }
 
     /**
@@ -954,6 +1083,7 @@
       document.getElementById('projectName').addEventListener('input', onProjectNameInput);
       document.getElementById('drawLineButton').addEventListener('click', onDrawLineButtonClicked);
       document.getElementById('drawPointButton').addEventListener('click', onDrawPointButtonClicked);
+      document.getElementById('zoomExtentButton').addEventListener('click', fitMapToBounds);
     }
 
     // ============================================
@@ -1125,6 +1255,11 @@
      * @param {Object} results - Analysis results
      */
     function displayResults(results) {
+      // Update count badges
+      document.getElementById('routesCount').textContent = results.routes.length;
+      document.getElementById('zonesCount').textContent = results.zones.length;
+      document.getElementById('bridgesCount').textContent = results.bridges.length;
+
       // Display MATA Routes
       const routesList = document.getElementById('routesList');
       routesList.innerHTML = '';
@@ -1198,17 +1333,22 @@
      * Resets to initial empty state
      */
     function clearResults() {
+      // Reset count badges
+      document.getElementById('routesCount').textContent = '0';
+      document.getElementById('zonesCount').textContent = '0';
+      document.getElementById('bridgesCount').textContent = '0';
+
       // Clear routes
       document.getElementById('routesList').innerHTML =
-        '<li class="empty-state">Draw a project alignment (line) or location (point) to see results</li>';
+        '<li class="empty-state">Draw a project to see results</li>';
 
       // Clear zones
       document.getElementById('zonesList').innerHTML =
-        '<li class="empty-state">Draw a project alignment (line) or location (point) to see results</li>';
+        '<li class="empty-state">Draw a project to see results</li>';
 
       // Clear bridges
       document.getElementById('bridgesContainer').innerHTML =
-        '<p class="empty-state">Draw a project alignment (line) or location (point) to see results</p>';
+        '<p class="empty-state">Draw a project to see results</p>';
 
       // Clear project name
       document.getElementById('projectName').value = '';
@@ -1237,6 +1377,13 @@
         return;
       }
 
+      // Track which layers were visible before PDF generation
+      const layerStates = {
+        routes: map.hasLayer(featureLayers.routes),
+        zones: map.hasLayer(featureLayers.zones),
+        bridges: map.hasLayer(featureLayers.bridges)
+      };
+
       try {
         // Disable button and show loading state
         const pdfButton = document.getElementById('pdfButton');
@@ -1244,22 +1391,58 @@
         pdfButton.disabled = true;
         pdfButton.textContent = 'Generating PDF...';
 
+        // Show loading overlay with PDF progress
+        showLoading(true, 'Preparing map for PDF...');
+
+        // Temporarily add all reference layers to map for PDF capture
+        if (!layerStates.routes) map.addLayer(featureLayers.routes);
+        if (!layerStates.zones) map.addLayer(featureLayers.zones);
+        if (!layerStates.bridges) map.addLayer(featureLayers.bridges);
+
         // Auto-zoom map to show drawn line and intersecting features
+        // Use animate: false to ensure immediate positioning
         const optimalBounds = getOptimalMapBounds();
         if (optimalBounds) {
-          map.fitBounds(optimalBounds, { padding: [50, 50] });
+          map.fitBounds(optimalBounds, { 
+            padding: [50, 50],
+            animate: false  // Critical: prevents capture during animation
+          });
         }
 
-        // Wait for map to render
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Wait for map tiles to load before capturing
+        showLoading(true, 'Loading map tiles...');
+        await waitForTilesToLoad();
+
+        // Additional buffer for any remaining rendering
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        showLoading(true, 'Capturing map image...');
 
         // Capture map as image using html2canvas
         const mapElement = document.getElementById('map');
         const canvas = await html2canvas(mapElement, {
           useCORS: true,
+          allowTaint: true,
           scale: 2,  // Higher DPI for better quality
-          logging: false
+          logging: false,
+          backgroundColor: '#ffffff',
+          // Ensure we capture all layers
+          onclone: function(clonedDoc) {
+            // Force all Leaflet panes to be visible in clone
+            const panes = clonedDoc.querySelectorAll('.leaflet-pane');
+            panes.forEach(pane => {
+              pane.style.opacity = '1';
+              pane.style.visibility = 'visible';
+            });
+          }
         });
+
+        // Restore layer visibility to previous state
+        if (!layerStates.routes) map.removeLayer(featureLayers.routes);
+        if (!layerStates.zones) map.removeLayer(featureLayers.zones);
+        if (!layerStates.bridges) map.removeLayer(featureLayers.bridges);
+
+        showLoading(true, 'Building PDF document...');
 
         const mapImageData = canvas.toDataURL('image/png');
 
@@ -1322,63 +1505,64 @@
         yPosition += mapHeight + 0.4;
 
         // ========== RESULTS SECTION ==========
+        // Only include sections that have results
 
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
+        const hasAnyResults = currentResults.routes.length > 0 || 
+                              currentResults.zones.length > 0 || 
+                              currentResults.bridges.length > 0;
 
-        // MATA Routes
-        pdf.text('MATA Routes:', margin, yPosition);
-        yPosition += 0.2;
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
+        if (hasAnyResults) {
+          pdf.setFontSize(12);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('Analysis Results', margin, yPosition);
+          yPosition += 0.3;
+        }
 
-        if (currentResults.routes.length === 0) {
-          pdf.text('  • No MATA routes intersected', margin, yPosition);
+        // MATA Routes - only if results exist
+        if (currentResults.routes.length > 0) {
+          pdf.setFontSize(11);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('MATA Routes:', margin, yPosition);
           yPosition += 0.2;
-        } else {
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+
           currentResults.routes.forEach(route => {
             pdf.text(`  • ${route}`, margin, yPosition);
-            yPosition += 0.2;
+            yPosition += 0.18;
           });
+          yPosition += 0.15;
         }
-        yPosition += 0.2;
 
-        // Opportunity Zones
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Opportunity Zones:', margin, yPosition);
-        yPosition += 0.2;
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-
-        if (currentResults.zones.length === 0) {
-          pdf.text('  • No opportunity zones intersected', margin, yPosition);
+        // Opportunity Zones - only if results exist
+        if (currentResults.zones.length > 0) {
+          pdf.setFontSize(11);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('Opportunity Zones:', margin, yPosition);
           yPosition += 0.2;
-        } else {
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+
           currentResults.zones.forEach(zone => {
             pdf.text(`  • Census Tract ${zone}`, margin, yPosition);
-            yPosition += 0.2;
+            yPosition += 0.18;
           });
+          yPosition += 0.15;
         }
-        yPosition += 0.2;
 
-        // Bridges
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Bridges (within 300 feet):', margin, yPosition);
-        yPosition += 0.2;
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-
-        if (currentResults.bridges.length === 0) {
-          pdf.text('  • No bridges within 300 feet', margin, yPosition);
+        // Bridges - only if results exist
+        if (currentResults.bridges.length > 0) {
+          pdf.setFontSize(11);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('Bridges (within 300 feet):', margin, yPosition);
           yPosition += 0.2;
-        } else {
-          // Create simple table for bridges
+          pdf.setFontSize(10);
+
+          // Table header
           pdf.setFont('helvetica', 'bold');
           pdf.text('NBI Structure ID', margin + 0.2, yPosition);
           pdf.text('Condition', margin + 3, yPosition);
-          yPosition += 0.15;
+          yPosition += 0.18;
           pdf.setFont('helvetica', 'normal');
 
           currentResults.bridges.forEach(bridge => {
@@ -1400,12 +1584,28 @@
         const fileName = formatFileName(projectName);
         pdf.save(fileName);
 
+        // Hide loading overlay
+        showLoading(false);
+
         // Re-enable button
         pdfButton.disabled = false;
         pdfButton.textContent = originalText;
 
       } catch (error) {
         console.error('PDF generation error:', error);
+        
+        // Restore layer visibility to previous state on error
+        if (!layerStates.routes && map.hasLayer(featureLayers.routes)) {
+          map.removeLayer(featureLayers.routes);
+        }
+        if (!layerStates.zones && map.hasLayer(featureLayers.zones)) {
+          map.removeLayer(featureLayers.zones);
+        }
+        if (!layerStates.bridges && map.hasLayer(featureLayers.bridges)) {
+          map.removeLayer(featureLayers.bridges);
+        }
+
+        showLoading(false);
         showError('Failed to generate PDF. Please try again.');
 
         // Re-enable button
@@ -1495,6 +1695,68 @@
     // ============================================
     // UTILITY FUNCTIONS
     // ============================================
+
+    /**
+     * Wait for all map tiles to finish loading
+     * Returns a promise that resolves when tiles are loaded
+     * @returns {Promise} Resolves when tiles are loaded or after timeout
+     */
+    function waitForTilesToLoad() {
+      return new Promise((resolve) => {
+        // Get the tile layer from map
+        let tileLayer = null;
+        map.eachLayer(layer => {
+          if (layer instanceof L.TileLayer) {
+            tileLayer = layer;
+          }
+        });
+
+        if (!tileLayer) {
+          // No tile layer found, resolve immediately
+          resolve();
+          return;
+        }
+
+        // Check if tiles are already loaded
+        let pendingTiles = 0;
+        const container = tileLayer.getContainer();
+        if (container) {
+          const tiles = container.querySelectorAll('img');
+          tiles.forEach(tile => {
+            if (!tile.complete) pendingTiles++;
+          });
+        }
+
+        if (pendingTiles === 0) {
+          // All tiles already loaded
+          resolve();
+          return;
+        }
+
+        // Wait for 'load' event or timeout
+        let resolved = false;
+        
+        const onLoad = () => {
+          if (!resolved) {
+            resolved = true;
+            tileLayer.off('load', onLoad);
+            resolve();
+          }
+        };
+
+        tileLayer.on('load', onLoad);
+
+        // Timeout fallback (3 seconds max wait)
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            tileLayer.off('load', onLoad);
+            console.warn('Tile load timeout - proceeding with capture');
+            resolve();
+          }
+        }, 3000);
+      });
+    }
 
     /**
      * Validate drawn geometry meets minimum length requirement
