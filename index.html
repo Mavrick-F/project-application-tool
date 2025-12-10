@@ -583,7 +583,7 @@
         },
         drawnLine: {
           color: '#FF0000',
-          weight: 4,
+          weight: 8,
           opacity: 0.8
         }
       },
@@ -865,9 +865,9 @@
       markerDrawer = new L.Draw.Marker(map, {
         icon: L.divIcon({
           className: 'project-marker',
-          html: '<div style="background-color: #FF0000; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
-          iconSize: [16, 16],
-          iconAnchor: [8, 8]
+          html: '<div style="background-color: #FF0000; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white;"></div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
         })
       });
 
@@ -1595,7 +1595,7 @@
           checkPageBreak(0.6);
           pdf.setFontSize(11);
           pdf.setFont('helvetica', 'bold');
-          pdf.text('Bridges (within 300 feet):', margin, yPosition);
+          pdf.text('Bridges:', margin, yPosition);
           yPosition += 0.2;
           pdf.setFontSize(10);
 
