@@ -45,16 +45,18 @@
     header {
       display: flex;
       align-items: center;
-      padding: 10px 20px;
-      background-color: #004C97;
+      padding: 15px 20px;
+      background-color: #1565C0;
       color: white;
-      height: 60px;
+      min-height: 80px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
     header img {
-      height: 40px;
-      margin-right: 15px;
+      height: 60px;
+      max-width: 200px;
+      margin-right: 20px;
+      object-fit: contain;
     }
 
     header h1 {
@@ -94,7 +96,7 @@
     .section-heading {
       font-size: 16px;
       font-weight: bold;
-      color: #004C97;
+      color: #1565C0;
       margin-bottom: 10px;
       text-transform: uppercase;
     }
@@ -117,8 +119,8 @@
 
     #projectName:focus {
       outline: none;
-      border-color: #004C97;
-      box-shadow: 0 0 0 2px rgba(0, 76, 151, 0.1);
+      border-color: #1565C0;
+      box-shadow: 0 0 0 2px rgba(21, 101, 192, 0.1);
     }
 
     /* Results lists */
@@ -137,7 +139,7 @@
       content: "•";
       position: absolute;
       left: 0;
-      color: #004C97;
+      color: #1565C0;
       font-weight: bold;
     }
 
@@ -189,12 +191,12 @@
     }
 
     .btn-primary {
-      background-color: #004C97;
+      background-color: #1565C0;
       color: white;
     }
 
     .btn-primary:hover:not(:disabled) {
-      background-color: #003366;
+      background-color: #0D47A1;
     }
 
     .btn-primary:disabled {
@@ -217,7 +219,7 @@
     }
 
     .btn-draw {
-      background-color: #004C97;
+      background-color: #1565C0;
       color: white;
       margin-bottom: 10px;
       min-height: 50px;
@@ -228,16 +230,16 @@
     }
 
     .btn-draw:hover {
-      background-color: #003366;
+      background-color: #0D47A1;
     }
 
     .btn-draw.active {
-      background-color: #00CC66;
-      box-shadow: 0 0 0 3px rgba(0, 204, 102, 0.3);
+      background-color: #43A047;
+      box-shadow: 0 0 0 3px rgba(67, 160, 71, 0.3);
     }
 
     .btn-draw.active:hover {
-      background-color: #00B359;
+      background-color: #2E7D32;
     }
 
     /* Helper text */
@@ -316,11 +318,11 @@
        LEAFLET CUSTOMIZATIONS
        ============================================ */
     .leaflet-draw-toolbar a {
-      background-color: #004C97;
+      background-color: #1565C0;
     }
 
     .leaflet-draw-draw-polyline {
-      background-color: #004C97;
+      background-color: #1565C0;
     }
 
     /* Custom tooltip styling */
@@ -391,6 +393,18 @@
         <div class="divider"></div>
 
         <div class="sidebar-section">
+          <button class="btn btn-primary" id="pdfButton" disabled>
+            Download PDF Report
+          </button>
+
+          <button class="btn btn-secondary" id="clearButton">
+            Clear Drawing & Results
+          </button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="sidebar-section">
           <div class="section-heading">MATA Routes</div>
           <ul class="results-list" id="routesList">
             <li class="empty-state">Draw a project alignment (line) or location (point) to see results</li>
@@ -410,16 +424,6 @@
             <p class="empty-state">Draw a project alignment (line) or location (point) to see results</p>
           </div>
         </div>
-
-        <div class="divider"></div>
-
-        <button class="btn btn-primary" id="pdfButton" disabled>
-          Download PDF Report
-        </button>
-
-        <button class="btn btn-secondary" id="clearButton">
-          Clear Drawing & Results
-        </button>
       </aside>
 
       <!-- Map -->
@@ -1412,8 +1416,8 @@
     }
 
     /**
-     * Calculate optimal map bounds to show drawn line and all intersecting features
-     * Adds 10% padding around the combined bounds
+     * Calculate optimal map bounds to show drawn geometry and all intersecting features
+     * Works for both lines and points
      * @returns {L.LatLngBounds} Bounds object for map fitting
      */
     function getOptimalMapBounds() {
@@ -1421,13 +1425,51 @@
 
       const bounds = L.latLngBounds([]);
 
-      // Add drawn line bounds
-      bounds.extend(drawnLayer.getBounds());
+      // Handle different layer types
+      if (drawnLayer.getBounds) {
+        // LineString - has getBounds method
+        bounds.extend(drawnLayer.getBounds());
+      } else if (drawnLayer.getLatLng) {
+        // Point/Marker - use getLatLng
+        const latlng = drawnLayer.getLatLng();
+        // Create a small bounds around the point (0.01 degrees ~ 1km)
+        bounds.extend([
+          [latlng.lat - 0.01, latlng.lng - 0.01],
+          [latlng.lat + 0.01, latlng.lng + 0.01]
+        ]);
+      }
 
-      // Add bounds of intersecting features
-      // This ensures all relevant features are visible in the PDF map
+      // Add bounds of intersecting routes
+      currentResults.routes.forEach(routeName => {
+        featureLayers.routes.eachLayer(layer => {
+          const name = layer.feature.properties.Name;
+          if (name === routeName && layer.getBounds) {
+            bounds.extend(layer.getBounds());
+          }
+        });
+      });
 
-      return bounds;
+      // Add bounds of intersecting zones
+      currentResults.zones.forEach(tractId => {
+        featureLayers.zones.eachLayer(layer => {
+          const tract = layer.feature.properties.CENSUSTRAC;
+          if (tract === tractId && layer.getBounds) {
+            bounds.extend(layer.getBounds());
+          }
+        });
+      });
+
+      // Add nearby bridges
+      currentResults.bridges.forEach(bridge => {
+        featureLayers.bridges.eachLayer(layer => {
+          const nbiId = layer.feature.properties.STRUCTURE_;
+          if (nbiId === bridge.nbiId && layer.getLatLng) {
+            bounds.extend(layer.getLatLng());
+          }
+        });
+      });
+
+      return bounds.isValid() ? bounds : null;
     }
 
     /**
