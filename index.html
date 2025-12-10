@@ -765,10 +765,7 @@
         onEachFeature: (feature, layer) => {
           const routeName = feature.properties.Name || 'Unknown Route';
 
-          // Bind popup
-          layer.bindPopup(`<strong>MATA Route:</strong><br>${routeName}`);
-
-          // Bind tooltip for hover
+          // Bind tooltip for hover (no popup/selection)
           layer.bindTooltip(routeName, {
             sticky: true,
             className: 'leaflet-tooltip'
@@ -783,8 +780,7 @@
             this.setStyle(CONFIG.styles.routes);
           });
         }
-      });
-      // Layer NOT added to map by default - will show in PDF only
+      }).addTo(map);  // Add to map by default for hover functionality
 
       // ========== OPPORTUNITY ZONES LAYER ==========
       featureLayers.zones = L.geoJSON(geoJsonData.zones, {
@@ -792,10 +788,7 @@
         onEachFeature: (feature, layer) => {
           const tractId = feature.properties.CENSUSTRAC || 'Unknown Tract';
 
-          // Bind popup
-          layer.bindPopup(`<strong>Opportunity Zone:</strong><br>Census Tract ${tractId}`);
-
-          // Bind tooltip for hover
+          // Bind tooltip for hover (no popup/selection)
           layer.bindTooltip(`Census Tract ${tractId}`, {
             sticky: true,
             className: 'leaflet-tooltip'
@@ -810,8 +803,7 @@
             this.setStyle(CONFIG.styles.zones);
           });
         }
-      });
-      // Layer NOT added to map by default - will show in PDF only
+      }).addTo(map);  // Add to map by default for hover functionality
 
       // ========== BRIDGES LAYER ==========
       featureLayers.bridges = L.geoJSON(geoJsonData.bridges, {
@@ -822,14 +814,7 @@
           const nbiId = feature.properties.STRUCTURE_ || 'Unknown';
           const condition = feature.properties.Condition || 'Unknown';
 
-          // Bind popup
-          layer.bindPopup(`
-            <strong>Bridge:</strong><br>
-            NBI ID: ${nbiId}<br>
-            Condition: ${condition}
-          `);
-
-          // Bind tooltip for hover
+          // Bind tooltip for hover (no popup/selection)
           layer.bindTooltip(`NBI: ${nbiId} | Condition: ${condition}`, {
             sticky: true,
             className: 'leaflet-tooltip'
@@ -844,20 +829,9 @@
             this.setOptions(CONFIG.styles.bridges);
           });
         }
-      });
-      // Layer NOT added to map by default - will show in PDF only
+      }).addTo(map);  // Add to map by default for hover functionality
 
-      // ========== LAYER CONTROL ==========
-      const overlayLayers = {
-        '<span style="color:#0066CC;">●</span> MATA Routes': featureLayers.routes,
-        '<span style="color:#FFD700;">■</span> Opportunity Zones': featureLayers.zones,
-        '<span style="color:#DC143C;">●</span> Bridges': featureLayers.bridges
-      };
-
-      L.control.layers(null, overlayLayers, {
-        collapsed: false,
-        position: 'topright'
-      }).addTo(map);
+      // Layer control removed - layers are always visible with hover tooltips only
     }
 
     /**
@@ -1117,8 +1091,8 @@
     }
 
     /**
-     * Find all MATA routes that intersect the drawn geometry
-     * For Lines: Uses Turf.js booleanIntersects for line-to-line intersection
+     * Find all MATA routes that follow the same path as the drawn geometry
+     * For Lines: Uses Turf.js lineOverlap to detect routes that follow the same path
      * For Points: Uses 300ft buffer around point to find nearby routes
      * @param {Object} featureOrGeometry - GeoJSON Feature or geometry (LineString or Point)
      * @returns {Array} Array of route names
@@ -1136,8 +1110,14 @@
           let intersects = false;
 
           if (geometry.type === 'LineString') {
-            // Line-to-line intersection
-            intersects = turf.booleanIntersects(geometry, route);
+            // For lines: check if routes follow the same path (not just cross)
+            // Use lineOverlap to find segments where lines follow the same path
+            const overlap = turf.lineOverlap(geometry, route, { tolerance: 0.001 });
+
+            // If there's any overlap, the route follows the path
+            if (overlap.features.length > 0) {
+              intersects = true;
+            }
           } else if (geometry.type === 'Point') {
             // Point: buffer the point by 300ft and check if route intersects buffer
             const buffered = turf.buffer(geometry, CONFIG.bridgeBufferDistance, {
@@ -1155,8 +1135,16 @@
         }
       });
 
-      // Sort alphabetically
-      return intersectingRoutes.sort();
+      // Filter out IB/OB suffixes and deduplicate MATA routes
+      const consolidatedRoutes = new Set();
+      intersectingRoutes.forEach(routeName => {
+        // Remove " IB" or " OB" suffix (case insensitive)
+        const baseRouteName = routeName.replace(/\s+(IB|OB)$/i, '');
+        consolidatedRoutes.add(baseRouteName);
+      });
+
+      // Convert Set back to array and sort alphabetically
+      return Array.from(consolidatedRoutes).sort();
     }
 
     /**
@@ -1377,13 +1365,6 @@
         return;
       }
 
-      // Track which layers were visible before PDF generation
-      const layerStates = {
-        routes: map.hasLayer(featureLayers.routes),
-        zones: map.hasLayer(featureLayers.zones),
-        bridges: map.hasLayer(featureLayers.bridges)
-      };
-
       try {
         // Disable button and show loading state
         const pdfButton = document.getElementById('pdfButton');
@@ -1394,10 +1375,7 @@
         // Show loading overlay with PDF progress
         showLoading(true, 'Preparing map for PDF...');
 
-        // Temporarily add all reference layers to map for PDF capture
-        if (!layerStates.routes) map.addLayer(featureLayers.routes);
-        if (!layerStates.zones) map.addLayer(featureLayers.zones);
-        if (!layerStates.bridges) map.addLayer(featureLayers.bridges);
+        // All reference layers are always visible on the map now
 
         // Auto-zoom map to show drawn line and intersecting features
         // Use animate: false to ensure immediate positioning
@@ -1437,10 +1415,7 @@
           }
         });
 
-        // Restore layer visibility to previous state
-        if (!layerStates.routes) map.removeLayer(featureLayers.routes);
-        if (!layerStates.zones) map.removeLayer(featureLayers.zones);
-        if (!layerStates.bridges) map.removeLayer(featureLayers.bridges);
+        // Layers are always visible now, no need to restore state
 
         showLoading(true, 'Building PDF document...');
 
@@ -1459,8 +1434,20 @@
         const pageHeight = 11;
         const margin = 0.5;
         const contentWidth = pageWidth - (2 * margin);
+        const bottomMargin = 0.5;  // Space for footer
+        const maxY = pageHeight - bottomMargin;  // Maximum Y position before new page
 
         let yPosition = margin;
+
+        // Helper function to check if we need a new page
+        const checkPageBreak = (requiredSpace) => {
+          if (yPosition + requiredSpace > maxY) {
+            pdf.addPage();
+            yPosition = margin;
+            return true;
+          }
+          return false;
+        };
 
         // ========== HEADER SECTION ==========
 
@@ -1501,6 +1488,9 @@
         const mapHeight = (canvas.height / canvas.width) * mapWidth;
         const mapX = (pageWidth - mapWidth) / 2;
 
+        // Check if map fits on current page
+        checkPageBreak(mapHeight);
+
         pdf.addImage(mapImageData, 'PNG', mapX, yPosition, mapWidth, mapHeight);
         yPosition += mapHeight + 0.4;
 
@@ -1512,6 +1502,7 @@
                               currentResults.bridges.length > 0;
 
         if (hasAnyResults) {
+          checkPageBreak(0.3);
           pdf.setFontSize(12);
           pdf.setFont('helvetica', 'bold');
           pdf.text('Analysis Results', margin, yPosition);
@@ -1520,6 +1511,7 @@
 
         // MATA Routes - only if results exist
         if (currentResults.routes.length > 0) {
+          checkPageBreak(0.5);
           pdf.setFontSize(11);
           pdf.setFont('helvetica', 'bold');
           pdf.text('MATA Routes:', margin, yPosition);
@@ -1528,6 +1520,7 @@
           pdf.setFont('helvetica', 'normal');
 
           currentResults.routes.forEach(route => {
+            checkPageBreak(0.18);
             pdf.text(`  • ${route}`, margin, yPosition);
             yPosition += 0.18;
           });
@@ -1536,6 +1529,7 @@
 
         // Opportunity Zones - only if results exist
         if (currentResults.zones.length > 0) {
+          checkPageBreak(0.5);
           pdf.setFontSize(11);
           pdf.setFont('helvetica', 'bold');
           pdf.text('Opportunity Zones:', margin, yPosition);
@@ -1544,6 +1538,7 @@
           pdf.setFont('helvetica', 'normal');
 
           currentResults.zones.forEach(zone => {
+            checkPageBreak(0.18);
             pdf.text(`  • Census Tract ${zone}`, margin, yPosition);
             yPosition += 0.18;
           });
@@ -1552,6 +1547,7 @@
 
         // Bridges - only if results exist
         if (currentResults.bridges.length > 0) {
+          checkPageBreak(0.5);
           pdf.setFontSize(11);
           pdf.setFont('helvetica', 'bold');
           pdf.text('Bridges (within 300 feet):', margin, yPosition);
@@ -1559,6 +1555,7 @@
           pdf.setFontSize(10);
 
           // Table header
+          checkPageBreak(0.18);
           pdf.setFont('helvetica', 'bold');
           pdf.text('NBI Structure ID', margin + 0.2, yPosition);
           pdf.text('Condition', margin + 3, yPosition);
@@ -1566,6 +1563,7 @@
           pdf.setFont('helvetica', 'normal');
 
           currentResults.bridges.forEach(bridge => {
+            checkPageBreak(0.15);
             pdf.text(String(bridge.nbiId), margin + 0.2, yPosition);
             pdf.text(String(bridge.condition), margin + 3, yPosition);
             yPosition += 0.15;
@@ -1593,17 +1591,8 @@
 
       } catch (error) {
         console.error('PDF generation error:', error);
-        
-        // Restore layer visibility to previous state on error
-        if (!layerStates.routes && map.hasLayer(featureLayers.routes)) {
-          map.removeLayer(featureLayers.routes);
-        }
-        if (!layerStates.zones && map.hasLayer(featureLayers.zones)) {
-          map.removeLayer(featureLayers.zones);
-        }
-        if (!layerStates.bridges && map.hasLayer(featureLayers.bridges)) {
-          map.removeLayer(featureLayers.bridges);
-        }
+
+        // Layers are always visible now, no need to restore state
 
         showLoading(false);
         showError('Failed to generate PDF. Please try again.');
@@ -1616,7 +1605,7 @@
     }
 
     /**
-     * Calculate optimal map bounds to show drawn geometry and all intersecting features
+     * Calculate optimal map bounds to focus on the drawn project geometry
      * Works for both lines and points
      * @returns {L.LatLngBounds} Bounds object for map fitting
      */
@@ -1625,49 +1614,22 @@
 
       const bounds = L.latLngBounds([]);
 
-      // Handle different layer types
+      // Handle different layer types - focus on the drawn geometry only
       if (drawnLayer.getBounds) {
         // LineString - has getBounds method
         bounds.extend(drawnLayer.getBounds());
       } else if (drawnLayer.getLatLng) {
         // Point/Marker - use getLatLng
         const latlng = drawnLayer.getLatLng();
-        // Create a small bounds around the point (0.01 degrees ~ 1km)
+        // Create a reasonable bounds around the point (0.005 degrees ~ 500m)
         bounds.extend([
-          [latlng.lat - 0.01, latlng.lng - 0.01],
-          [latlng.lat + 0.01, latlng.lng + 0.01]
+          [latlng.lat - 0.005, latlng.lng - 0.005],
+          [latlng.lat + 0.005, latlng.lng + 0.005]
         ]);
       }
 
-      // Add bounds of intersecting routes
-      currentResults.routes.forEach(routeName => {
-        featureLayers.routes.eachLayer(layer => {
-          const name = layer.feature.properties.Name;
-          if (name === routeName && layer.getBounds) {
-            bounds.extend(layer.getBounds());
-          }
-        });
-      });
-
-      // Add bounds of intersecting zones
-      currentResults.zones.forEach(tractId => {
-        featureLayers.zones.eachLayer(layer => {
-          const tract = layer.feature.properties.CENSUSTRAC;
-          if (tract === tractId && layer.getBounds) {
-            bounds.extend(layer.getBounds());
-          }
-        });
-      });
-
-      // Add nearby bridges
-      currentResults.bridges.forEach(bridge => {
-        featureLayers.bridges.eachLayer(layer => {
-          const nbiId = layer.feature.properties.STRUCTURE_;
-          if (nbiId === bridge.nbiId && layer.getLatLng) {
-            bounds.extend(layer.getLatLng());
-          }
-        });
-      });
+      // Focus on project geometry only, not all intersecting features
+      // This keeps the map zoomed in on the actual project area
 
       return bounds.isValid() ? bounds : null;
     }
