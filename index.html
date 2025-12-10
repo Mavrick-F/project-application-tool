@@ -458,9 +458,34 @@
 
         <div class="divider"></div>
 
+        <!-- Project name and PDF section - hidden until drawing complete -->
+        <div id="projectNameSection">
+          <div class="sidebar-section">
+            <div class="section-heading">Generate Report</div>
+            <label for="projectName" style="font-size: 13px; color: #666; margin-bottom: 5px; display: block;">Project Name</label>
+            <input
+              type="text"
+              id="projectName"
+              placeholder="Enter project name..."
+              aria-label="Project Name"
+            >
+            <div class="helper-text" style="margin-bottom: 15px;">Required for PDF report</div>
+
+            <button class="btn btn-primary" id="pdfButton" disabled>
+              Download PDF Report
+            </button>
+
+            <button class="btn btn-secondary" id="clearButton">
+              Clear & Start Over
+            </button>
+          </div>
+
+          <div class="divider"></div>
+        </div>
+
         <div class="sidebar-section">
           <div class="section-heading">Analysis Results</div>
-          
+
           <div class="results-card routes">
             <div class="section-heading">MATA Routes <span class="result-count" id="routesCount">0</span></div>
             <ul class="results-list" id="routesList">
@@ -480,31 +505,6 @@
             <div id="bridgesContainer">
               <p class="empty-state">Draw a project to see results</p>
             </div>
-          </div>
-        </div>
-
-        <!-- Project name and PDF section - hidden until drawing complete -->
-        <div id="projectNameSection">
-          <div class="divider"></div>
-          
-          <div class="sidebar-section">
-            <div class="section-heading">Generate Report</div>
-            <label for="projectName" style="font-size: 13px; color: #666; margin-bottom: 5px; display: block;">Project Name</label>
-            <input
-              type="text"
-              id="projectName"
-              placeholder="Enter project name..."
-              aria-label="Project Name"
-            >
-            <div class="helper-text" style="margin-bottom: 15px;">Required for PDF report</div>
-            
-            <button class="btn btn-primary" id="pdfButton" disabled>
-              Download PDF Report
-            </button>
-
-            <button class="btn btn-secondary" id="clearButton">
-              Clear & Start Over
-            </button>
           </div>
         </div>
       </aside>
@@ -541,8 +541,8 @@
       // Map configuration
       mapCenter: null,                // Auto-calculated from data bounds
       mapZoom: 11,                    // Default zoom level
-      basemapUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      basemapAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      basemapUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      basemapAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
 
       // Data file paths
       dataUrls: {
@@ -716,7 +716,7 @@
         attributionControl: true
       });
 
-      // Add CartoDB Positron basemap (light, clean style)
+      // Add CartoDB Voyager basemap (streets style, similar to Google Maps)
       const basemap = L.tileLayer(CONFIG.basemapUrl, {
         attribution: CONFIG.basemapAttribution,
         maxZoom: 19
@@ -1427,9 +1427,10 @@
         // Use animate: false to ensure immediate positioning
         const optimalBounds = getOptimalMapBounds();
         if (optimalBounds) {
-          map.fitBounds(optimalBounds, { 
-            padding: [50, 50],
-            animate: false  // Critical: prevents capture during animation
+          map.fitBounds(optimalBounds, {
+            padding: [80, 80],  // Increased padding for better centering
+            maxZoom: 16,        // Prevent zooming in too close
+            animate: false      // Critical: prevents capture during animation
           });
         }
 
@@ -1676,14 +1677,30 @@
       // Handle different layer types
       if (drawnLayer.getBounds) {
         // LineString - has getBounds method
-        bounds.extend(drawnLayer.getBounds());
+        const lineBounds = drawnLayer.getBounds();
+        bounds.extend(lineBounds);
+
+        // Add extra padding to line bounds for better centering
+        const center = lineBounds.getCenter();
+        const latDiff = Math.abs(lineBounds.getNorth() - lineBounds.getSouth());
+        const lngDiff = Math.abs(lineBounds.getEast() - lineBounds.getWest());
+
+        // Expand bounds by 30% on each side for better framing
+        const latPad = latDiff * 0.3;
+        const lngPad = lngDiff * 0.3;
+
+        bounds.extend([
+          [lineBounds.getNorth() + latPad, lineBounds.getEast() + lngPad],
+          [lineBounds.getSouth() - latPad, lineBounds.getWest() - lngPad]
+        ]);
       } else if (drawnLayer.getLatLng) {
         // Point/Marker - use getLatLng
         const latlng = drawnLayer.getLatLng();
-        // Create a small bounds around the point (0.005 degrees ~ 500m)
+        // Create balanced bounds around the point (0.008 degrees ~ 800m for better framing)
+        const offset = 0.008;
         bounds.extend([
-          [latlng.lat - 0.005, latlng.lng - 0.005],
-          [latlng.lat + 0.005, latlng.lng + 0.005]
+          [latlng.lat - offset, latlng.lng - offset],
+          [latlng.lat + offset, latlng.lng + offset]
         ]);
       }
 
