@@ -406,6 +406,89 @@
       font-size: 11px;
       padding: 2px 5px;
     }
+
+    /* ============================================
+       TUTORIAL POPUP
+       ============================================ */
+    #tutorialPopup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      padding: 30px;
+      max-width: 500px;
+      z-index: 10001;
+      display: none;
+    }
+
+    #tutorialPopup.visible {
+      display: block;
+    }
+
+    #tutorialOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 10000;
+      display: none;
+    }
+
+    #tutorialOverlay.visible {
+      display: block;
+    }
+
+    #tutorialPopup h2 {
+      margin: 0 0 20px 0;
+      color: #1565C0;
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    #tutorialPopup ul {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 25px 0;
+    }
+
+    #tutorialPopup li {
+      padding: 12px 0 12px 30px;
+      position: relative;
+      line-height: 1.6;
+      color: #333;
+      font-size: 15px;
+    }
+
+    #tutorialPopup li:before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #1565C0;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    #tutorialPopup .tutorial-close {
+      width: 100%;
+      padding: 12px;
+      background-color: #1565C0;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    #tutorialPopup .tutorial-close:hover {
+      background-color: #0D47A1;
+    }
   </style>
 </head>
 <body>
@@ -518,6 +601,18 @@
   <div id="loadingOverlay">
     <div class="spinner"></div>
     <div id="loadingText">Loading map data...</div>
+  </div>
+
+  <!-- Tutorial popup -->
+  <div id="tutorialOverlay"></div>
+  <div id="tutorialPopup">
+    <h2>Welcome to the Project Application Tool</h2>
+    <ul>
+      <li>Draw a line for corridor projects OR a point for intersection/spot improvements</li>
+      <li>Your line will find routes running parallel for at least 300ft</li>
+      <li>Results auto-update when you finish drawing</li>
+    </ul>
+    <button class="tutorial-close" id="tutorialCloseButton">Got it!</button>
   </div>
 
   <!-- CDN Scripts -->
@@ -660,10 +755,36 @@
         // Hide loading overlay
         showLoading(false);
 
+        // Show tutorial popup if first visit
+        showTutorialIfFirstVisit();
+
       } catch (error) {
         console.error('Initialization error:', error);
         showError('Failed to initialize the application. Please refresh the page.');
       }
+    }
+
+    /**
+     * Show tutorial popup on first visit
+     * Uses localStorage to track if user has seen the tutorial
+     */
+    function showTutorialIfFirstVisit() {
+      const hasSeenTutorial = localStorage.getItem('hasSeenTutorial');
+
+      if (!hasSeenTutorial) {
+        // Show tutorial popup
+        document.getElementById('tutorialOverlay').classList.add('visible');
+        document.getElementById('tutorialPopup').classList.add('visible');
+      }
+    }
+
+    /**
+     * Close tutorial popup and mark as seen
+     */
+    function closeTutorial() {
+      document.getElementById('tutorialOverlay').classList.remove('visible');
+      document.getElementById('tutorialPopup').classList.remove('visible');
+      localStorage.setItem('hasSeenTutorial', 'true');
     }
 
     // ============================================
@@ -1047,6 +1168,8 @@
       document.getElementById('drawLineButton').addEventListener('click', onDrawLineButtonClicked);
       document.getElementById('drawPointButton').addEventListener('click', onDrawPointButtonClicked);
       document.getElementById('zoomExtentButton').addEventListener('click', fitMapToBounds);
+      document.getElementById('tutorialCloseButton').addEventListener('click', closeTutorial);
+      document.getElementById('tutorialOverlay').addEventListener('click', closeTutorial);
     }
 
     // ============================================
@@ -1492,19 +1615,19 @@
         // Add logo (if available)
         try {
           // Note: For production, you may need to convert logo to base64
-          // For now, we'll add text title
+          // Project name as main title
           pdf.setFontSize(18);
           pdf.setFont('helvetica', 'bold');
-          pdf.text('Project Application Report', pageWidth / 2, yPosition, { align: 'center' });
+          pdf.text(projectName, pageWidth / 2, yPosition, { align: 'center' });
           yPosition += 0.3;
         } catch (error) {
           console.warn('Could not add logo to PDF:', error);
         }
 
-        // Project name
+        // Project Application Report as subtitle
         pdf.setFontSize(14);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(projectName, pageWidth / 2, yPosition, { align: 'center' });
+        pdf.text('Project Application Report', pageWidth / 2, yPosition, { align: 'center' });
         yPosition += 0.3;
 
         // Date generated
@@ -1516,6 +1639,14 @@
           day: 'numeric'
         });
         pdf.text(`Generated: ${currentDate}`, pageWidth - margin, yPosition, { align: 'right' });
+        yPosition += 0.2;
+
+        // Project length (only for line features)
+        if (drawnGeometry && drawnGeometry.geometry && drawnGeometry.geometry.type === 'LineString') {
+          const lengthInMiles = turf.length(drawnGeometry.geometry, { units: 'miles' });
+          pdf.text(`Project Length: ${lengthInMiles.toFixed(1)} miles`, pageWidth - margin, yPosition, { align: 'right' });
+        }
+
         pdf.setTextColor(0, 0, 0);
         yPosition += 0.5;
 
@@ -1667,46 +1798,41 @@
     /**
      * Calculate optimal map bounds to show drawn geometry
      * Focuses on the project area only, not entire intersecting features
+     * Ensures the project is centered in the map view
      * @returns {L.LatLngBounds} Bounds object for map fitting
      */
     function getOptimalMapBounds() {
       if (!drawnLayer) return null;
 
-      const bounds = L.latLngBounds([]);
-
       // Handle different layer types
       if (drawnLayer.getBounds) {
         // LineString - has getBounds method
         const lineBounds = drawnLayer.getBounds();
-        bounds.extend(lineBounds);
-
-        // Add extra padding to line bounds for better centering
         const center = lineBounds.getCenter();
         const latDiff = Math.abs(lineBounds.getNorth() - lineBounds.getSouth());
         const lngDiff = Math.abs(lineBounds.getEast() - lineBounds.getWest());
 
-        // Expand bounds by 30% on each side for better framing
-        const latPad = latDiff * 0.3;
-        const lngPad = lngDiff * 0.3;
+        // Expand bounds evenly around center by 50% on each side for better framing
+        const latPad = latDiff * 0.5;
+        const lngPad = lngDiff * 0.5;
 
-        bounds.extend([
-          [lineBounds.getNorth() + latPad, lineBounds.getEast() + lngPad],
-          [lineBounds.getSouth() - latPad, lineBounds.getWest() - lngPad]
+        // Create new bounds centered on the project center
+        return L.latLngBounds([
+          [center.lat - latDiff / 2 - latPad, center.lng - lngDiff / 2 - lngPad],
+          [center.lat + latDiff / 2 + latPad, center.lng + lngDiff / 2 + lngPad]
         ]);
       } else if (drawnLayer.getLatLng) {
         // Point/Marker - use getLatLng
         const latlng = drawnLayer.getLatLng();
         // Create balanced bounds around the point (0.008 degrees ~ 800m for better framing)
         const offset = 0.008;
-        bounds.extend([
+        return L.latLngBounds([
           [latlng.lat - offset, latlng.lng - offset],
           [latlng.lat + offset, latlng.lng + offset]
         ]);
       }
 
-      // Only use the drawn geometry bounds - don't extend to full routes/zones
-      // which could span the entire city
-      return bounds.isValid() ? bounds : null;
+      return null;
     }
 
     /**
