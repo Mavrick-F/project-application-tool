@@ -1,8 +1,8 @@
 # Memphis MPO Project Application Tool
 
-![Version](https://img.shields.io/badge/version-0.4.0-blue) ![Status](https://img.shields.io/badge/status-in%20development-yellow)
+![Version](https://img.shields.io/badge/version-0.4.1-blue) ![Status](https://img.shields.io/badge/status-in%20development-yellow)
 
-**⚠️ This tool is currently in active development (v0.4.0) and not yet released for production use.**
+**⚠️ This tool is currently in active development (v0.4.1) and not yet released for production use.**
 
 A web-based mapping tool for analyzing transportation project proposals against regional planning datasets. Built for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055.
 
@@ -12,7 +12,7 @@ A web-based mapping tool for analyzing transportation project proposals against 
 
 This tool allows users to draw project alignments or mark specific locations on an interactive map, then automatically identifies intersecting or nearby transportation infrastructure and planning features. The tool generates a PDF report summarizing the spatial relationships between the proposed project and key regional datasets.
 
-**Current Status (v0.4.0):** Core spatial analysis engine is functional with three sample datasets (transit routes, opportunity zones, bridges) representing different geometry types. Significant work remains before v1.0 release:
+**Current Status (v0.4.1):** Core spatial analysis engine is functional with three sample datasets (transit routes, opportunity zones, bridges) representing different geometry types. Significant work remains before v1.0 release:
 - Architecture refactoring for scalable dataset management
 - Integration of ~16 required regional planning datasets
 - User experience improvements and documentation
@@ -27,7 +27,7 @@ See **Data Requirements** section below for full dataset roadmap.
 - **Interactive Map**: Pan, zoom, and draw on a CartoDB Voyager basemap
 
 ### Spatial Analysis
-The tool performs automated spatial analysis. **Current implementation (v0.4.0)** identifies:
+The tool performs automated spatial analysis. **Current implementation (v0.4.1)** identifies:
 - **Transit Routes**: MATA bus routes running parallel to or intersecting the project (300ft corridor matching with minimum 300ft shared length)
 - **Opportunity Zones**: Census tracts designated as Opportunity Zones that the project crosses
 - **Bridges**: Bridge structures within 300 feet of the project alignment
@@ -40,11 +40,11 @@ The tool performs automated spatial analysis. **Current implementation (v0.4.0)*
   - Static map showing project location
   - Complete list of intersecting features
   - Bridge inventory table (NBI IDs and conditions)
-  - Project metadata and timestamp
+  - Project length, metadata, and timestamp
 
 ## Data Requirements
 
-### Current Datasets (v0.4.0)
+### Current Datasets (v0.4.1)
 ✅ **MATA Routes** (lines) - Transit route network  
 ✅ **Opportunity Zones** (polygons) - Census tract designations  
 ✅ **Bridges** (points) - Bridge inventory with conditions  
@@ -201,7 +201,7 @@ project-application-tool/
 
 ### Adding New Datasets
 
-**Current approach (v0.4.0)** - manual and requires code changes:
+**Current approach (v0.4.1)** - manual and requires code changes:
 1. Add GeoJSON file to `/data/`
 2. Update `CONFIG.dataUrls` object
 3. Create new analysis function (e.g., `findIntersectingBikeRoutes()`)
@@ -218,7 +218,7 @@ project-application-tool/
 
 ## Known Limitations
 
-**Development Status (v0.4.0):**
+**Development Status (v0.4.1):**
 - Only 3 of ~16 required datasets currently integrated
 - Architecture requires refactoring for scalable dataset management before adding remaining layers
 - Hardcoded analysis functions need generalization
@@ -243,11 +243,6 @@ project-application-tool/
   - Support for special logic (e.g., crash counting, ALICE criteria)
 
 **Critical User Experience:**
-- [ ] **Welcome/tutorial popup**
-  - Explain line vs point drawing
-  - Clarify corridor matching requirements
-  - Show example use cases
-
 - [ ] **Improved user feedback**
   - Context-aware empty result messages
   - Confirmation dialog for "Clear & Start Over"
