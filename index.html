@@ -216,6 +216,30 @@
       display: none;
     }
 
+    .btn-draw {
+      background-color: #004C97;
+      color: white;
+      margin-bottom: 10px;
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: left;
+    }
+
+    .btn-draw:hover {
+      background-color: #003366;
+    }
+
+    .btn-draw.active {
+      background-color: #00CC66;
+      box-shadow: 0 0 0 3px rgba(0, 204, 102, 0.3);
+    }
+
+    .btn-draw.active:hover {
+      background-color: #00B359;
+    }
+
     /* Helper text */
     .helper-text {
       font-size: 12px;
@@ -323,7 +347,7 @@
   <div id="app">
     <!-- Header -->
     <header>
-      <img src="./assets/rtp_2055_logo.jpg" alt="RTP 2055 Logo">
+      <img src="./assets/rtp-2055-logo.jpg" alt="RTP 2055 Logo">
       <h1>Project Application Tool</h1>
     </header>
 
@@ -340,6 +364,28 @@
             aria-label="Project Name"
           >
           <div class="helper-text">Required for PDF generation</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="sidebar-section">
+          <div class="section-heading">Draw Your Project</div>
+          <button class="btn btn-draw" id="drawLineButton">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
+              <line x1="5" y1="19" x2="19" y2="5"></line>
+              <circle cx="5" cy="19" r="2"></circle>
+              <circle cx="19" cy="5" r="2"></circle>
+            </svg>
+            Draw Alignment (Line)
+          </button>
+          <button class="btn btn-draw" id="drawPointButton">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            Mark Location (Point)
+          </button>
+          <div class="helper-text">Choose line for corridor projects or point for specific locations</div>
         </div>
 
         <div class="divider"></div>
@@ -426,7 +472,8 @@
           opacity: 0.7
         },
         routesHover: {
-          weight: 3
+          weight: 2.5,
+          opacity: 0.85
         },
         zones: {
           color: '#FF8C00',
@@ -440,12 +487,12 @@
         bridges: {
           color: '#DC143C',
           fillColor: '#DC143C',
-          radius: 6,
+          radius: 3,
           fillOpacity: 0.8,
           weight: 1
         },
         bridgesHover: {
-          radius: 8
+          radius: 5
         },
         drawnLine: {
           color: '#FF0000',
@@ -455,7 +502,7 @@
       },
 
       // Logo path
-      logoPath: './assets/rtp_2055_logo.jpg'
+      logoPath: './assets/rtp-2055-logo.jpg'
     };
 
     // ============================================
@@ -465,6 +512,9 @@
     let drawControl;                  // Leaflet.draw control
     let drawnLayer = null;            // Currently drawn polyline layer
     let drawnGeometry = null;         // GeoJSON of drawn line
+    let drawnItems;                   // Feature group for drawn items
+    let polylineDrawer;               // Polyline draw handler
+    let markerDrawer;                 // Marker draw handler
 
     // Layer groups for reference data
     let featureLayers = {
@@ -704,43 +754,40 @@
      */
     function setupDrawingControls() {
       // Create a feature group to store drawn items
-      const drawnItems = new L.FeatureGroup();
+      drawnItems = new L.FeatureGroup();
       map.addLayer(drawnItems);
 
-      // Configure draw control (polyline and marker enabled)
-      drawControl = new L.Control.Draw({
-        position: 'topright',
-        draw: {
-          polyline: {
-            shapeOptions: CONFIG.styles.drawnLine,
-            showLength: true,
-            metric: false,  // Use imperial units (feet)
-            feet: true
-          },
-          polygon: false,
-          rectangle: false,
-          circle: false,
-          marker: {
-            icon: L.divIcon({
-              className: 'project-marker',
-              html: '<div style="background-color: #FF0000; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
-              iconSize: [16, 16],
-              iconAnchor: [8, 8]
-            })
-          },
-          circlemarker: false
-        },
-        edit: {
-          featureGroup: drawnItems,
-          remove: false
-        }
+      // Create draw handlers (but don't add toolbar to map)
+      // These will be triggered programmatically from sidebar buttons
+      polylineDrawer = new L.Draw.Polyline(map, {
+        shapeOptions: CONFIG.styles.drawnLine,
+        showLength: true,
+        metric: false,  // Use imperial units (feet)
+        feet: true
       });
 
-      map.addControl(drawControl);
+      markerDrawer = new L.Draw.Marker(map, {
+        icon: L.divIcon({
+          className: 'project-marker',
+          html: '<div style="background-color: #FF0000; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
+        })
+      });
 
       // Event handler: When drawing is created
       map.on(L.Draw.Event.CREATED, function(event) {
         onDrawCreated(event, drawnItems);
+      });
+
+      // Event handler: When drawing starts
+      map.on(L.Draw.Event.DRAWSTART, function() {
+        updateDrawButtonStates(true);
+      });
+
+      // Event handler: When drawing stops
+      map.on(L.Draw.Event.DRAWSTOP, function() {
+        updateDrawButtonStates(false);
       });
     }
 
@@ -837,12 +884,72 @@
     }
 
     /**
+     * Handle draw line button click
+     * Triggers polyline drawing mode
+     */
+    function onDrawLineButtonClicked() {
+      // Disable marker drawing if active
+      if (markerDrawer._enabled) {
+        markerDrawer.disable();
+      }
+
+      // Toggle polyline drawing
+      if (polylineDrawer._enabled) {
+        polylineDrawer.disable();
+      } else {
+        polylineDrawer.enable();
+      }
+    }
+
+    /**
+     * Handle draw point button click
+     * Triggers marker drawing mode
+     */
+    function onDrawPointButtonClicked() {
+      // Disable polyline drawing if active
+      if (polylineDrawer._enabled) {
+        polylineDrawer.disable();
+      }
+
+      // Toggle marker drawing
+      if (markerDrawer._enabled) {
+        markerDrawer.disable();
+      } else {
+        markerDrawer.enable();
+      }
+    }
+
+    /**
+     * Update visual state of draw buttons
+     * @param {boolean} isDrawing - Whether drawing is active
+     */
+    function updateDrawButtonStates(isDrawing) {
+      const lineButton = document.getElementById('drawLineButton');
+      const pointButton = document.getElementById('drawPointButton');
+
+      if (isDrawing) {
+        if (polylineDrawer._enabled) {
+          lineButton.classList.add('active');
+          pointButton.classList.remove('active');
+        } else if (markerDrawer._enabled) {
+          pointButton.classList.add('active');
+          lineButton.classList.remove('active');
+        }
+      } else {
+        lineButton.classList.remove('active');
+        pointButton.classList.remove('active');
+      }
+    }
+
+    /**
      * Set up all event listeners for the application
      */
     function setupEventListeners() {
       document.getElementById('clearButton').addEventListener('click', onClearClicked);
       document.getElementById('pdfButton').addEventListener('click', onPDFButtonClicked);
       document.getElementById('projectName').addEventListener('input', onProjectNameInput);
+      document.getElementById('drawLineButton').addEventListener('click', onDrawLineButtonClicked);
+      document.getElementById('drawPointButton').addEventListener('click', onDrawPointButtonClicked);
     }
 
     // ============================================
@@ -879,11 +986,16 @@
      * Find all MATA routes that intersect the drawn geometry
      * For Lines: Uses Turf.js booleanIntersects for line-to-line intersection
      * For Points: Uses 300ft buffer around point to find nearby routes
-     * @param {Object} geometry - GeoJSON LineString or Point
+     * @param {Object} featureOrGeometry - GeoJSON Feature or geometry (LineString or Point)
      * @returns {Array} Array of route names
      */
-    function findIntersectingRoutes(geometry) {
+    function findIntersectingRoutes(featureOrGeometry) {
       const intersectingRoutes = [];
+
+      // Extract actual geometry from GeoJSON Feature if needed
+      const geometry = featureOrGeometry.type === 'Feature'
+        ? featureOrGeometry.geometry
+        : featureOrGeometry;
 
       geoJsonData.routes.features.forEach(route => {
         try {
@@ -917,11 +1029,16 @@
      * Find all opportunity zones that intersect the drawn geometry
      * For Lines: Uses Turf.js booleanIntersects for line-to-polygon intersection
      * For Points: Uses Turf.js booleanPointInPolygon to check if point is within zone
-     * @param {Object} geometry - GeoJSON LineString or Point
+     * @param {Object} featureOrGeometry - GeoJSON Feature or geometry (LineString or Point)
      * @returns {Array} Array of census tract IDs
      */
-    function findIntersectingZones(geometry) {
+    function findIntersectingZones(featureOrGeometry) {
       const intersectingZones = [];
+
+      // Extract actual geometry from GeoJSON Feature if needed
+      const geometry = featureOrGeometry.type === 'Feature'
+        ? featureOrGeometry.geometry
+        : featureOrGeometry;
 
       geoJsonData.zones.features.forEach(zone => {
         try {
@@ -951,13 +1068,18 @@
     /**
      * Find all bridges within 300 feet of the drawn geometry
      * Creates a buffer around the line or point and checks point-in-polygon
-     * @param {Object} geometry - GeoJSON LineString or Point
+     * @param {Object} featureOrGeometry - GeoJSON Feature or geometry (LineString or Point)
      * @returns {Array} Array of bridge objects {nbiId, condition}
      */
-    function findNearbyBridges(geometry) {
+    function findNearbyBridges(featureOrGeometry) {
       const nearbyBridges = [];
 
       try {
+        // Extract actual geometry from GeoJSON Feature if needed
+        const geometry = featureOrGeometry.type === 'Feature'
+          ? featureOrGeometry.geometry
+          : featureOrGeometry;
+
         // Create 300-foot buffer around the drawn geometry (works for both lines and points)
         const buffered = turf.buffer(geometry, CONFIG.bridgeBufferDistance, {
           units: CONFIG.bridgeBufferUnits
@@ -1336,11 +1458,18 @@
      * Validate drawn geometry meets minimum length requirement
      * For LineStrings: Uses Turf.js to calculate line length in feet
      * For Points: Always valid (no length requirement)
-     * @param {Object} geometry - GeoJSON geometry
+     * @param {Object} featureOrGeometry - GeoJSON Feature or geometry object
      * @returns {boolean} True if valid, false otherwise
      */
-    function validateGeometry(geometry) {
+    function validateGeometry(featureOrGeometry) {
       try {
+        // Extract actual geometry from GeoJSON Feature if needed
+        const geometry = featureOrGeometry.type === 'Feature'
+          ? featureOrGeometry.geometry
+          : featureOrGeometry;
+
+        console.log('Validating geometry type:', geometry.type);
+
         // Points are always valid
         if (geometry.type === 'Point') {
           console.log('Point geometry detected - validation passed');
