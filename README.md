@@ -59,7 +59,6 @@ The tool performs automated spatial analysis. **Current implementation (v0.4.0)*
 - ❌ **Crash Locations** (points) - Fatality and Serious Injury crashes
   - *Requires counting logic for aggregation*
 - ❌ **Greenprint Plan Network** (lines) - Regional/Intermediate Shared-Use Path and Bikeway connections
-  - *Critical for v1.0 - cannot release without bike infrastructure data*
   - *May consist of multiple files/layers*
 
 **Freight:**
