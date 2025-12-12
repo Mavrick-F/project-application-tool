@@ -6,7 +6,7 @@ This is a web-based mapping tool for the Memphis Metropolitan Planning Organizat
 
 **Current Status:** v0.4.1 (active development, not production-ready)
 
-**Primary User:** MPO staff and regional transportation planners evaluating project applications
+**Primary User:** Engineers from MPO partner agencies will use tool to create pdf reports which they submit as part of project applications. MPO staff will use the pdf reports to evalute project applications.
 
 ## Architecture & Tech Stack
 
