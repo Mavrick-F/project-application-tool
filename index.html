@@ -643,7 +643,14 @@
       dataUrls: {
         routes: './data/mata-routes.json',
         zones: './data/opportunity-zones.json',
-        bridges: './data/bridges.json'
+        bridges: './data/bridges.json',
+        // Feature Service configuration for functional classification
+        functionalClass: {
+          type: 'featureService',
+          // Base URL - layer index will be discovered from service metadata
+          url: 'https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/ETRIMS_Roads_All/FeatureServer',
+          enabled: false  // Set to true once endpoint is accessible
+        }
       },
 
       // Map layer styles
@@ -785,6 +792,439 @@
       document.getElementById('tutorialOverlay').classList.remove('visible');
       document.getElementById('tutorialPopup').classList.remove('visible');
       localStorage.setItem('hasSeenTutorial', 'true');
+    }
+
+    // ============================================
+    // FEATURE SERVICE QUERY MODULE
+    // ============================================
+
+    /**
+     * USAGE EXAMPLE:
+     *
+     * // Option 1: Use base service URL (layer will be auto-discovered)
+     * const result = await queryFeatureService(
+     *   'https://services.../FeatureServer',
+     *   { bbox: [-90.06, 35.13, -90.03, 35.16] }
+     * );
+     *
+     * // Option 2: Specify a particular layer index
+     * const result = await queryFeatureService(
+     *   'https://services.../FeatureServer',
+     *   { bbox: [-90.06, 35.13, -90.03, 35.16], layerIndex: 1 }
+     * );
+     *
+     * // Option 3: Use layer URL directly (skips discovery)
+     * const result = await queryFeatureService(
+     *   'https://services.../FeatureServer/0',
+     *   { bbox: [-90.06, 35.13, -90.03, 35.16] }
+     * );
+     */
+
+    /**
+     * Discover layers from an ArcGIS Feature Service by reading service metadata
+     * @param {string} baseServiceUrl - The Feature Service base URL (ending in /FeatureServer)
+     * @returns {Promise<Object>} - Object with {success, layers, error}
+     */
+    async function discoverFeatureServiceLayers(baseServiceUrl) {
+      try {
+        // Fetch service metadata
+        const metadataUrl = `${baseServiceUrl}?f=json`;
+        console.log('Fetching Feature Service metadata:', metadataUrl);
+
+        const response = await fetch(metadataUrl);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const metadata = await response.json();
+
+        // Check for ArcGIS error response
+        if (metadata.error) {
+          throw new Error(`ArcGIS Error ${metadata.error.code}: ${metadata.error.message}`);
+        }
+
+        // Extract layers information
+        const layers = metadata.layers || [];
+        const tables = metadata.tables || [];
+
+        console.log(`Found ${layers.length} layer(s) and ${tables.length} table(s)`);
+
+        if (layers.length === 0) {
+          throw new Error('No layers found in Feature Service');
+        }
+
+        // Log layer information for debugging
+        layers.forEach(layer => {
+          console.log(`Layer ${layer.id}: ${layer.name} (${layer.geometryType || 'unknown'})`);
+        });
+
+        return {
+          success: true,
+          layers: layers,
+          tables: tables,
+          serviceInfo: {
+            name: metadata.name,
+            description: metadata.description,
+            spatialReference: metadata.spatialReference
+          },
+          error: null
+        };
+
+      } catch (error) {
+        console.error('Failed to discover Feature Service layers:', error);
+        return {
+          success: false,
+          layers: [],
+          tables: [],
+          serviceInfo: null,
+          error: error.message || 'Unknown error occurred'
+        };
+      }
+    }
+
+    /**
+     * Query an ArcGIS Feature Service and return results as GeoJSON
+     * @param {string} serviceUrl - The Feature Service URL (can be base URL or layer URL)
+     * @param {Object} options - Query options
+     * @param {Array} options.bbox - Bounding box [minX, minY, maxX, maxY] in WGS84
+     * @param {string} options.where - SQL where clause (default: "1=1")
+     * @param {Array} options.outFields - Fields to return (default: ["*"])
+     * @param {number} options.maxRecords - Max features to return (default: 1000)
+     * @param {boolean} options.returnGeometry - Whether to return geometry (default: true)
+     * @param {number} options.layerIndex - Layer index to query (default: use first available layer)
+     * @returns {Promise<Object>} - Object with {success, data, error}
+     */
+    async function queryFeatureService(serviceUrl, options = {}) {
+      const {
+        bbox = null,
+        where = '1=1',
+        outFields = ['*'],
+        maxRecords = 1000,
+        returnGeometry = true,
+        layerIndex = null
+      } = options;
+
+      try {
+        // Determine if we have a layer URL or need to discover layers
+        let layerUrl = serviceUrl;
+
+        // Check if URL already includes a layer index (e.g., ends with /0, /1, /2, etc.)
+        const hasLayerIndex = /\/FeatureServer\/\d+\/?$/.test(serviceUrl);
+
+        if (!hasLayerIndex) {
+          // Need to discover layers from service metadata
+          console.log('Layer index not specified in URL, discovering from service metadata...');
+
+          const discoveryResult = await discoverFeatureServiceLayers(serviceUrl);
+
+          if (!discoveryResult.success) {
+            throw new Error(`Failed to discover layers: ${discoveryResult.error}`);
+          }
+
+          if (discoveryResult.layers.length === 0) {
+            throw new Error('No layers found in Feature Service');
+          }
+
+          // Use specified layerIndex or default to first layer
+          const targetLayerIndex = layerIndex !== null ? layerIndex : discoveryResult.layers[0].id;
+          layerUrl = `${serviceUrl}/${targetLayerIndex}`;
+
+          console.log(`Using layer ${targetLayerIndex}: ${discoveryResult.layers.find(l => l.id === targetLayerIndex)?.name || 'Unknown'}`);
+        }
+        // Build query parameters
+        const params = new URLSearchParams({
+          where: where,
+          outFields: outFields.join(','),
+          returnGeometry: returnGeometry.toString(),
+          f: 'json',
+          outSR: '4326'  // Request WGS84 coordinates
+        });
+
+        // Add bbox if provided
+        if (bbox && Array.isArray(bbox) && bbox.length === 4) {
+          const geometryObj = {
+            xmin: bbox[0],
+            ymin: bbox[1],
+            xmax: bbox[2],
+            ymax: bbox[3],
+            spatialReference: { wkid: 4326 }
+          };
+          params.append('geometry', JSON.stringify(geometryObj));
+          params.append('geometryType', 'esriGeometryEnvelope');
+          params.append('spatialRel', 'esriSpatialRelIntersects');
+          params.append('inSR', '4326');
+        }
+
+        // First, get count to determine if pagination is needed
+        const countUrl = `${layerUrl}/query?${new URLSearchParams({
+          where: where,
+          returnCountOnly: 'true',
+          f: 'json'
+        })}`;
+
+        console.log('Querying feature count:', countUrl);
+        const countResponse = await fetch(countUrl);
+
+        if (!countResponse.ok) {
+          throw new Error(`HTTP ${countResponse.status}: ${countResponse.statusText}`);
+        }
+
+        const countData = await countResponse.json();
+
+        // Check for ArcGIS error response
+        if (countData.error) {
+          throw new Error(`ArcGIS Error ${countData.error.code}: ${countData.error.message}`);
+        }
+
+        const totalCount = countData.count || 0;
+        console.log(`Total features matching query: ${totalCount}`);
+
+        // Collect all features (handle pagination if needed)
+        const allFeatures = [];
+        let resultOffset = 0;
+        const recordsPerRequest = Math.min(maxRecords, 1000); // ArcGIS default max is often 1000
+
+        do {
+          // Add pagination parameters
+          params.set('resultRecordCount', recordsPerRequest.toString());
+          params.set('resultOffset', resultOffset.toString());
+
+          const queryUrl = `${layerUrl}/query?${params}`;
+          console.log(`Fetching features (offset: ${resultOffset})...`);
+
+          const response = await fetch(queryUrl);
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+
+          // Check for ArcGIS error response
+          if (data.error) {
+            throw new Error(`ArcGIS Error ${data.error.code}: ${data.error.message}`);
+          }
+
+          // Check if we got features
+          if (!data.features || !Array.isArray(data.features)) {
+            console.warn('No features array in response');
+            break;
+          }
+
+          console.log(`Received ${data.features.length} features`);
+          allFeatures.push(...data.features);
+
+          // Check if there are more results
+          if (!data.exceededTransferLimit && data.features.length < recordsPerRequest) {
+            // No more results
+            break;
+          }
+
+          resultOffset += data.features.length;
+
+          // Safety check: don't exceed maxRecords
+          if (allFeatures.length >= maxRecords) {
+            console.log(`Reached maxRecords limit (${maxRecords})`);
+            break;
+          }
+
+        } while (resultOffset < totalCount);
+
+        console.log(`Total features retrieved: ${allFeatures.length}`);
+
+        // Convert ArcGIS JSON to GeoJSON
+        // We need the geometry type and spatial reference from the response
+        // Make one more request to get service metadata if we don't have features
+        let geometryType = null;
+        let spatialReference = null;
+
+        if (allFeatures.length > 0) {
+          // Try to infer from first feature
+          const firstFeature = allFeatures[0];
+          if (firstFeature.geometry) {
+            // Determine geometry type from structure
+            if (firstFeature.geometry.x !== undefined) {
+              geometryType = 'esriGeometryPoint';
+            } else if (firstFeature.geometry.paths) {
+              geometryType = 'esriGeometryPolyline';
+            } else if (firstFeature.geometry.rings) {
+              geometryType = 'esriGeometryPolygon';
+            }
+          }
+        }
+
+        // Convert to GeoJSON
+        const geojson = convertArcGISToGeoJSON(allFeatures, geometryType, spatialReference);
+
+        return {
+          success: true,
+          data: geojson,
+          error: null,
+          metadata: {
+            totalCount: totalCount,
+            retrievedCount: allFeatures.length,
+            geometryType: geometryType
+          }
+        };
+
+      } catch (error) {
+        console.error('Feature Service query error:', error);
+        return {
+          success: false,
+          data: null,
+          error: error.message || 'Unknown error occurred'
+        };
+      }
+    }
+
+    /**
+     * Convert ArcGIS JSON format to GeoJSON format
+     * @param {Array} features - Array of ArcGIS features
+     * @param {string} geometryType - ArcGIS geometry type (esriGeometryPoint, esriGeometryPolyline, esriGeometryPolygon)
+     * @param {Object} spatialReference - Spatial reference object
+     * @returns {Object} - GeoJSON FeatureCollection
+     */
+    function convertArcGISToGeoJSON(features, geometryType, spatialReference) {
+      const geojsonFeatures = features.map(feature => {
+        // Convert geometry
+        const geojsonGeometry = convertArcGISGeometry(feature.geometry, geometryType);
+
+        // Extract properties (attributes)
+        const properties = feature.attributes || {};
+
+        return {
+          type: 'Feature',
+          properties: properties,
+          geometry: geojsonGeometry
+        };
+      });
+
+      return {
+        type: 'FeatureCollection',
+        features: geojsonFeatures
+      };
+    }
+
+    /**
+     * Convert ArcGIS geometry to GeoJSON geometry
+     * @param {Object} arcgisGeom - ArcGIS geometry object
+     * @param {string} geometryType - ArcGIS geometry type
+     * @returns {Object} - GeoJSON geometry object
+     */
+    function convertArcGISGeometry(arcgisGeom, geometryType) {
+      if (!arcgisGeom) {
+        return null;
+      }
+
+      // Point geometry
+      if (arcgisGeom.x !== undefined && arcgisGeom.y !== undefined) {
+        return {
+          type: 'Point',
+          coordinates: [arcgisGeom.x, arcgisGeom.y]
+        };
+      }
+
+      // Polyline geometry
+      if (arcgisGeom.paths) {
+        if (arcgisGeom.paths.length === 1) {
+          // Single LineString
+          return {
+            type: 'LineString',
+            coordinates: arcgisGeom.paths[0]
+          };
+        } else {
+          // MultiLineString
+          return {
+            type: 'MultiLineString',
+            coordinates: arcgisGeom.paths
+          };
+        }
+      }
+
+      // Polygon geometry
+      if (arcgisGeom.rings) {
+        // ArcGIS rings can represent multiple polygons or polygons with holes
+        // For simplicity, we'll treat single ring as Polygon, multiple as MultiPolygon
+        if (arcgisGeom.rings.length === 1) {
+          return {
+            type: 'Polygon',
+            coordinates: arcgisGeom.rings
+          };
+        } else {
+          // For proper MultiPolygon, we'd need to determine which rings are holes
+          // This is a simplified version
+          return {
+            type: 'MultiPolygon',
+            coordinates: arcgisGeom.rings.map(ring => [ring])
+          };
+        }
+      }
+
+      console.warn('Unknown geometry type:', arcgisGeom);
+      return null;
+    }
+
+    /**
+     * Test Feature Service integration with functional classification
+     * This function is called when drawing is complete to test the integration
+     * @param {Object} drawnGeometry - GeoJSON geometry of drawn line or point
+     */
+    async function testFeatureServiceIntegration(drawnGeometry) {
+      // Only run if Feature Service is enabled
+      if (!CONFIG.dataUrls.functionalClass.enabled) {
+        console.log('Feature Service integration disabled. Set CONFIG.dataUrls.functionalClass.enabled = true to test.');
+        return;
+      }
+
+      console.log('=== Testing Feature Service Integration ===');
+
+      try {
+        // Get bounding box of drawn geometry with buffer
+        const buffered = turf.buffer(drawnGeometry, 500, { units: 'feet' });
+        const bbox = turf.bbox(buffered);
+
+        console.log('Querying functional classification within bbox:', bbox);
+
+        // Query Feature Service
+        const result = await queryFeatureService(CONFIG.dataUrls.functionalClass.url, {
+          bbox: bbox,
+          where: '1=1',
+          outFields: ['*'],
+          maxRecords: 100
+        });
+
+        if (result.success) {
+          console.log('✓ Feature Service query successful!');
+          console.log(`  Retrieved ${result.data.features.length} features`);
+          console.log(`  Total count: ${result.metadata.totalCount}`);
+          console.log(`  Geometry type: ${result.metadata.geometryType}`);
+
+          // Log first feature for inspection
+          if (result.data.features.length > 0) {
+            console.log('  First feature sample:', result.data.features[0]);
+          }
+
+          // Test spatial analysis with Turf.js
+          console.log('Testing spatial analysis with Turf.js...');
+          const intersecting = result.data.features.filter(roadFeature => {
+            try {
+              return turf.booleanIntersects(buffered, roadFeature);
+            } catch (e) {
+              return false;
+            }
+          });
+          console.log(`  ${intersecting.length} roads intersect the buffered area`);
+
+        } else {
+          console.error('✗ Feature Service query failed:', result.error);
+        }
+
+      } catch (error) {
+        console.error('✗ Feature Service integration test error:', error);
+      }
+
+      console.log('=== End Feature Service Integration Test ===');
     }
 
     // ============================================
@@ -1053,6 +1493,10 @@
 
       // Display results in sidebar
       displayResults(results);
+
+      // Test Feature Service integration (if enabled)
+      // This runs in the background and logs to console
+      testFeatureServiceIntegration(drawnGeometry);
 
       // Show project name/PDF section
       document.getElementById('projectNameSection').classList.add('visible');
