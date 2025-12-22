@@ -684,7 +684,8 @@
         minSharedLength: 300,
         proximityBuffer: null,
         properties: {
-          displayField: 'ROUTE_ID',
+          displayField: 'OBJECTID',
+          staticLabel: 'STRAHNET',  // Show static label instead of field value
           additionalFields: []
         },
         specialHandling: {
@@ -711,7 +712,7 @@
         minSharedLength: 300,
         proximityBuffer: null,
         properties: {
-          displayField: 'STREET',
+          displayField: 'Type',  // Show Regional or Local
           additionalFields: []
         },
         specialHandling: {
@@ -719,9 +720,16 @@
           deduplicate: false
         },
         style: {
-          color: '#CC6600',
+          color: '#CC6600',  // Default color, overridden by styleByProperty
           weight: 2,
           opacity: 0.7
+        },
+        styleByProperty: {  // Different colors for Regional vs Local
+          field: 'Type',
+          values: {
+            'Regional': { color: '#CC0000', weight: 3, opacity: 0.8 },  // Red for Regional
+            'Local': { color: '#FF9900', weight: 2, opacity: 0.7 }       // Orange for Local
+          }
         },
         resultStyle: 'list',
         enabled: true
@@ -908,7 +916,7 @@
         minSharedLength: null,
         proximityBuffer: 1320,
         properties: {
-          displayField: 'Name',
+          displayField: 'NAME',  // Use correct uppercase field name
           additionalFields: []
         },
         specialHandling: {
@@ -966,7 +974,7 @@
         minSharedLength: null,
         proximityBuffer: 200,
         properties: {
-          displayField: 'NAME',
+          displayField: 'PRIMARY_NAME',  // Use correct field name
           additionalFields: []
         },
         specialHandling: {
@@ -1439,7 +1447,10 @@
                 return L.circleMarker(latlng, config.style);
               },
               onEachFeature: (feature, leafletLayer) => {
-                const displayValue = feature.properties[config.properties.displayField] || 'Unknown';
+                // Use staticLabel if defined, otherwise use field value
+                const displayValue = config.properties.staticLabel ||
+                                    feature.properties[config.properties.displayField] ||
+                                    'Unknown';
 
                 // Build tooltip text
                 let tooltipText = displayValue;
@@ -1471,9 +1482,22 @@
           } else if (config.geometryType === 'LineString') {
             // ========== LINE LAYERS ==========
             layer = L.geoJSON(geoJsonData[datasetKey], {
-              style: config.style,
+              style: (feature) => {
+                // Check if style should vary by property
+                if (config.styleByProperty) {
+                  const propertyValue = feature.properties[config.styleByProperty.field];
+                  const propertyStyle = config.styleByProperty.values[propertyValue];
+                  if (propertyStyle) {
+                    return { ...config.style, ...propertyStyle };
+                  }
+                }
+                return config.style;
+              },
               onEachFeature: (feature, leafletLayer) => {
-                const displayValue = feature.properties[config.properties.displayField] || 'Unknown';
+                // Use staticLabel if defined, otherwise use field value
+                const displayValue = config.properties.staticLabel ||
+                                    feature.properties[config.properties.displayField] ||
+                                    'Unknown';
 
                 // Bind tooltip
                 leafletLayer.bindTooltip(displayValue, {
@@ -1481,14 +1505,24 @@
                   className: 'leaflet-tooltip'
                 });
 
+                // Get current feature style for hover effects
+                let currentStyle = config.style;
+                if (config.styleByProperty) {
+                  const propertyValue = feature.properties[config.styleByProperty.field];
+                  const propertyStyle = config.styleByProperty.values[propertyValue];
+                  if (propertyStyle) {
+                    currentStyle = { ...config.style, ...propertyStyle };
+                  }
+                }
+
                 // Hover effects
-                const hoverStyle = { ...config.style, weight: (config.style.weight || 2) + 0.5, opacity: (config.style.opacity || 0.7) + 0.15 };
+                const hoverStyle = { ...currentStyle, weight: (currentStyle.weight || 2) + 0.5, opacity: (currentStyle.opacity || 0.7) + 0.15 };
                 leafletLayer.on('mouseover', function() {
                   this.setStyle(hoverStyle);
                 });
 
                 leafletLayer.on('mouseout', function() {
-                  this.setStyle(config.style);
+                  this.setStyle(currentStyle);
                 });
               }
             });
@@ -1498,7 +1532,10 @@
             layer = L.geoJSON(geoJsonData[datasetKey], {
               style: config.style,
               onEachFeature: (feature, leafletLayer) => {
-                const displayValue = feature.properties[config.properties.displayField] || 'Unknown';
+                // Use staticLabel if defined, otherwise use field value
+                const displayValue = config.properties.staticLabel ||
+                                    feature.properties[config.properties.displayField] ||
+                                    'Unknown';
 
                 // Bind tooltip
                 leafletLayer.bindTooltip(displayValue, {
@@ -2381,11 +2418,12 @@
       }
 
       // Track which layers were visible before PDF generation
-      const layerStates = {
-        routes: map.hasLayer(featureLayers.routes),
-        zones: map.hasLayer(featureLayers.zones),
-        bridges: map.hasLayer(featureLayers.bridges)
-      };
+      const layerStates = {};
+      Object.keys(DATASETS).forEach(datasetKey => {
+        if (featureLayers[datasetKey]) {
+          layerStates[datasetKey] = map.hasLayer(featureLayers[datasetKey]);
+        }
+      });
 
       try {
         // Disable button and show loading state
@@ -2398,9 +2436,11 @@
         showLoading(true, 'Preparing map for PDF...');
 
         // Temporarily add all reference layers to map for PDF capture
-        if (!layerStates.routes) map.addLayer(featureLayers.routes);
-        if (!layerStates.zones) map.addLayer(featureLayers.zones);
-        if (!layerStates.bridges) map.addLayer(featureLayers.bridges);
+        Object.keys(DATASETS).forEach(datasetKey => {
+          if (featureLayers[datasetKey] && !layerStates[datasetKey]) {
+            map.addLayer(featureLayers[datasetKey]);
+          }
+        });
 
         // Auto-zoom map to show drawn line and intersecting features
         // Use animate: false to ensure immediate positioning
@@ -2442,9 +2482,11 @@
         });
 
         // Restore layer visibility to previous state
-        if (!layerStates.routes) map.removeLayer(featureLayers.routes);
-        if (!layerStates.zones) map.removeLayer(featureLayers.zones);
-        if (!layerStates.bridges) map.removeLayer(featureLayers.bridges);
+        Object.keys(DATASETS).forEach(datasetKey => {
+          if (featureLayers[datasetKey] && !layerStates[datasetKey]) {
+            map.removeLayer(featureLayers[datasetKey]);
+          }
+        });
 
         showLoading(true, 'Building PDF document...');
 
@@ -2651,17 +2693,13 @@
 
       } catch (error) {
         console.error('PDF generation error:', error);
-        
+
         // Restore layer visibility to previous state on error
-        if (!layerStates.routes && map.hasLayer(featureLayers.routes)) {
-          map.removeLayer(featureLayers.routes);
-        }
-        if (!layerStates.zones && map.hasLayer(featureLayers.zones)) {
-          map.removeLayer(featureLayers.zones);
-        }
-        if (!layerStates.bridges && map.hasLayer(featureLayers.bridges)) {
-          map.removeLayer(featureLayers.bridges);
-        }
+        Object.keys(DATASETS).forEach(datasetKey => {
+          if (featureLayers[datasetKey] && !layerStates[datasetKey] && map.hasLayer(featureLayers[datasetKey])) {
+            map.removeLayer(featureLayers[datasetKey]);
+          }
+        });
 
         showLoading(false);
         showError('Failed to generate PDF. Please try again.');
