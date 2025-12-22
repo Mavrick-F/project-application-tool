@@ -569,24 +569,11 @@
         <div class="sidebar-section">
           <div class="section-heading">Analysis Results</div>
 
-          <div class="results-card routes">
-            <div class="section-heading">MATA Routes <span class="result-count" id="routesCount">0</span></div>
-            <ul class="results-list" id="routesList">
-              <li class="empty-state">Draw a project to see results</li>
-            </ul>
-          </div>
-
-          <div class="results-card zones">
-            <div class="section-heading">Opportunity Zones <span class="result-count" id="zonesCount">0</span></div>
-            <ul class="results-list" id="zonesList">
-              <li class="empty-state">Draw a project to see results</li>
-            </ul>
-          </div>
-
-          <div class="results-card bridges">
-            <div class="section-heading">Bridges (within 300 ft) <span class="result-count" id="bridgesCount">0</span></div>
-            <div id="bridgesContainer">
-              <p class="empty-state">Draw a project to see results</p>
+          <!-- Dynamic results container - populated by JavaScript -->
+          <div id="resultsContainer">
+            <div style="padding: 20px; text-align: center; color: #666;">
+              <p style="font-size: 16px; margin: 0;">Draw a project to see analysis results</p>
+              <p style="font-size: 13px; margin-top: 10px; color: #999;">Click "Draw Alignment" or "Mark Location" above to get started</p>
             </div>
           </div>
         </div>
@@ -639,52 +626,363 @@
       basemapUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
       basemapAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
 
-      // Data file paths
-      dataUrls: {
-        routes: './data/mata-routes.json',
-        zones: './data/opportunity-zones.json',
-        bridges: './data/bridges.json'
+      // Drawn geometry style
+      drawnLineStyle: {
+        color: '#FF0000',
+        weight: 8,
+        opacity: 0.8
       },
 
-      // Map layer styles
-      styles: {
-        routes: {
+      // Logo path
+      logoPath: './assets/rtp-2055-logo.jpg'
+    };
+
+    // ============================================
+    // DATASET CONFIGURATION
+    // ============================================
+    /**
+     * Configuration object for all datasets in the application
+     * Each dataset defines its file path, geometry type, analysis method,
+     * display properties, and styling options
+     */
+    const DATASETS = {
+      mataRoutes: {
+        id: 'mataRoutes',
+        name: 'MATA Routes',
+        category: 'Transportation - Transit',
+        filePath: './data/mata-routes.json',
+        geometryType: 'LineString',
+        analysisMethod: 'corridor',
+        bufferDistance: 100,
+        minSharedLength: 300,
+        proximityBuffer: null,
+        properties: {
+          displayField: 'Name',
+          additionalFields: []
+        },
+        specialHandling: {
+          removeDirectionalSuffixes: true,
+          deduplicate: true
+        },
+        style: {
           color: '#0066CC',
           weight: 2,
           opacity: 0.7
         },
-        routesHover: {
-          weight: 2.5,
-          opacity: 0.85
+        resultStyle: 'list',
+        enabled: true
+      },
+
+      strahnet: {
+        id: 'strahnet',
+        name: 'STRAHNET Routes',
+        category: 'Transportation - Freight',
+        filePath: './data/strahnet.geojson',
+        geometryType: 'LineString',
+        analysisMethod: 'corridor',
+        bufferDistance: 100,
+        minSharedLength: 300,
+        proximityBuffer: null,
+        properties: {
+          displayField: 'ROUTE_ID',
+          additionalFields: []
         },
-        zones: {
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
+          color: '#FF6600',
+          weight: 3,
+          opacity: 0.8
+        },
+        resultStyle: 'list',
+        enabled: true
+      },
+
+      truckRoutes: {
+        id: 'truckRoutes',
+        name: 'MPO Freight Route Network',
+        category: 'Transportation - Freight',
+        filePath: './data/truck_routes.json',
+        geometryType: 'LineString',
+        analysisMethod: 'corridor',
+        bufferDistance: 100,
+        minSharedLength: 300,
+        proximityBuffer: null,
+        properties: {
+          displayField: 'STREET',
+          additionalFields: []
+        },
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
+          color: '#CC6600',
+          weight: 2,
+          opacity: 0.7
+        },
+        resultStyle: 'list',
+        enabled: true
+      },
+
+      opportunityZones: {
+        id: 'opportunityZones',
+        name: 'Opportunity Zones',
+        category: 'Economic Development',
+        filePath: './data/opportunity-zones.json',
+        geometryType: 'Polygon',
+        analysisMethod: 'intersection',
+        bufferDistance: null,
+        minSharedLength: null,
+        proximityBuffer: null,
+        properties: {
+          displayField: 'CENSUSTRAC',
+          additionalFields: []
+        },
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
           color: '#FF8C00',
           weight: 2,
           fillColor: '#FFD700',
           fillOpacity: 0.3
         },
-        zonesHover: {
-          fillOpacity: 0.5
+        resultStyle: 'list',
+        enabled: true
+      },
+
+      freightClusters: {
+        id: 'freightClusters',
+        name: 'MPO Freight Zones',
+        category: 'Transportation - Freight',
+        filePath: './data/freight_clusters.geojson',
+        geometryType: 'Polygon',
+        analysisMethod: 'intersection',
+        bufferDistance: null,
+        minSharedLength: null,
+        proximityBuffer: null,
+        properties: {
+          displayField: 'N',
+          additionalFields: []
         },
-        bridges: {
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
+          color: '#9966CC',
+          weight: 2,
+          fillColor: '#CC99FF',
+          fillOpacity: 0.3
+        },
+        resultStyle: 'list',
+        enabled: true
+      },
+
+      parks: {
+        id: 'parks',
+        name: 'Parks',
+        category: 'Environment & Recreation',
+        filePath: './data/parks.json',
+        geometryType: 'Polygon',
+        analysisMethod: 'proximity',
+        bufferDistance: null,
+        minSharedLength: null,
+        proximityBuffer: 200,
+        properties: {
+          displayField: 'NAME',
+          additionalFields: []
+        },
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
+          color: '#228B22',
+          weight: 2,
+          fillColor: '#90EE90',
+          fillOpacity: 0.3
+        },
+        resultStyle: 'list',
+        enabled: true
+      },
+
+      historicPolygons: {
+        id: 'historicPolygons',
+        name: 'NHRP Polygons',
+        category: 'Historic & Cultural',
+        filePath: './data/historic_polygons.geojson',
+        geometryType: 'Polygon',
+        analysisMethod: 'proximity',
+        bufferDistance: null,
+        minSharedLength: null,
+        proximityBuffer: 200,
+        properties: {
+          displayField: 'RESNAME',
+          additionalFields: []
+        },
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
+          color: '#8B4513',
+          weight: 2,
+          fillColor: '#DEB887',
+          fillOpacity: 0.3
+        },
+        resultStyle: 'list',
+        enabled: true
+      },
+
+      bridges: {
+        id: 'bridges',
+        name: 'Bridges',
+        category: 'Infrastructure',
+        filePath: './data/bridges.json',
+        geometryType: 'Point',
+        analysisMethod: 'proximity',
+        bufferDistance: null,
+        minSharedLength: null,
+        proximityBuffer: 300,
+        properties: {
+          displayField: 'STRUCTURE_',
+          additionalFields: ['Condition']
+        },
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
           color: '#DC143C',
           fillColor: '#DC143C',
           radius: 3,
           fillOpacity: 0.8,
           weight: 1
         },
-        bridgesHover: {
-          radius: 5
-        },
-        drawnLine: {
-          color: '#FF0000',
-          weight: 8,
-          opacity: 0.8
-        }
+        resultStyle: 'table',
+        enabled: true
       },
 
-      // Logo path
-      logoPath: './assets/rtp-2055-logo.jpg'
+      majorEmployers: {
+        id: 'majorEmployers',
+        name: 'Major Employers',
+        category: 'Economic Development',
+        filePath: './data/major_employers.geojson',
+        geometryType: 'Point',
+        analysisMethod: 'proximity',
+        bufferDistance: null,
+        minSharedLength: null,
+        proximityBuffer: 1320,
+        properties: {
+          displayField: 'company_name',
+          additionalFields: []
+        },
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
+          color: '#4169E1',
+          fillColor: '#4169E1',
+          radius: 4,
+          fillOpacity: 0.8,
+          weight: 1
+        },
+        resultStyle: 'list',
+        enabled: true
+      },
+
+      touristAttractions: {
+        id: 'touristAttractions',
+        name: 'Tourist Destinations',
+        category: 'Economic Development',
+        filePath: './data/tourist_attractions.geojson',
+        geometryType: 'Point',
+        analysisMethod: 'proximity',
+        bufferDistance: null,
+        minSharedLength: null,
+        proximityBuffer: 1320,
+        properties: {
+          displayField: 'Name',
+          additionalFields: []
+        },
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
+          color: '#FF1493',
+          fillColor: '#FF1493',
+          radius: 4,
+          fillOpacity: 0.8,
+          weight: 1
+        },
+        resultStyle: 'list',
+        enabled: true
+      },
+
+      historicPoints: {
+        id: 'historicPoints',
+        name: 'NHRP Points',
+        category: 'Historic & Cultural',
+        filePath: './data/historic_points.geojson',
+        geometryType: 'Point',
+        analysisMethod: 'proximity',
+        bufferDistance: null,
+        minSharedLength: null,
+        proximityBuffer: 200,
+        properties: {
+          displayField: 'RESNAME',
+          additionalFields: []
+        },
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
+          color: '#8B4513',
+          fillColor: '#8B4513',
+          radius: 3,
+          fillOpacity: 0.8,
+          weight: 1
+        },
+        resultStyle: 'list',
+        enabled: true
+      },
+
+      epaSuperFundSites: {
+        id: 'epaSuperFundSites',
+        name: 'EPA Superfund Sites',
+        category: 'Environment & Recreation',
+        filePath: './data/epa_superfund_sites.geojson',
+        geometryType: 'Point',
+        analysisMethod: 'proximity',
+        bufferDistance: null,
+        minSharedLength: null,
+        proximityBuffer: 200,
+        properties: {
+          displayField: 'NAME',
+          additionalFields: []
+        },
+        specialHandling: {
+          removeDirectionalSuffixes: false,
+          deduplicate: false
+        },
+        style: {
+          color: '#FF4500',
+          fillColor: '#FF4500',
+          radius: 4,
+          fillOpacity: 0.8,
+          weight: 1
+        },
+        resultStyle: 'list',
+        enabled: true
+      }
     };
 
     // ============================================
@@ -698,26 +996,14 @@
     let polylineDrawer;               // Polyline draw handler
     let markerDrawer;                 // Marker draw handler
 
-    // Layer groups for reference data
-    let featureLayers = {
-      routes: null,
-      zones: null,
-      bridges: null
-    };
+    // Layer groups for reference data (dynamically populated from DATASETS)
+    let featureLayers = {};
 
-    // Raw GeoJSON data (cached after loading)
-    let geoJsonData = {
-      routes: null,
-      zones: null,
-      bridges: null
-    };
+    // Raw GeoJSON data (dynamically populated from DATASETS)
+    let geoJsonData = {};
 
-    // Analysis results
-    let currentResults = {
-      routes: [],
-      zones: [],
-      bridges: []
-    };
+    // Analysis results (dynamically populated from DATASETS)
+    let currentResults = {};
 
     // ============================================
     // INITIALIZATION
@@ -1041,34 +1327,60 @@
     // ============================================
 
     /**
-     * Load all GeoJSON data files from the data directory
-     * Fetches MATA routes, opportunity zones, and bridges data
+     * Dynamically load all enabled GeoJSON datasets from the DATASETS configuration
+     * Fetches all dataset files in parallel for better performance
      * @returns {Promise} Resolves when all data is loaded
      */
     async function loadGeoJsonData() {
       try {
-        // Fetch all three datasets in parallel for better performance
-        const [routesResponse, zonesResponse, bridgesResponse] = await Promise.all([
-          fetch(CONFIG.dataUrls.routes),
-          fetch(CONFIG.dataUrls.zones),
-          fetch(CONFIG.dataUrls.bridges)
-        ]);
+        // Build array of fetch promises for all enabled datasets
+        const fetchPromises = [];
+        const datasetKeys = [];
 
-        // Check for fetch errors
-        if (!routesResponse.ok) throw new Error('Failed to load MATA routes data');
-        if (!zonesResponse.ok) throw new Error('Failed to load opportunity zones data');
-        if (!bridgesResponse.ok) throw new Error('Failed to load bridges data');
+        Object.keys(DATASETS).forEach(datasetKey => {
+          const config = DATASETS[datasetKey];
 
-        // Parse JSON data
-        geoJsonData.routes = await routesResponse.json();
-        geoJsonData.zones = await zonesResponse.json();
-        geoJsonData.bridges = await bridgesResponse.json();
-
-        console.log('Data loaded successfully:', {
-          routes: geoJsonData.routes.features.length,
-          zones: geoJsonData.zones.features.length,
-          bridges: geoJsonData.bridges.features.length
+          // Only load enabled datasets
+          if (config.enabled) {
+            fetchPromises.push(fetch(config.filePath));
+            datasetKeys.push(datasetKey);
+          }
         });
+
+        // Fetch all datasets in parallel for better performance
+        const responses = await Promise.all(fetchPromises);
+
+        // Parse JSON data for each response
+        const dataPromises = responses.map((response, index) => {
+          const datasetKey = datasetKeys[index];
+          const config = DATASETS[datasetKey];
+
+          if (!response.ok) {
+            console.warn(`Failed to load ${config.name}: ${response.status} ${response.statusText}`);
+            return null;
+          }
+
+          return response.json();
+        });
+
+        const dataResults = await Promise.all(dataPromises);
+
+        // Store loaded data and log results
+        const loadedCounts = {};
+
+        dataResults.forEach((data, index) => {
+          const datasetKey = datasetKeys[index];
+
+          if (data) {
+            geoJsonData[datasetKey] = data;
+            loadedCounts[datasetKey] = data.features ? data.features.length : 0;
+          } else {
+            geoJsonData[datasetKey] = null;
+            loadedCounts[datasetKey] = 'failed';
+          }
+        });
+
+        console.log('Data loaded successfully:', loadedCounts);
 
       } catch (error) {
         console.error('Error loading GeoJSON data:', error);
@@ -1101,96 +1413,138 @@
     }
 
     /**
-     * Add all reference layers (routes, zones, bridges) to the map
-     * Configures styling, popups, and hover interactions
+     * Dynamically add all reference layers to the map based on DATASETS configuration
+     * Configures styling, tooltips, and hover interactions for each dataset
      */
     function addReferenceLayers() {
-      // ========== MATA ROUTES LAYER ==========
-      featureLayers.routes = L.geoJSON(geoJsonData.routes, {
-        style: CONFIG.styles.routes,
-        onEachFeature: (feature, layer) => {
-          const routeName = feature.properties.Name || 'Unknown Route';
+      const overlayLayers = {};
 
-          // Bind tooltip for hover info only (no click popup)
-          layer.bindTooltip(routeName, {
-            sticky: true,
-            className: 'leaflet-tooltip'
-          });
+      // Loop through all enabled datasets and create layers
+      Object.keys(DATASETS).forEach(datasetKey => {
+        const config = DATASETS[datasetKey];
 
-          // Hover effects
-          layer.on('mouseover', function() {
-            this.setStyle(CONFIG.styles.routesHover);
-          });
+        // Skip if dataset is disabled or data not loaded
+        if (!config.enabled || !geoJsonData[datasetKey]) {
+          return;
+        }
 
-          layer.on('mouseout', function() {
-            this.setStyle(CONFIG.styles.routes);
-          });
+        try {
+          let layer;
+
+          // Create layer based on geometry type
+          if (config.geometryType === 'Point') {
+            // ========== POINT LAYERS ==========
+            layer = L.geoJSON(geoJsonData[datasetKey], {
+              pointToLayer: (feature, latlng) => {
+                return L.circleMarker(latlng, config.style);
+              },
+              onEachFeature: (feature, leafletLayer) => {
+                const displayValue = feature.properties[config.properties.displayField] || 'Unknown';
+
+                // Build tooltip text
+                let tooltipText = displayValue;
+                if (config.properties.additionalFields && config.properties.additionalFields.length > 0) {
+                  config.properties.additionalFields.forEach(field => {
+                    const value = feature.properties[field] || 'Unknown';
+                    tooltipText += ` | ${field}: ${value}`;
+                  });
+                }
+
+                // Bind tooltip
+                leafletLayer.bindTooltip(tooltipText, {
+                  sticky: true,
+                  className: 'leaflet-tooltip'
+                });
+
+                // Hover effects
+                const hoverStyle = { ...config.style, radius: (config.style.radius || 3) + 2 };
+                leafletLayer.on('mouseover', function() {
+                  this.setStyle(hoverStyle);
+                });
+
+                leafletLayer.on('mouseout', function() {
+                  this.setStyle(config.style);
+                });
+              }
+            });
+
+          } else if (config.geometryType === 'LineString') {
+            // ========== LINE LAYERS ==========
+            layer = L.geoJSON(geoJsonData[datasetKey], {
+              style: config.style,
+              onEachFeature: (feature, leafletLayer) => {
+                const displayValue = feature.properties[config.properties.displayField] || 'Unknown';
+
+                // Bind tooltip
+                leafletLayer.bindTooltip(displayValue, {
+                  sticky: true,
+                  className: 'leaflet-tooltip'
+                });
+
+                // Hover effects
+                const hoverStyle = { ...config.style, weight: (config.style.weight || 2) + 0.5, opacity: (config.style.opacity || 0.7) + 0.15 };
+                leafletLayer.on('mouseover', function() {
+                  this.setStyle(hoverStyle);
+                });
+
+                leafletLayer.on('mouseout', function() {
+                  this.setStyle(config.style);
+                });
+              }
+            });
+
+          } else if (config.geometryType === 'Polygon') {
+            // ========== POLYGON LAYERS ==========
+            layer = L.geoJSON(geoJsonData[datasetKey], {
+              style: config.style,
+              onEachFeature: (feature, leafletLayer) => {
+                const displayValue = feature.properties[config.properties.displayField] || 'Unknown';
+
+                // Bind tooltip
+                leafletLayer.bindTooltip(displayValue, {
+                  sticky: true,
+                  className: 'leaflet-tooltip'
+                });
+
+                // Hover effects
+                const hoverStyle = { ...config.style, fillOpacity: (config.style.fillOpacity || 0.3) + 0.2 };
+                leafletLayer.on('mouseover', function() {
+                  this.setStyle(hoverStyle);
+                });
+
+                leafletLayer.on('mouseout', function() {
+                  this.setStyle(config.style);
+                });
+              }
+            });
+          }
+
+          // Store layer
+          if (layer) {
+            featureLayers[datasetKey] = layer;
+
+            // Create layer control label with colored symbol
+            let symbol = '●';
+            if (config.geometryType === 'Polygon') symbol = '■';
+            if (config.geometryType === 'LineString') symbol = '─';
+
+            const layerLabel = `<span style="color:${config.style.color};">${symbol}</span> ${config.name}`;
+            overlayLayers[layerLabel] = layer;
+          }
+
+        } catch (error) {
+          console.error(`Error creating layer for ${datasetKey}:`, error);
         }
       });
-      // Layer NOT added to map by default - will show in PDF only
-
-      // ========== OPPORTUNITY ZONES LAYER ==========
-      featureLayers.zones = L.geoJSON(geoJsonData.zones, {
-        style: CONFIG.styles.zones,
-        onEachFeature: (feature, layer) => {
-          const tractId = feature.properties.CENSUSTRAC || 'Unknown Tract';
-
-          // Bind tooltip for hover info only (no click popup)
-          layer.bindTooltip(`Census Tract ${tractId}`, {
-            sticky: true,
-            className: 'leaflet-tooltip'
-          });
-
-          // Hover effects
-          layer.on('mouseover', function() {
-            this.setStyle(CONFIG.styles.zonesHover);
-          });
-
-          layer.on('mouseout', function() {
-            this.setStyle(CONFIG.styles.zones);
-          });
-        }
-      });
-      // Layer NOT added to map by default - will show in PDF only
-
-      // ========== BRIDGES LAYER ==========
-      featureLayers.bridges = L.geoJSON(geoJsonData.bridges, {
-        pointToLayer: (feature, latlng) => {
-          return L.circleMarker(latlng, CONFIG.styles.bridges);
-        },
-        onEachFeature: (feature, layer) => {
-          const nbiId = feature.properties.STRUCTURE_ || 'Unknown';
-          const condition = feature.properties.Condition || 'Unknown';
-
-          // Bind tooltip for hover info only (no click popup)
-          layer.bindTooltip(`NBI: ${nbiId} | Condition: ${condition}`, {
-            sticky: true,
-            className: 'leaflet-tooltip'
-          });
-
-          // Hover effects
-          layer.on('mouseover', function() {
-            this.setOptions(CONFIG.styles.bridgesHover);
-          });
-
-          layer.on('mouseout', function() {
-            this.setOptions(CONFIG.styles.bridges);
-          });
-        }
-      });
-      // Layer NOT added to map by default - will show in PDF only
 
       // ========== LAYER CONTROL ==========
-      const overlayLayers = {
-        '<span style="color:#0066CC;">●</span> MATA Routes': featureLayers.routes,
-        '<span style="color:#FFD700;">■</span> Opportunity Zones': featureLayers.zones,
-        '<span style="color:#DC143C;">●</span> Bridges': featureLayers.bridges
-      };
-
-      L.control.layers(null, overlayLayers, {
-        collapsed: false,
-        position: 'topright'
-      }).addTo(map);
+      // Add layer control to map if we have any layers
+      if (Object.keys(overlayLayers).length > 0) {
+        L.control.layers(null, overlayLayers, {
+          collapsed: false,
+          position: 'topright'
+        }).addTo(map);
+      }
     }
 
     /**
@@ -1226,7 +1580,7 @@
       // Create draw handlers (but don't add toolbar to map)
       // These will be triggered programmatically from sidebar buttons
       polylineDrawer = new L.Draw.Polyline(map, {
-        shapeOptions: CONFIG.styles.drawnLine,
+        shapeOptions: CONFIG.drawnLineStyle,
         showLength: true,
         metric: false,  // Use imperial units (feet)
         feet: true
@@ -1297,8 +1651,8 @@
         return;
       }
 
-      // Run spatial analysis
-      const results = analyzeIntersections(drawnGeometry);
+      // Run spatial analysis on all datasets
+      const results = analyzeAllDatasets(drawnGeometry);
 
       // Display results in sidebar
       displayResults(results);
@@ -1426,21 +1780,243 @@
     // ============================================
 
     /**
-     * Perform all spatial analyses on the drawn geometry
-     * - Line-to-line intersections (or point-buffer intersections) with MATA routes
-     * - Line-to-polygon intersections (or point-in-polygon) with opportunity zones
-     * - Point-in-buffer proximity to bridges (300ft) for both lines and points
-     * @param {Object} drawnGeometry - GeoJSON of drawn line or point
-     * @returns {Object} Analysis results containing routes, zones, and bridges
+     * Analyze corridor match for LineString datasets
+     * Works for any LineString dataset with corridor matching logic
+     * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+     * @param {Object} datasetConfig - Configuration object from DATASETS
+     * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+     * @returns {Array} Array of matching feature names/IDs
      */
-    function analyzeIntersections(drawnGeometry) {
+    function analyzeCorridorMatch(drawnGeometry, datasetConfig, geoJsonData) {
+      const matchingFeatures = new Set();
+
+      // Extract actual geometry from GeoJSON Feature if needed
+      const geometry = drawnGeometry.type === 'Feature'
+        ? drawnGeometry.geometry
+        : drawnGeometry;
+
+      // Create a buffer around the drawn geometry for tolerance
+      const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
+        units: 'feet'
+      });
+
+      geoJsonData.features.forEach(feature => {
+        try {
+          let isMatch = false;
+
+          if (geometry.type === 'LineString') {
+            // Check if feature has significant overlap within the corridor
+            if (turf.booleanIntersects(corridorBuffer, feature)) {
+              try {
+                const featureCoords = turf.getCoords(feature);
+                let overlapLength = 0;
+
+                // Check each segment of the feature
+                for (let i = 0; i < featureCoords.length - 1; i++) {
+                  const segment = turf.lineString([featureCoords[i], featureCoords[i + 1]]);
+
+                  // Check if segment midpoint is within the corridor buffer
+                  const midpoint = turf.midpoint(
+                    turf.point(featureCoords[i]),
+                    turf.point(featureCoords[i + 1])
+                  );
+
+                  if (turf.booleanPointInPolygon(midpoint, corridorBuffer)) {
+                    overlapLength += turf.length(segment, { units: 'feet' });
+                  }
+                }
+
+                // Feature matches if it has at least minSharedLength within the corridor
+                isMatch = overlapLength >= datasetConfig.minSharedLength;
+
+              } catch (clipError) {
+                // Fallback: if processing fails, use simple intersection
+                console.warn('Corridor analysis fallback:', clipError);
+                isMatch = turf.booleanIntersects(corridorBuffer, feature);
+              }
+            }
+          } else if (geometry.type === 'Point') {
+            // Point: check if feature intersects buffer around point
+            isMatch = turf.booleanIntersects(corridorBuffer, feature);
+          }
+
+          if (isMatch) {
+            const featureName = feature.properties[datasetConfig.properties.displayField] || 'Unknown';
+
+            // Apply special handling if configured
+            let processedName = featureName;
+            if (datasetConfig.specialHandling.removeDirectionalSuffixes) {
+              processedName = cleanRouteName(featureName);
+            }
+
+            matchingFeatures.add(processedName);
+          }
+        } catch (error) {
+          console.warn('Error checking feature intersection:', error);
+        }
+      });
+
+      // Convert Set to sorted array
+      return Array.from(matchingFeatures).sort();
+    }
+
+    /**
+     * Analyze intersection for Polygon datasets
+     * Works for any Polygon dataset with intersection logic
+     * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+     * @param {Object} datasetConfig - Configuration object from DATASETS
+     * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+     * @returns {Array} Array of intersecting feature names/IDs
+     */
+    function analyzeIntersection(drawnGeometry, datasetConfig, geoJsonData) {
+      const intersectingFeatures = [];
+
+      // Extract actual geometry from GeoJSON Feature if needed
+      const geometry = drawnGeometry.type === 'Feature'
+        ? drawnGeometry.geometry
+        : drawnGeometry;
+
+      geoJsonData.features.forEach(feature => {
+        try {
+          let intersects = false;
+
+          if (geometry.type === 'LineString') {
+            // Line-to-polygon intersection
+            intersects = turf.booleanIntersects(geometry, feature);
+          } else if (geometry.type === 'Point') {
+            // Point-in-polygon check
+            intersects = turf.booleanPointInPolygon(geometry, feature);
+          }
+
+          if (intersects) {
+            const featureName = feature.properties[datasetConfig.properties.displayField] || 'Unknown';
+            intersectingFeatures.push(featureName);
+          }
+        } catch (error) {
+          console.warn('Error checking intersection:', error);
+        }
+      });
+
+      // Sort by feature name
+      return intersectingFeatures.sort();
+    }
+
+    /**
+     * Analyze proximity for Point and Polygon datasets
+     * Works for any Point or Polygon dataset with proximity buffer
+     * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+     * @param {Object} datasetConfig - Configuration object from DATASETS
+     * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+     * @returns {Array} Array of nearby features with their properties
+     */
+    function analyzeProximity(drawnGeometry, datasetConfig, geoJsonData) {
+      const nearbyFeatures = [];
+
+      try {
+        // Extract actual geometry from GeoJSON Feature if needed
+        const geometry = drawnGeometry.type === 'Feature'
+          ? drawnGeometry.geometry
+          : drawnGeometry;
+
+        // Create buffer around the drawn geometry
+        const buffered = turf.buffer(geometry, datasetConfig.proximityBuffer, {
+          units: 'feet'
+        });
+
+        // Check each feature against the buffer
+        geoJsonData.features.forEach(feature => {
+          try {
+            let isNearby = false;
+
+            if (datasetConfig.geometryType === 'Point') {
+              // Point features: check if point is in buffer
+              isNearby = turf.booleanPointInPolygon(feature, buffered);
+            } else if (datasetConfig.geometryType === 'Polygon') {
+              // Polygon features: check if polygon intersects buffer
+              isNearby = turf.booleanIntersects(feature, buffered);
+            }
+
+            if (isNearby) {
+              const featureData = {
+                [datasetConfig.properties.displayField]:
+                  feature.properties[datasetConfig.properties.displayField] || 'Unknown'
+              };
+
+              // Add additional fields if configured
+              datasetConfig.properties.additionalFields.forEach(field => {
+                featureData[field] = feature.properties[field] || 'Unknown';
+              });
+
+              nearbyFeatures.push(featureData);
+            }
+          } catch (error) {
+            console.warn('Error checking proximity:', error);
+          }
+        });
+
+        // Sort by display field
+        nearbyFeatures.sort((a, b) => {
+          const aVal = String(a[datasetConfig.properties.displayField]);
+          const bVal = String(b[datasetConfig.properties.displayField]);
+          return aVal.localeCompare(bVal);
+        });
+
+      } catch (error) {
+        console.error('Error creating buffer or checking proximity:', error);
+      }
+
+      return nearbyFeatures;
+    }
+
+    /**
+     * Master analysis function that loops through all enabled datasets
+     * and calls the appropriate analysis function based on analysisMethod
+     * @param {Object} drawnGeometry - GeoJSON of drawn line or point
+     * @returns {Object} Analysis results keyed by dataset ID
+     */
+    function analyzeAllDatasets(drawnGeometry) {
       console.time('Spatial Analysis');
 
-      const results = {
-        routes: findIntersectingRoutes(drawnGeometry),
-        zones: findIntersectingZones(drawnGeometry),
-        bridges: findNearbyBridges(drawnGeometry)
-      };
+      const results = {};
+
+      // Loop through all datasets in configuration
+      Object.keys(DATASETS).forEach(datasetKey => {
+        const config = DATASETS[datasetKey];
+
+        // Skip if dataset is disabled or data not loaded
+        if (!config.enabled || !geoJsonData[datasetKey]) {
+          return;
+        }
+
+        try {
+          let datasetResults = [];
+
+          // Call appropriate analysis function based on method
+          switch (config.analysisMethod) {
+            case 'corridor':
+              datasetResults = analyzeCorridorMatch(drawnGeometry, config, geoJsonData[datasetKey]);
+              break;
+
+            case 'intersection':
+              datasetResults = analyzeIntersection(drawnGeometry, config, geoJsonData[datasetKey]);
+              break;
+
+            case 'proximity':
+              datasetResults = analyzeProximity(drawnGeometry, config, geoJsonData[datasetKey]);
+              break;
+
+            default:
+              console.warn(`Unknown analysis method: ${config.analysisMethod} for ${datasetKey}`);
+          }
+
+          // Store results keyed by dataset ID
+          results[datasetKey] = datasetResults;
+
+        } catch (error) {
+          console.error(`Error analyzing ${datasetKey}:`, error);
+          results[datasetKey] = [];
+        }
+      });
 
       console.timeEnd('Spatial Analysis');
       console.log('Analysis results:', results);
@@ -1449,6 +2025,24 @@
       currentResults = results;
 
       return results;
+    }
+
+    /**
+     * Perform all spatial analyses on the drawn geometry (legacy wrapper)
+     * This maintains backward compatibility while using the new system
+     * @param {Object} drawnGeometry - GeoJSON of drawn line or point
+     * @returns {Object} Analysis results containing routes, zones, and bridges
+     * @deprecated Use analyzeAllDatasets() instead
+     */
+    function analyzeIntersections(drawnGeometry) {
+      const allResults = analyzeAllDatasets(drawnGeometry);
+
+      // Map new structure to old structure for backward compatibility
+      return {
+        routes: allResults.mataRoutes || [],
+        zones: allResults.opportunityZones || [],
+        bridges: allResults.bridges || []
+      };
     }
 
     /**
@@ -1646,79 +2240,98 @@
     // ============================================
 
     /**
+     * Create HTML for a single results card
+     * @param {Object} datasetConfig - Configuration from DATASETS
+     * @param {Array} results - Analysis results for this dataset
+     * @returns {string} HTML string for the results card
+     */
+    function createResultCard(datasetConfig, results) {
+      const count = results.length;
+      const hasResults = count > 0;
+
+      let cardHtml = `<div class="results-card" data-dataset="${datasetConfig.id}">`;
+      cardHtml += `<div class="section-heading">${datasetConfig.name} <span class="result-count">${count}</span></div>`;
+
+      if (!hasResults) {
+        cardHtml += `<p class="empty-state">No ${datasetConfig.name.toLowerCase()} found</p>`;
+      } else if (datasetConfig.resultStyle === 'table') {
+        // Table format (for datasets with additional fields like bridges)
+        cardHtml += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">`;
+        cardHtml += `<thead><tr>`;
+        cardHtml += `<th style="background-color: #E6F2FF; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #CCCCCC; font-size: 12px;">${datasetConfig.properties.displayField}</th>`;
+
+        datasetConfig.properties.additionalFields.forEach(field => {
+          cardHtml += `<th style="background-color: #E6F2FF; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #CCCCCC; font-size: 12px;">${field}</th>`;
+        });
+
+        cardHtml += `</tr></thead><tbody>`;
+
+        results.forEach((result, index) => {
+          const bgColor = index % 2 === 0 ? 'white' : '#F9F9F9';
+          cardHtml += `<tr style="background-color: ${bgColor};">`;
+          cardHtml += `<td style="padding: 8px 10px; border: 1px solid #CCCCCC; font-size: 12px;">${result[datasetConfig.properties.displayField]}</td>`;
+
+          datasetConfig.properties.additionalFields.forEach(field => {
+            cardHtml += `<td style="padding: 8px 10px; border: 1px solid #CCCCCC; font-size: 12px;">${result[field]}</td>`;
+          });
+
+          cardHtml += `</tr>`;
+        });
+
+        cardHtml += `</tbody></table>`;
+      } else {
+        // List format (default)
+        cardHtml += `<ul class="results-list">`;
+
+        results.forEach(result => {
+          let displayText;
+          if (typeof result === 'string') {
+            displayText = result;
+          } else if (typeof result === 'object') {
+            displayText = result[datasetConfig.properties.displayField] || 'Unknown';
+          } else {
+            displayText = String(result);
+          }
+
+          cardHtml += `<li>${displayText}</li>`;
+        });
+
+        cardHtml += `</ul>`;
+      }
+
+      cardHtml += `</div>`;
+
+      return cardHtml;
+    }
+
+    /**
      * Display analysis results in the sidebar
-     * Updates routes list, zones list, and bridges table
-     * @param {Object} results - Analysis results
+     * Dynamically creates result cards for all datasets with results
+     * @param {Object} results - Analysis results keyed by dataset ID
      */
     function displayResults(results) {
-      // Update count badges
-      document.getElementById('routesCount').textContent = results.routes.length;
-      document.getElementById('zonesCount').textContent = results.zones.length;
-      document.getElementById('bridgesCount').textContent = results.bridges.length;
+      // Get results container
+      const resultsContainer = document.getElementById('resultsContainer');
 
-      // Display MATA Routes
-      const routesList = document.getElementById('routesList');
-      routesList.innerHTML = '';
+      // Clear existing results
+      resultsContainer.innerHTML = '';
 
-      if (results.routes.length === 0) {
-        routesList.innerHTML = '<li class="empty-state">No MATA routes intersected</li>';
-      } else {
-        results.routes.forEach(routeName => {
-          const li = document.createElement('li');
-          li.textContent = routeName;
-          routesList.appendChild(li);
-        });
-      }
+      // Loop through DATASETS in order and create result cards
+      Object.keys(DATASETS).forEach(datasetKey => {
+        const config = DATASETS[datasetKey];
 
-      // Display Opportunity Zones
-      const zonesList = document.getElementById('zonesList');
-      zonesList.innerHTML = '';
+        // Skip disabled datasets or datasets without loaded data
+        if (!config.enabled || !geoJsonData[datasetKey]) {
+          return;
+        }
 
-      if (results.zones.length === 0) {
-        zonesList.innerHTML = '<li class="empty-state">No opportunity zones intersected</li>';
-      } else {
-        results.zones.forEach(tractId => {
-          const li = document.createElement('li');
-          li.textContent = `Census Tract ${tractId}`;
-          zonesList.appendChild(li);
-        });
-      }
+        // Get results for this dataset
+        const datasetResults = results[datasetKey] || [];
 
-      // Display Bridges
-      const bridgesContainer = document.getElementById('bridgesContainer');
-      bridgesContainer.innerHTML = '';
-
-      if (results.bridges.length === 0) {
-        bridgesContainer.innerHTML = '<p class="empty-state">No bridges within 300 feet</p>';
-      } else {
-        // Create table
-        const table = document.createElement('table');
-        table.id = 'bridgesTable';
-
-        // Table header
-        const thead = document.createElement('thead');
-        thead.innerHTML = `
-          <tr>
-            <th>NBI Structure ID</th>
-            <th>Condition</th>
-          </tr>
-        `;
-        table.appendChild(thead);
-
-        // Table body
-        const tbody = document.createElement('tbody');
-        results.bridges.forEach(bridge => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${bridge.nbiId}</td>
-            <td>${bridge.condition}</td>
-          `;
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-
-        bridgesContainer.appendChild(table);
-      }
+        // Create and append result card
+        const cardHtml = createResultCard(config, datasetResults);
+        resultsContainer.innerHTML += cardHtml;
+      });
 
       // Enable PDF button if project name is entered
       onProjectNameInput();
@@ -1729,22 +2342,16 @@
      * Resets to initial empty state
      */
     function clearResults() {
-      // Reset count badges
-      document.getElementById('routesCount').textContent = '0';
-      document.getElementById('zonesCount').textContent = '0';
-      document.getElementById('bridgesCount').textContent = '0';
+      // Get results container
+      const resultsContainer = document.getElementById('resultsContainer');
 
-      // Clear routes
-      document.getElementById('routesList').innerHTML =
-        '<li class="empty-state">Draw a project to see results</li>';
-
-      // Clear zones
-      document.getElementById('zonesList').innerHTML =
-        '<li class="empty-state">Draw a project to see results</li>';
-
-      // Clear bridges
-      document.getElementById('bridgesContainer').innerHTML =
-        '<p class="empty-state">Draw a project to see results</p>';
+      // Display placeholder message
+      resultsContainer.innerHTML = `
+        <div style="padding: 20px; text-align: center; color: #666;">
+          <p style="font-size: 16px; margin: 0;">Draw a project to see analysis results</p>
+          <p style="font-size: 13px; margin-top: 10px; color: #999;">Click "Draw Alignment" or "Mark Location" above to get started</p>
+        </div>
+      `;
 
       // Clear project name
       document.getElementById('projectName').value = '';
@@ -1753,7 +2360,7 @@
       document.getElementById('pdfButton').disabled = true;
 
       // Clear stored results
-      currentResults = { routes: [], zones: [], bridges: [] };
+      currentResults = {};
     }
 
     // ============================================
@@ -1912,10 +2519,6 @@
         // ========== RESULTS SECTION ==========
         // Only include sections that have results
 
-        const hasAnyResults = currentResults.routes.length > 0 || 
-                              currentResults.zones.length > 0 || 
-                              currentResults.bridges.length > 0;
-
         // Helper function to check if we need a new page
         const checkPageBreak = (neededSpace = 0.5) => {
           const footerSpace = 0.5;
@@ -1927,6 +2530,11 @@
           return false;
         };
 
+        // Check if we have any results from any dataset
+        const hasAnyResults = Object.keys(currentResults).some(datasetKey => {
+          return currentResults[datasetKey] && currentResults[datasetKey].length > 0;
+        });
+
         if (hasAnyResults) {
           checkPageBreak(0.5);
           pdf.setFontSize(12);
@@ -1935,65 +2543,86 @@
           yPosition += 0.3;
         }
 
-        // MATA Routes - only if results exist
-        if (currentResults.routes.length > 0) {
+        // Loop through all datasets and add results dynamically
+        Object.keys(DATASETS).forEach(datasetKey => {
+          const config = DATASETS[datasetKey];
+
+          // Skip if dataset is disabled or has no results
+          if (!config.enabled || !currentResults[datasetKey] || currentResults[datasetKey].length === 0) {
+            return;
+          }
+
+          const results = currentResults[datasetKey];
+
+          // Add section header
           checkPageBreak(0.5);
           pdf.setFontSize(11);
           pdf.setFont('helvetica', 'bold');
-          pdf.text('MATA Routes:', margin, yPosition);
+          pdf.text(`${config.name}:`, margin, yPosition);
           yPosition += 0.2;
           pdf.setFontSize(10);
           pdf.setFont('helvetica', 'normal');
 
-          currentResults.routes.forEach(route => {
-            checkPageBreak(0.2);
-            pdf.text(`  • ${route}`, margin, yPosition);
+          // Render based on resultStyle
+          if (config.resultStyle === 'table' && config.properties.additionalFields.length > 0) {
+            // Table format
+            pdf.setFont('helvetica', 'bold');
+
+            // Table header
+            const columnWidth = 2.5;
+            let xOffset = margin + 0.2;
+
+            pdf.text(config.properties.displayField, xOffset, yPosition);
+            xOffset += columnWidth;
+
+            config.properties.additionalFields.forEach(field => {
+              pdf.text(field, xOffset, yPosition);
+              xOffset += columnWidth;
+            });
+
             yPosition += 0.18;
-          });
-          yPosition += 0.15;
-        }
+            pdf.setFont('helvetica', 'normal');
 
-        // Opportunity Zones - only if results exist
-        if (currentResults.zones.length > 0) {
-          checkPageBreak(0.5);
-          pdf.setFontSize(11);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text('Opportunity Zones:', margin, yPosition);
-          yPosition += 0.2;
-          pdf.setFontSize(10);
-          pdf.setFont('helvetica', 'normal');
+            // Table rows
+            results.forEach(result => {
+              checkPageBreak(0.2);
+              xOffset = margin + 0.2;
 
-          currentResults.zones.forEach(zone => {
-            checkPageBreak(0.2);
-            pdf.text(`  • Census Tract ${zone}`, margin, yPosition);
-            yPosition += 0.18;
-          });
-          yPosition += 0.15;
-        }
+              // Display field
+              const displayValue = result[config.properties.displayField] || 'Unknown';
+              pdf.text(String(displayValue), xOffset, yPosition);
+              xOffset += columnWidth;
 
-        // Bridges - only if results exist
-        if (currentResults.bridges.length > 0) {
-          checkPageBreak(0.6);
-          pdf.setFontSize(11);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text('Bridges:', margin, yPosition);
-          yPosition += 0.2;
-          pdf.setFontSize(10);
+              // Additional fields
+              config.properties.additionalFields.forEach(field => {
+                const fieldValue = result[field] || 'Unknown';
+                pdf.text(String(fieldValue), xOffset, yPosition);
+                xOffset += columnWidth;
+              });
 
-          // Table header
-          pdf.setFont('helvetica', 'bold');
-          pdf.text('NBI Structure ID', margin + 0.2, yPosition);
-          pdf.text('Condition', margin + 3, yPosition);
-          yPosition += 0.18;
-          pdf.setFont('helvetica', 'normal');
+              yPosition += 0.15;
+            });
 
-          currentResults.bridges.forEach(bridge => {
-            checkPageBreak(0.2);
-            pdf.text(String(bridge.nbiId), margin + 0.2, yPosition);
-            pdf.text(String(bridge.condition), margin + 3, yPosition);
+          } else {
+            // List format (default)
+            results.forEach(result => {
+              checkPageBreak(0.2);
+
+              let displayText;
+              if (typeof result === 'string') {
+                displayText = result;
+              } else if (typeof result === 'object') {
+                displayText = result[config.properties.displayField] || 'Unknown';
+              } else {
+                displayText = String(result);
+              }
+
+              pdf.text(`  • ${displayText}`, margin, yPosition);
+              yPosition += 0.18;
+            });
             yPosition += 0.15;
-          });
-        }
+          }
+        });
 
         // ========== FOOTER (on each page) ==========
         const totalPages = pdf.internal.getNumberOfPages();
