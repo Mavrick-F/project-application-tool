@@ -4,9 +4,16 @@
 
 This is a web-based mapping tool for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055. It allows users to draw transportation project alignments or mark locations on an interactive map, then automatically performs spatial analysis to identify intersecting or nearby infrastructure and planning features. The tool generates a PDF report summarizing the findings.
 
-**Current Status:** v0.4.1 (active development, not production-ready)
+**Current Status:** v0.6.0 (active development, not production-ready)
 
 **Primary User:** Engineers from MPO partner agencies will use tool to create pdf reports which they submit as part of project applications. MPO staff will use the pdf reports to evalute project applications.
+
+**Recent Major Update (v0.6.0):**
+- Completed architecture refactoring to configuration-driven system
+- Integrated 12 datasets (up from 3)
+- Implemented generic analysis functions
+- Added support for conditional styling and static labels
+- Prepared foundation for ArcGIS Feature Service integration
 
 ## Architecture & Tech Stack
 
@@ -23,14 +30,24 @@ This is a **single-page HTML application** with all code in `index.html`:
 
 ```
 project-application-tool/
-├── index.html              # Single-file application (~1400 lines)
-├── data/                   # GeoJSON datasets
-│   ├── mata-routes.json    # Transit routes (LineString)
-│   ├── opportunity-zones.json  # Census tracts (Polygon)
-│   └── bridges.json        # Bridge locations (Point)
+├── index.html                    # Single-file application (~2700 lines)
+├── data/                         # GeoJSON datasets (12 total)
+│   ├── mata-routes.json          # Transit routes (LineString)
+│   ├── strahnet.geojson          # Strategic highway network (LineString)
+│   ├── truck_routes.json         # Freight routes (LineString, color-coded)
+│   ├── opportunity-zones.json    # Census tracts (Polygon)
+│   ├── freight_clusters.geojson  # Freight zones (Polygon)
+│   ├── parks.json                # Public parks (Polygon)
+│   ├── historic_polygons.geojson # Historic districts (Polygon)
+│   ├── bridges.json              # Bridge locations (Point)
+│   ├── major_employers.geojson   # Employment centers (Point)
+│   ├── tourist_attractions.geojson # Tourist destinations (Point)
+│   ├── historic_points.geojson   # Historic sites (Point)
+│   └── epa_superfund_sites.geojson # EPA cleanup sites (Point)
 ├── assets/
-│   └── rtp-2055-logo.jpg   # RTP header logo for PDF
-└── README.md
+│   └── rtp-2055-logo.jpg         # RTP header logo for PDF
+├── README.md
+└── claude.md                     # This file - context for Claude Code
 ```
 
 ## Key Concepts
@@ -54,34 +71,53 @@ The tool performs three types of spatial analysis:
    - Checks if points fall within buffer
    - Used for: Bridges (currently), future crash locations, major employers
 
-### Current Datasets (3 of ~16 required)
+### Implemented Datasets (12 of ~19 required)
 
+**Transportation:**
 ✅ **MATA Routes** - Transit network (corridor matching)
-✅ **Opportunity Zones** - Census tracts (intersection detection)
+✅ **STRAHNET Routes** - Strategic highway network (corridor matching)
+✅ **MPO Freight Route Network** - Regional/local freight routes (corridor matching, color-coded)
 ✅ **Bridges** - NBI structures (proximity analysis)
 
-### Required for v1.0 (13 additional datasets)
+**Economic Development:**
+✅ **Opportunity Zones** - Census tracts (intersection detection)
+✅ **MPO Freight Zones** - Freight activity areas (intersection detection)
+✅ **Major Employers** - Employment centers (proximity analysis)
+✅ **Tourist Destinations** - Attractions (proximity analysis)
 
-**Transportation:** Congested Segments, High Injury Corridors, STRAHNET, Crash Locations, Greenprint Plan Network (bike infrastructure)
+**Historic & Cultural:**
+✅ **NHRP Polygons** - Historic districts (proximity analysis)
+✅ **NHRP Points** - Historic sites (proximity analysis)
 
-**Freight:** MPO Freight Route Network, MPO Freight Zones
+**Environment & Recreation:**
+✅ **Parks** - Public parks (proximity analysis)
+✅ **EPA Superfund Sites** - Cleanup locations (proximity analysis)
 
-**Activity Centers:** Major Employers, Tourist Destinations
+### Required for v1.0 (7 additional datasets)
 
-**Environmental/EJ:** Parks, Wetlands, Streams, NHRP Sites/Districts, Superfund Sites, ALICE criteria (TBD)
+**Transportation:** Congested Segments (ArcGIS Feature Service), High Injury Corridors, Crash Locations (counting logic), Greenprint Plan Network (bike infrastructure - CRITICAL)
+
+**Environmental/EJ:** Wetlands, Streams, ALICE criteria (TBD)
 
 ## Critical Development Priorities
 
+### ✅ COMPLETED (v0.6.0)
+
+**Architecture Refactor** - ✅ DONE
+- ✅ Created configuration-driven system with centralized `DATASETS` config object
+- ✅ Each dataset specifies: type, analysis method, buffer distance, property mappings
+- ✅ Replaced hardcoded functions with three generic analysis methods
+- ✅ Support for conditional styling via `styleByProperty`
+- ✅ Support for static labels via `staticLabel`
+- ✅ New datasets can be added by updating config only—NO new code required
+- ✅ Integrated 12 datasets using new architecture
+
 ### 🔴 BLOCKING for v1.0
 
-**Architecture Refactor** - The current implementation has hardcoded analysis functions for each dataset (e.g., `findIntersectingRoutes()`, `findIntersectingZones()`). This is not scalable for 16+ datasets.
-
-**Required before adding more datasets:**
-- Create configuration-driven system with a `DATASETS` config object
-- Each dataset specifies: type, analysis method, buffer distance, property mappings
-- Replace hardcoded functions with generic analysis methods
-- Support special logic (counting crashes, ALICE thresholds) via config flags
-- New datasets should be added by updating config, NOT writing new code
+**Specialized Analysis Logic:**
+- Crash counting/aggregation (not just listing features)
+- ALICE criteria evaluation (thresholds TBD by RTP team)
+- ArcGIS Feature Service integration for large datasets
 
 ### 🟡 Data Integration
 
@@ -103,35 +139,62 @@ The tool performs three types of spatial analysis:
 The single HTML file is organized as follows:
 
 1. **HTML Structure** (~100 lines)
-   - Sidebar for controls and results
+   - Sidebar for controls and dynamic results container
    - Map container
    - Welcome modal
 
-2. **CSS Styles** (~400 lines)
+2. **CSS Styles** (~500 lines)
    - Responsive layout (desktop only, 1024px min)
    - Custom Leaflet control styling
+   - Dynamic result card styling
 
-3. **JavaScript** (~900 lines)
-   - Configuration object (`CONFIG`, line ~535)
-   - Map initialization
-   - Drawing event handlers
-   - Analysis functions (one per dataset currently)
-   - PDF generation
-   - Results display
+3. **JavaScript** (~2100 lines)
+   - **Configuration** (`CONFIG`, line ~623): Basic app settings
+   - **DATASETS Configuration** (line ~648): Complete dataset definitions with 12+ entries
+   - **Generic Analysis Functions** (line ~1784+):
+     - `analyzeCorridorMatch()` - For LineString datasets
+     - `analyzeIntersection()` - For Polygon datasets
+     - `analyzeProximity()` - For Point datasets
+     - `analyzeAllDatasets()` - Master orchestration function
+   - **Dynamic layer creation** (`addReferenceLayers()`, line ~1427)
+   - **Dynamic results display** (`displayResults()`, line ~2362)
+   - **Dynamic PDF generation** (`generatePDF()`, line ~2376)
+   - Map initialization, drawing handlers, utilities
 
 ## Important Configuration
 
-Key parameters in the `CONFIG` object:
-
+**Basic Config** (`CONFIG` object, line ~623):
 ```javascript
 CONFIG = {
-    bridgeBufferDistance: 300,  // Buffer for proximity analysis (feet)
     minLineLength: 100,         // Minimum valid project length (feet)
-    dataUrls: {
-        routes: 'data/mata-routes.json',
-        zones: 'data/opportunity-zones.json',
-        bridges: 'data/bridges.json'
-    }
+    drawnLineStyle: { ... },    // Style for user-drawn lines
+    logoPath: './assets/rtp-2055-logo.jpg'
+}
+```
+
+**Dataset Configuration** (`DATASETS` object, line ~648):
+Each dataset is fully defined with analysis parameters:
+```javascript
+datasetKey: {
+  id: 'datasetKey',
+  name: 'Display Name',
+  category: 'Category',
+  filePath: './data/file.json',
+  geometryType: 'Point' | 'LineString' | 'Polygon',
+  analysisMethod: 'corridor' | 'intersection' | 'proximity',
+  bufferDistance: 100,        // For corridor analysis
+  minSharedLength: 300,       // Minimum overlap
+  proximityBuffer: 200,       // For proximity analysis
+  properties: {
+    displayField: 'FieldName',
+    staticLabel: 'Text',      // Optional: override field
+    additionalFields: []
+  },
+  specialHandling: { ... },
+  style: { ... },
+  styleByProperty: { ... },   // Optional: conditional styling
+  resultStyle: 'list' | 'table',
+  enabled: true
 }
 ```
 
@@ -151,17 +214,38 @@ All datasets must:
 
 ### When Adding New Datasets
 
-**Current approach (manual, to be replaced):**
-1. Add GeoJSON to `/data/`
-2. Update `CONFIG.dataUrls`
-3. Create analysis function (e.g., `findIntersectingBikeRoutes()`)
-4. Add results section in sidebar HTML
-5. Update PDF generation logic
+**Current approach (v0.6.0) - configuration-driven:**
 
-**Target approach (configuration-driven):**
-- Define in config with analysis type, buffer, properties
-- Generic functions handle analysis
-- No new code required
+1. **Add GeoJSON to `/data/`**
+2. **Add entry to DATASETS object** (line ~648):
+```javascript
+newDataset: {
+  id: 'newDataset',
+  name: 'Display Name',
+  filePath: './data/new-dataset.json',
+  geometryType: 'Point',
+  analysisMethod: 'proximity',
+  proximityBuffer: 500,
+  properties: { displayField: 'NAME' },
+  style: { color: '#FF0000', radius: 4, ... },
+  enabled: true
+}
+```
+3. **That's it!** No code changes needed.
+
+The system automatically handles:
+- Data loading
+- Layer creation and styling
+- Tooltip generation
+- Spatial analysis
+- Results display
+- PDF report inclusion
+
+**Advanced features available:**
+- `staticLabel` - Show constant text instead of field value
+- `styleByProperty` - Conditional styling (e.g., color-code by type)
+- `specialHandling` - Deduplication, suffix removal
+- `additionalFields` - Multi-column table results
 
 ### Testing Locally
 
@@ -213,11 +297,12 @@ These are different concepts that should not be confused.
 
 ## Things to Prioritize
 
-- **Configuration-driven architecture** - This is the #1 blocker for v1.0
-- **Dataset integration** - 13 more datasets needed
+- ✅ **Configuration-driven architecture** - COMPLETED in v0.6.0
+- **ArcGIS Feature Service integration** - For large datasets (Congested Segments)
+- **Specialized analysis logic** - Counting, aggregation, thresholds (for crashes, ALICE, etc.)
+- **Dataset integration** - 7 more datasets needed for v1.0
 - **User feedback messages** - Empty states, validation, confirmation dialogs
 - **PDF report improvements** - Better formatting, more context
-- **Special analysis logic** - Counting, aggregation, thresholds (for crashes, ALICE, etc.)
 
 ## Terminology
 
