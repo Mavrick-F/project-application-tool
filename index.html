@@ -1390,10 +1390,80 @@
 
         console.log('Data loaded successfully:', loadedCounts);
 
+        // Validate coordinate systems for all loaded datasets
+        Object.keys(DATASETS).forEach(datasetKey => {
+          const config = DATASETS[datasetKey];
+          if (config.enabled && geoJsonData[datasetKey]) {
+            validateProjection(geoJsonData[datasetKey], config.name);
+          }
+        });
+
       } catch (error) {
         console.error('Error loading GeoJSON data:', error);
         throw error;
       }
+    }
+
+    /**
+     * Validate that GeoJSON data is in WGS84 (EPSG:4326) coordinate system
+     * Throws error if coordinates appear to be in projected CRS
+     * @param {Object} data - GeoJSON FeatureCollection
+     * @param {string} datasetName - Name of dataset for error messages
+     */
+    function validateProjection(data, datasetName) {
+      if (!data.features || data.features.length === 0) {
+        console.log(`⚠ ${datasetName}: No features to validate`);
+        return true;
+      }
+
+      const firstFeature = data.features[0];
+      let coords;
+
+      // Extract first coordinate based on geometry type
+      if (firstFeature.geometry.type === 'Point') {
+        coords = firstFeature.geometry.coordinates;
+      } else if (firstFeature.geometry.type === 'LineString') {
+        coords = firstFeature.geometry.coordinates[0];
+      } else if (firstFeature.geometry.type === 'Polygon') {
+        coords = firstFeature.geometry.coordinates[0][0];
+      } else if (firstFeature.geometry.type === 'MultiPolygon') {
+        coords = firstFeature.geometry.coordinates[0][0][0];
+      } else if (firstFeature.geometry.type === 'MultiLineString') {
+        coords = firstFeature.geometry.coordinates[0][0];
+      } else if (firstFeature.geometry.type === 'MultiPoint') {
+        coords = firstFeature.geometry.coordinates[0];
+      }
+
+      if (!coords || coords.length < 2) {
+        console.warn(`⚠ ${datasetName}: Could not extract coordinates for validation`);
+        return true;
+      }
+
+      const [lng, lat] = coords;
+
+      // Memphis area bounding box: lng -90.1 to -89.6, lat 34.9 to 35.3
+      // Using slightly wider bounds (-91 to -89, 34 to 36) to allow for regional datasets
+      const isValidWGS84 = (
+        lng >= -91 && lng <= -89 &&
+        lat >= 34 && lat <= 36
+      );
+
+      if (!isValidWGS84) {
+        console.error(`❌ PROJECTION ERROR in ${datasetName}!`);
+        console.error(`Found coordinates: [${lng}, ${lat}]`);
+        console.error(`Expected Memphis area: lng -90 to -89, lat 34.9 to 35.3`);
+        console.error(`Data appears to be in projected CRS, not WGS84!`);
+
+        throw new Error(
+          `${datasetName} has invalid coordinates. ` +
+          `Found [${lng}, ${lat}]. ` +
+          `Data must be in WGS84 (EPSG:4326), not projected coordinates. ` +
+          `Please reproject the data to WGS84 before use.`
+        );
+      }
+
+      console.log(`✓ ${datasetName} projection validated (WGS84): [${lng.toFixed(3)}, ${lat.toFixed(3)}]`);
+      return true;
     }
 
     /**
@@ -2453,13 +2523,26 @@
           });
         }
 
-        // Wait for map tiles to load before capturing
-        showLoading(true, 'Loading map tiles...');
+        // === CRITICAL: Wait for all rendering to complete before capture ===
+
+        // Step 1: Wait for basemap tiles to load at new position
+        showLoading(true, 'Loading basemap tiles...');
         await waitForTilesToLoad();
 
-        // Additional buffer for any remaining rendering
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Step 2: Wait for GeoJSON vector layers to render
+        showLoading(true, 'Rendering vector layers...');
+        await waitForGeoJSONLayersToRender();
 
+        // Step 3: Give browser one more render cycle to finalize
+        showLoading(true, 'Finalizing map display...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Step 4: Force Leaflet to recalculate internal state
+        // This ensures all layer positions are correct
+        map.invalidateSize();
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Now safe to capture
         showLoading(true, 'Capturing map image...');
 
         // Capture map as image using html2canvas
@@ -2791,49 +2874,128 @@
         });
 
         if (!tileLayer) {
-          // No tile layer found, resolve immediately
+          console.warn('No tile layer found');
           resolve();
           return;
         }
 
-        // Check if tiles are already loaded
-        let pendingTiles = 0;
-        const container = tileLayer.getContainer();
-        if (container) {
-          const tiles = container.querySelectorAll('img');
-          tiles.forEach(tile => {
-            if (!tile.complete) pendingTiles++;
-          });
-        }
+        // Helper function to check pending tiles
+        const checkTiles = () => {
+          let pending = 0;
+          const container = tileLayer.getContainer();
+          if (container) {
+            const tiles = container.querySelectorAll('img');
+            tiles.forEach(tile => {
+              if (!tile.complete) pending++;
+            });
+          }
+          return pending;
+        };
 
-        if (pendingTiles === 0) {
-          // All tiles already loaded
+        // Check if tiles are already loaded
+        const initialPending = checkTiles();
+        console.log(`Basemap tiles: ${initialPending} pending`);
+
+        if (initialPending === 0) {
+          console.log('✓ All basemap tiles already loaded');
           resolve();
           return;
         }
 
         // Wait for 'load' event or timeout
         let resolved = false;
-        
+        let timeoutHandle;
+
         const onLoad = () => {
-          if (!resolved) {
+          const stillPending = checkTiles();
+          if (!resolved && stillPending === 0) {
             resolved = true;
+            clearTimeout(timeoutHandle);
             tileLayer.off('load', onLoad);
+            tileLayer.off('tileerror', onTileError);
+            console.log('✓ All basemap tiles loaded successfully');
             resolve();
+          } else if (stillPending > 0) {
+            console.log(`Basemap tiles: ${stillPending} still pending...`);
           }
         };
 
-        tileLayer.on('load', onLoad);
+        const onTileError = (error) => {
+          console.warn('Tile load error:', error);
+          // Continue anyway - some tiles may have failed but we should proceed
+        };
 
-        // Timeout fallback (3 seconds max wait)
-        setTimeout(() => {
+        tileLayer.on('load', onLoad);
+        tileLayer.on('tileerror', onTileError);
+
+        // Timeout fallback (5 seconds max wait - increased from 3s)
+        timeoutHandle = setTimeout(() => {
           if (!resolved) {
             resolved = true;
             tileLayer.off('load', onLoad);
-            console.warn('Tile load timeout - proceeding with capture');
+            tileLayer.off('tileerror', onTileError);
+            const finalPending = checkTiles();
+            console.warn(`⚠ Tile load timeout after 5s - ${finalPending} tiles still pending - proceeding anyway`);
             resolve();
           }
-        }, 3000);
+        }, 5000);
+      });
+    }
+
+    /**
+     * Wait for all GeoJSON vector layers to finish rendering in the DOM
+     * GeoJSON layers render as SVG elements in the overlay pane
+     * This ensures all vector features are visible before PDF capture
+     * @returns {Promise} Resolves when layers are rendered or timeout (2s)
+     */
+    async function waitForGeoJSONLayersToRender() {
+      return new Promise((resolve) => {
+        let checks = 0;
+        const maxChecks = 20; // 2 seconds max wait (20 * 100ms)
+
+        const checkRendered = () => {
+          checks++;
+
+          // Find the Leaflet overlay pane that contains vector layers
+          const overlayPane = document.querySelector('.leaflet-overlay-pane');
+          if (!overlayPane) {
+            if (checks < maxChecks) {
+              setTimeout(checkRendered, 100);
+            } else {
+              console.warn('GeoJSON layers: overlay pane not found - proceeding anyway');
+              resolve();
+            }
+            return;
+          }
+
+          // Count rendered SVG paths (GeoJSON features render as SVG)
+          const svgPaths = overlayPane.querySelectorAll('svg path');
+          const canvasElements = overlayPane.querySelectorAll('canvas');
+
+          // Count total rendered elements
+          const totalElements = svgPaths.length + canvasElements.length;
+
+          // Log progress every 5 checks
+          if (checks % 5 === 0 || checks === 1) {
+            console.log(`GeoJSON render check ${checks}: ${svgPaths.length} SVG paths, ${canvasElements.length} canvas elements`);
+          }
+
+          // Consider rendered if we have some elements OR reached max checks
+          // We expect at least a few paths for the drawn geometry + reference layers
+          if (totalElements > 0 || checks >= maxChecks) {
+            if (checks >= maxChecks && totalElements === 0) {
+              console.warn('GeoJSON layers: timeout reached with no elements - check if layers are actually enabled');
+            } else {
+              console.log(`✓ GeoJSON layers rendered: ${totalElements} elements found after ${checks * 100}ms`);
+            }
+            resolve();
+          } else {
+            // Keep checking
+            setTimeout(checkRendered, 100);
+          }
+        };
+
+        checkRendered();
       });
     }
 
@@ -2909,7 +3071,7 @@
      * This demonstrates how to properly query the ETRIMS roads service
      *
      * KEY FIX: This implementation properly discovers the layer index from service metadata
-     * instead of blindly assuming layer 0. The discoverFeatureServiceLayer() function
+     * instead of blindly assumixng layer 0. The discoverFeatureServiceLayer() function
      * queries the FeatureServer base URL to get metadata about available layers, then
      * uses the correct layer index.
      *
