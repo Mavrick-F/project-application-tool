@@ -1817,6 +1817,21 @@
     // ============================================
 
     /**
+     * Clean corridor/route name by removing directional suffixes (IB, OB, EB, WB)
+     * @param {string} name - Original corridor/route name
+     * @returns {string} Cleaned corridor/route name
+     */
+    function cleanCorridorName(name) {
+      if (!name) return 'Unknown';
+
+      // Remove common directional suffixes (with optional space/dash before)
+      // Handles: "Route 50 IB", "Route 50-OB", "Route 50IB", etc.
+      return name
+        .replace(/[\s\-]*(IB|OB|EB|WB)$/i, '')
+        .trim();
+    }
+
+    /**
      * Analyze corridor match for LineString datasets
      * Works for any LineString dataset with corridor matching logic
      * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
@@ -1883,7 +1898,7 @@
             // Apply special handling if configured
             let processedName = featureName;
             if (datasetConfig.specialHandling.removeDirectionalSuffixes) {
-              processedName = cleanRouteName(featureName);
+              processedName = cleanCorridorName(featureName);
             }
 
             matchingFeatures.add(processedName);
@@ -2080,150 +2095,6 @@
         zones: allResults.opportunityZones || [],
         bridges: allResults.bridges || []
       };
-    }
-
-    /**
-     * Find all MATA routes that follow the same corridor as the drawn geometry
-     * Routes must run parallel/along the project for at least 300ft (not just cross it)
-     * For Points: Uses 300ft buffer around point to find nearby routes
-     * Filters out directional suffixes (IB/OB/EB/WB) and deduplicates
-     * @param {Object} featureOrGeometry - GeoJSON Feature or geometry (LineString or Point)
-     * @returns {Array} Array of route names (cleaned and deduplicated)
-     */
-    function findIntersectingRoutes(featureOrGeometry) {
-      const matchingRoutes = new Set();
-      
-      // Config for corridor matching
-      const CORRIDOR_TOLERANCE = 100;  // feet - buffer for lines not touching exactly
-      const MIN_SHARED_LENGTH = 300;   // feet - minimum parallel distance required
-
-      // Extract actual geometry from GeoJSON Feature if needed
-      const geometry = featureOrGeometry.type === 'Feature'
-        ? featureOrGeometry.geometry
-        : featureOrGeometry;
-
-      // Create a buffer around the drawn geometry for tolerance
-      const corridorBuffer = turf.buffer(geometry, CORRIDOR_TOLERANCE, {
-        units: 'feet'
-      });
-
-      geoJsonData.routes.features.forEach(route => {
-        try {
-          let isMatch = false;
-
-          if (geometry.type === 'LineString') {
-            // Check if route has significant overlap within the corridor
-            // First, see if route intersects the buffer at all
-            if (turf.booleanIntersects(corridorBuffer, route)) {
-              // Clip the route to the corridor buffer
-              try {
-                const clipped = turf.bboxClip(route, turf.bbox(corridorBuffer));
-                
-                // For more accurate clipping, use lineIntersect to find overlap
-                // Then measure the length of route segments within the buffer
-                const routeCoords = turf.getCoords(route);
-                let overlapLength = 0;
-                
-                // Check each segment of the route
-                for (let i = 0; i < routeCoords.length - 1; i++) {
-                  const segment = turf.lineString([routeCoords[i], routeCoords[i + 1]]);
-                  
-                  // Check if segment midpoint is within the corridor buffer
-                  const midpoint = turf.midpoint(
-                    turf.point(routeCoords[i]), 
-                    turf.point(routeCoords[i + 1])
-                  );
-                  
-                  if (turf.booleanPointInPolygon(midpoint, corridorBuffer)) {
-                    overlapLength += turf.length(segment, { units: 'feet' });
-                  }
-                }
-                
-                // Route matches if it has at least 300ft within the corridor
-                isMatch = overlapLength >= MIN_SHARED_LENGTH;
-                
-              } catch (clipError) {
-                // Fallback: if clipping fails, use simple intersection
-                console.warn('Clip failed, using fallback:', clipError);
-                isMatch = turf.booleanIntersects(corridorBuffer, route);
-              }
-            }
-          } else if (geometry.type === 'Point') {
-            // Point: buffer the point by 300ft and check if route intersects buffer
-            const buffered = turf.buffer(geometry, CONFIG.bridgeBufferDistance, {
-              units: CONFIG.bridgeBufferUnits
-            });
-            isMatch = turf.booleanIntersects(buffered, route);
-          }
-
-          if (isMatch) {
-            const routeName = route.properties.Name || 'Unknown Route';
-            // Clean the route name - remove directional suffixes
-            const cleanedName = cleanRouteName(routeName);
-            matchingRoutes.add(cleanedName);
-          }
-        } catch (error) {
-          console.warn('Error checking route intersection:', error);
-        }
-      });
-
-      // Convert Set to sorted array
-      return Array.from(matchingRoutes).sort();
-    }
-
-    /**
-     * Clean route name by removing directional suffixes (IB, OB, EB, WB)
-     * @param {string} name - Original route name
-     * @returns {string} Cleaned route name
-     */
-    function cleanRouteName(name) {
-      if (!name) return 'Unknown Route';
-      
-      // Remove common directional suffixes (with optional space/dash before)
-      // Handles: "Route 50 IB", "Route 50-OB", "Route 50IB", etc.
-      return name
-        .replace(/[\s\-]*(IB|OB|EB|WB)$/i, '')
-        .trim();
-    }
-
-    /**
-     * Find all opportunity zones that intersect the drawn geometry
-     * For Lines: Uses Turf.js booleanIntersects for line-to-polygon intersection
-     * For Points: Uses Turf.js booleanPointInPolygon to check if point is within zone
-     * @param {Object} featureOrGeometry - GeoJSON Feature or geometry (LineString or Point)
-     * @returns {Array} Array of census tract IDs
-     */
-    function findIntersectingZones(featureOrGeometry) {
-      const intersectingZones = [];
-
-      // Extract actual geometry from GeoJSON Feature if needed
-      const geometry = featureOrGeometry.type === 'Feature'
-        ? featureOrGeometry.geometry
-        : featureOrGeometry;
-
-      geoJsonData.zones.features.forEach(zone => {
-        try {
-          let intersects = false;
-
-          if (geometry.type === 'LineString') {
-            // Line-to-polygon intersection
-            intersects = turf.booleanIntersects(geometry, zone);
-          } else if (geometry.type === 'Point') {
-            // Point-in-polygon check
-            intersects = turf.booleanPointInPolygon(geometry, zone);
-          }
-
-          if (intersects) {
-            const tractId = zone.properties.CENSUSTRAC || 'Unknown Tract';
-            intersectingZones.push(tractId);
-          }
-        } catch (error) {
-          console.warn('Error checking zone intersection:', error);
-        }
-      });
-
-      // Sort by tract ID
-      return intersectingZones.sort();
     }
 
     /**
