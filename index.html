@@ -706,7 +706,7 @@
         name: 'MPO Freight Route Network',
         category: 'Transportation - Freight',
         filePath: './data/truck_routes.json',
-        geometryType: 'LineString',
+        geometryType: 'MultiLineString',
         analysisMethod: 'corridor',
         bufferDistance: 100,
         minSharedLength: 300,
@@ -1902,8 +1902,27 @@
     }
 
     /**
+     * Normalize a GeoJSON feature to an array of LineStrings
+     * Handles both LineString and MultiLineString geometry types
+     * @param {Object} feature - GeoJSON Feature or geometry object
+     * @returns {Array} Array of Turf.js LineString objects
+     */
+    function normalizeToLineStrings(feature) {
+      const geom = feature.geometry || feature;
+
+      if (geom.type === 'LineString') {
+        return [turf.lineString(geom.coordinates)];
+      } else if (geom.type === 'MultiLineString') {
+        return geom.coordinates.map(coords => turf.lineString(coords));
+      }
+
+      return [];
+    }
+
+    /**
      * Analyze corridor match for LineString datasets
      * Works for any LineString dataset with corridor matching logic
+     * Uses turf.lineOverlap() for accurate overlap detection
      * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
      * @param {Object} datasetConfig - Configuration object from DATASETS
      * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
@@ -1917,64 +1936,88 @@
         ? drawnGeometry.geometry
         : drawnGeometry;
 
-      // Create a buffer around the drawn geometry for tolerance
-      const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
-        units: 'feet'
-      });
+      // Handle Point geometry separately (simple buffer intersection)
+      if (geometry.type === 'Point') {
+        const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
+          units: 'feet'
+        });
+
+        geoJsonData.features.forEach(feature => {
+          try {
+            if (turf.booleanIntersects(corridorBuffer, feature)) {
+              const featureName = feature.properties[datasetConfig.properties.displayField] || 'Unknown';
+              let processedName = featureName;
+              if (datasetConfig.specialHandling?.removeDirectionalSuffixes) {
+                processedName = cleanCorridorName(featureName);
+              }
+              matchingFeatures.add(processedName);
+            }
+          } catch (error) {
+            console.warn('Error checking point corridor match:', error);
+          }
+        });
+
+        return Array.from(matchingFeatures).sort();
+      }
+
+      // LineString corridor matching using turf.lineOverlap()
+      if (geometry.type !== 'LineString') {
+        console.warn(`Unsupported geometry type for corridor matching: ${geometry.type}`);
+        return [];
+      }
+
+      const drawnLine = turf.lineString(geometry.coordinates);
 
       geoJsonData.features.forEach(feature => {
         try {
-          let isMatch = false;
+          // Normalize feature to array of LineStrings (handles both LineString and MultiLineString)
+          const routeLines = normalizeToLineStrings(feature);
+          let totalOverlap = 0;
 
-          if (geometry.type === 'LineString') {
-            // Check if feature has significant overlap within the corridor
-            if (turf.booleanIntersects(corridorBuffer, feature)) {
-              try {
-                const featureCoords = turf.getCoords(feature);
-                let overlapLength = 0;
+          // Calculate overlap with each line segment
+          for (const routeLine of routeLines) {
+            try {
+              // Use turf.lineOverlap() to find actual overlapping segments
+              const overlap = turf.lineOverlap(drawnLine, routeLine, {
+                tolerance: datasetConfig.bufferDistance,
+                units: 'feet'
+              });
 
-                // Check each segment of the feature
-                for (let i = 0; i < featureCoords.length - 1; i++) {
-                  const segment = turf.lineString([featureCoords[i], featureCoords[i + 1]]);
+              // Sum up the length of all overlapping segments
+              if (overlap && overlap.features && overlap.features.length > 0) {
+                const overlapLength = overlap.features.reduce((sum, overlapFeature) => {
+                  return sum + turf.length(overlapFeature, { units: 'feet' });
+                }, 0);
 
-                  // Check if segment midpoint is within the corridor buffer
-                  const midpoint = turf.midpoint(
-                    turf.point(featureCoords[i]),
-                    turf.point(featureCoords[i + 1])
-                  );
-
-                  if (turf.booleanPointInPolygon(midpoint, corridorBuffer)) {
-                    overlapLength += turf.length(segment, { units: 'feet' });
-                  }
-                }
-
-                // Feature matches if it has at least minSharedLength within the corridor
-                isMatch = overlapLength >= datasetConfig.minSharedLength;
-
-              } catch (clipError) {
-                // Fallback: if processing fails, use simple intersection
-                console.warn('Corridor analysis fallback:', clipError);
-                isMatch = turf.booleanIntersects(corridorBuffer, feature);
+                totalOverlap += overlapLength;
               }
+
+              // Early exit optimization: if we've already met the threshold, no need to continue
+              if (totalOverlap >= datasetConfig.minSharedLength) {
+                break;
+              }
+
+            } catch (overlapError) {
+              // Log error but continue processing other line segments
+              console.warn('Error calculating line overlap:', overlapError);
             }
-          } else if (geometry.type === 'Point') {
-            // Point: check if feature intersects buffer around point
-            isMatch = turf.booleanIntersects(corridorBuffer, feature);
           }
 
-          if (isMatch) {
+          // Feature matches if total overlap meets minimum threshold
+          if (totalOverlap >= datasetConfig.minSharedLength) {
             const featureName = feature.properties[datasetConfig.properties.displayField] || 'Unknown';
 
-            // Apply special handling if configured
+            // Apply deduplication/suffix removal if configured
             let processedName = featureName;
-            if (datasetConfig.specialHandling.removeDirectionalSuffixes) {
+            if (datasetConfig.specialHandling?.removeDirectionalSuffixes) {
               processedName = cleanCorridorName(featureName);
             }
 
             matchingFeatures.add(processedName);
           }
+
         } catch (error) {
-          console.warn('Error checking feature intersection:', error);
+          console.warn(`Error analyzing corridor match for ${datasetConfig.name}:`, error);
         }
       });
 
