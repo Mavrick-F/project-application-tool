@@ -1597,6 +1597,55 @@
               }
             });
 
+          } else if (config.geometryType === 'MultiLineString') {
+            // ========== MULTILINESTRING LAYERS ==========
+            // Use same logic as LineString - Leaflet handles MultiLineString automatically
+            layer = L.geoJSON(geoJsonData[datasetKey], {
+              style: (feature) => {
+                // Check if style should vary by property
+                if (config.styleByProperty) {
+                  const propertyValue = feature.properties[config.styleByProperty.field];
+                  const propertyStyle = config.styleByProperty.values[propertyValue];
+                  if (propertyStyle) {
+                    return { ...config.style, ...propertyStyle };
+                  }
+                }
+                return config.style;
+              },
+              onEachFeature: (feature, leafletLayer) => {
+                // Use staticLabel if defined, otherwise use field value
+                const displayValue = config.properties.staticLabel ||
+                                    feature.properties[config.properties.displayField] ||
+                                    'Unknown';
+
+                // Bind tooltip
+                leafletLayer.bindTooltip(displayValue, {
+                  sticky: true,
+                  className: 'leaflet-tooltip'
+                });
+
+                // Get current feature style for hover effects
+                let currentStyle = config.style;
+                if (config.styleByProperty) {
+                  const propertyValue = feature.properties[config.styleByProperty.field];
+                  const propertyStyle = config.styleByProperty.values[propertyValue];
+                  if (propertyStyle) {
+                    currentStyle = { ...config.style, ...propertyStyle };
+                  }
+                }
+
+                // Hover effects
+                const hoverStyle = { ...currentStyle, weight: (currentStyle.weight || 2) + 0.5, opacity: (currentStyle.opacity || 0.7) + 0.15 };
+                leafletLayer.on('mouseover', function() {
+                  this.setStyle(hoverStyle);
+                });
+
+                leafletLayer.on('mouseout', function() {
+                  this.setStyle(currentStyle);
+                });
+              }
+            });
+
           } else if (config.geometryType === 'Polygon') {
             // ========== POLYGON LAYERS ==========
             layer = L.geoJSON(geoJsonData[datasetKey], {
@@ -1978,9 +2027,10 @@
           for (const routeLine of routeLines) {
             try {
               // Use turf.lineOverlap() to find actual overlapping segments
+              // Note: tolerance is for coordinate snapping precision, not buffering
               const overlap = turf.lineOverlap(drawnLine, routeLine, {
-                tolerance: datasetConfig.bufferDistance,
-                units: 'feet'
+                tolerance: 0.001,
+                units: 'miles'
               });
 
               // Sum up the length of all overlapping segments
@@ -2005,7 +2055,10 @@
 
           // Feature matches if total overlap meets minimum threshold
           if (totalOverlap >= datasetConfig.minSharedLength) {
-            const featureName = feature.properties[datasetConfig.properties.displayField] || 'Unknown';
+            // Use staticLabel if defined, otherwise use field value
+            const featureName = datasetConfig.properties.staticLabel ||
+                                feature.properties[datasetConfig.properties.displayField] ||
+                                'Unknown';
 
             // Apply deduplication/suffix removal if configured
             let processedName = featureName;
