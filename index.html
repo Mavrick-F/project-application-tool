@@ -2009,37 +2009,42 @@
         return Array.from(matchingFeatures).sort();
       }
 
-      // LineString corridor matching using turf.lineOverlap()
+      // LineString corridor matching using buffer intersection approach
       if (geometry.type !== 'LineString') {
         console.warn(`Unsupported geometry type for corridor matching: ${geometry.type}`);
         return [];
       }
 
-      const drawnLine = turf.lineString(geometry.coordinates);
+      // Create buffer around drawn line for corridor tolerance
+      const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
+        units: 'feet'
+      });
 
       geoJsonData.features.forEach(feature => {
         try {
+          // Quick check: does route intersect buffer at all?
+          if (!turf.booleanIntersects(corridorBuffer, feature)) {
+            return; // No intersection, skip this feature
+          }
+
           // Normalize feature to array of LineStrings (handles both LineString and MultiLineString)
           const routeLines = normalizeToLineStrings(feature);
           let totalOverlap = 0;
 
-          // Calculate overlap with each line segment
+          // Calculate how much of the route falls within the corridor buffer
           for (const routeLine of routeLines) {
             try {
-              // Use turf.lineOverlap() to find actual overlapping segments
-              // Note: tolerance is for coordinate snapping precision, not buffering
-              const overlap = turf.lineOverlap(drawnLine, routeLine, {
-                tolerance: 0.001,
-                units: 'miles'
-              });
+              const routeCoords = turf.getCoords(routeLine);
 
-              // Sum up the length of all overlapping segments
-              if (overlap && overlap.features && overlap.features.length > 0) {
-                const overlapLength = overlap.features.reduce((sum, overlapFeature) => {
-                  return sum + turf.length(overlapFeature, { units: 'feet' });
-                }, 0);
+              // Check each segment of the route
+              for (let i = 0; i < routeCoords.length - 1; i++) {
+                const segment = turf.lineString([routeCoords[i], routeCoords[i + 1]]);
 
-                totalOverlap += overlapLength;
+                // Check if segment intersects the corridor buffer
+                if (turf.booleanIntersects(segment, corridorBuffer)) {
+                  // Add segment length to total
+                  totalOverlap += turf.length(segment, { units: 'feet' });
+                }
               }
 
               // Early exit optimization: if we've already met the threshold, no need to continue
@@ -2047,9 +2052,9 @@
                 break;
               }
 
-            } catch (overlapError) {
+            } catch (segmentError) {
               // Log error but continue processing other line segments
-              console.warn('Error calculating line overlap:', overlapError);
+              console.warn('Error calculating segment intersection:', segmentError);
             }
           }
 
