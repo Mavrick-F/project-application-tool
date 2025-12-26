@@ -1969,9 +1969,84 @@
     }
 
     /**
+     * Calculate the length of a line segment that falls inside a polygon buffer.
+     * Uses polygon boundary intersection to find exact entry/exit points.
+     * This fixes the false positive issue where perpendicular crossings were
+     * counting the full segment length instead of just the portion inside.
+     *
+     * @param {Object} segment - Turf.js LineString (2 coordinates)
+     * @param {Object} buffer - Turf.js Polygon (the corridor buffer)
+     * @returns {number} Length in feet of segment inside the buffer
+     */
+    function measureSegmentInsideBuffer(segment, buffer) {
+      const coords = turf.getCoords(segment);
+      if (coords.length < 2) return 0;
+
+      const startPt = turf.point(coords[0]);
+      const endPt = turf.point(coords[coords.length - 1]);
+      const segmentLength = turf.length(segment, { units: 'feet' });
+
+      if (segmentLength === 0) return 0;
+
+      const startInside = turf.booleanPointInPolygon(startPt, buffer);
+      const endInside = turf.booleanPointInPolygon(endPt, buffer);
+
+      // Case 1: Both endpoints inside - entire segment is inside
+      if (startInside && endInside) {
+        return segmentLength;
+      }
+
+      // Find where segment crosses buffer boundary
+      const bufferBoundary = turf.polygonToLine(buffer);
+      const intersections = turf.lineIntersect(segment, bufferBoundary);
+
+      // Case 2: No boundary crossings
+      if (intersections.features.length === 0) {
+        // If start is inside but no crossings, entire segment must be inside
+        // (This handles numerical edge cases near boundary)
+        return startInside ? segmentLength : 0;
+      }
+
+      // Calculate distance along segment for each intersection point
+      const distances = [];
+      for (const pt of intersections.features) {
+        // Find the nearest point on the segment to this intersection
+        const nearest = turf.nearestPointOnLine(segment, pt, { units: 'feet' });
+        distances.push(nearest.properties.location);
+      }
+
+      // Sort distances from start to end
+      distances.sort((a, b) => a - b);
+
+      // Walk along segment, tracking inside/outside state
+      let totalInside = 0;
+      let inside = startInside;
+      let prevDist = 0;
+
+      for (const dist of distances) {
+        if (inside) {
+          totalInside += dist - prevDist;
+        }
+        prevDist = dist;
+        inside = !inside; // Toggle at each boundary crossing
+      }
+
+      // Handle final segment from last crossing to end
+      if (inside) {
+        totalInside += segmentLength - prevDist;
+      }
+
+      return Math.max(0, totalInside); // Ensure non-negative
+    }
+
+    /**
      * Analyze corridor match for LineString datasets
-     * Works for any LineString dataset with corridor matching logic
-     * Uses turf.lineOverlap() for accurate overlap detection
+     * Works for any LineString dataset with corridor matching logic.
+     * Uses buffer intersection with segment clipping to accurately measure
+     * the portion of each route segment inside the corridor buffer.
+     * This correctly handles perpendicular crossings (only counts the
+     * portion inside the buffer, not the full segment length).
+     *
      * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
      * @param {Object} datasetConfig - Configuration object from DATASETS
      * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
@@ -2040,11 +2115,15 @@
               for (let i = 0; i < routeCoords.length - 1; i++) {
                 const segment = turf.lineString([routeCoords[i], routeCoords[i + 1]]);
 
-                // Check if segment intersects the corridor buffer
-                if (turf.booleanIntersects(segment, corridorBuffer)) {
-                  // Add segment length to total
-                  totalOverlap += turf.length(segment, { units: 'feet' });
+                // Quick check: skip if segment doesn't intersect buffer at all
+                if (!turf.booleanIntersects(segment, corridorBuffer)) {
+                  continue;
                 }
+
+                // FIX: Calculate actual length inside buffer, not full segment length
+                // This prevents false positives from perpendicular crossings
+                const insideLength = measureSegmentInsideBuffer(segment, corridorBuffer);
+                totalOverlap += insideLength;
               }
 
               // Early exit optimization: if we've already met the threshold, no need to continue
