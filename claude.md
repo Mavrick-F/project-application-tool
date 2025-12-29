@@ -4,20 +4,31 @@
 
 This is a web-based mapping tool for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055. It allows users to draw transportation project alignments or mark locations on an interactive map, then automatically performs spatial analysis to identify intersecting or nearby infrastructure and planning features. The tool generates a PDF report summarizing the findings.
 
-**Current Status:** v0.6.0 (active development, not production-ready)
+**Current Status:** v0.7.0 (active development, not production-ready)
 
 **Primary User:** Engineers from MPO partner agencies will use tool to create pdf reports which they submit as part of project applications. MPO staff will use the pdf reports to evalute project applications.
 
-**Recent Major Update (v0.6.0):**
-- Completed architecture refactoring to configuration-driven system
-- Integrated 12 datasets (up from 3)
-- Implemented generic analysis functions
-- Added support for conditional styling and static labels
-- Prepared foundation for ArcGIS Feature Service integration
+**Recent Major Update (v0.7.0):**
+- Refactored monolithic 3200+ line index.html into 7 modular files
+- Maintained all functionality with zero breaking changes
+- Improved code maintainability and organization
+- Added cache busting with `?v=0.7.0` query strings
+- Updated all documentation
 
 ## Architecture & Tech Stack
 
-This is a **single-page HTML application** with all code in `index.html`:
+This is a **modular JavaScript application (v0.7.0)** with 7 separate files:
+
+**Core Application Files:**
+- **index.html** (~140 lines) - HTML structure and script tags only
+- **styles.css** (~400 lines) - All CSS styling
+- **datasets.js** (~400 lines) - CONFIG and DATASETS configuration
+- **map.js** (~300 lines) - Map initialization, layer management, drawing controls
+- **analysis.js** (~550 lines) - Spatial analysis functions
+- **pdf.js** (~450 lines) - PDF generation and export
+- **app.js** (~900 lines) - Application initialization, event handlers, UI management
+
+**External Libraries:**
 - **Leaflet.js** (v1.9.4) - Interactive mapping
 - **Leaflet.Draw** (v1.0.4) - Drawing controls
 - **Turf.js** (v6.5.0) - Geospatial analysis
@@ -30,7 +41,13 @@ This is a **single-page HTML application** with all code in `index.html`:
 
 ```
 project-application-tool/
-├── index.html                    # Single-file application (~2700 lines)
+├── index.html                    # HTML structure & script tags (~140 lines)
+├── styles.css                    # All CSS styling (~400 lines)
+├── datasets.js                   # Configuration data (~400 lines)
+├── map.js                        # Map & drawing controls (~300 lines)
+├── analysis.js                   # Spatial analysis (~550 lines)
+├── pdf.js                        # PDF generation (~450 lines)
+├── app.js                        # App initialization & events (~900 lines)
 ├── data/                         # GeoJSON datasets (12 total)
 │   ├── mata-routes.json          # Transit routes (LineString)
 │   ├── strahnet.geojson          # Strategic highway network (LineString)
@@ -46,6 +63,7 @@ project-application-tool/
 │   └── epa_superfund_sites.geojson # EPA cleanup sites (Point)
 ├── assets/
 │   └── rtp-2055-logo.jpg         # RTP header logo for PDF
+├── VERSION.md                    # Version history
 ├── README.md
 └── claude.md                     # This file - context for Claude Code
 ```

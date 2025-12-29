@@ -1,0 +1,491 @@
+/**
+ * pdf.js
+ * PDF generation and export functionality
+ *
+ * Dependencies: jsPDF, html2canvas, Turf.js, Leaflet, map.js, analysis.js, datasets.js
+ */
+
+// ============================================
+// PDF GENERATION
+// ============================================
+
+/**
+ * Generate PDF report with map image and analysis results
+ * Captures map, formats data, and downloads PDF file
+ */
+async function generatePDF() {
+  const projectName = document.getElementById('projectName').value.trim();
+
+  // Validate project name
+  if (!projectName) {
+    showError('Please enter a project name before generating the PDF.');
+    return;
+  }
+
+  // Track which layers were visible before PDF generation
+  const layerStates = {};
+  Object.keys(DATASETS).forEach(datasetKey => {
+    if (featureLayers[datasetKey]) {
+      layerStates[datasetKey] = map.hasLayer(featureLayers[datasetKey]);
+    }
+  });
+
+  try {
+    // Disable button and show loading state
+    const pdfButton = document.getElementById('pdfButton');
+    const originalText = pdfButton.textContent;
+    pdfButton.disabled = true;
+    pdfButton.textContent = 'Generating PDF...';
+
+    // Show loading overlay with PDF progress
+    showLoading(true, 'Preparing map for PDF...');
+
+    // Temporarily add all reference layers to map for PDF capture
+    Object.keys(DATASETS).forEach(datasetKey => {
+      if (featureLayers[datasetKey] && !layerStates[datasetKey]) {
+        map.addLayer(featureLayers[datasetKey]);
+      }
+    });
+
+    // Auto-zoom map to show drawn line and intersecting features
+    // Use animate: false to ensure immediate positioning
+    const optimalBounds = getOptimalMapBounds();
+    if (optimalBounds) {
+      map.fitBounds(optimalBounds, {
+        padding: [80, 80],  // Increased padding for better centering
+        maxZoom: 16,        // Prevent zooming in too close
+        animate: false      // Critical: prevents capture during animation
+      });
+    }
+
+    // === CRITICAL: Wait for all rendering to complete before capture ===
+
+    // Step 1: Wait for basemap tiles to load at new position
+    showLoading(true, 'Loading basemap tiles...');
+    await waitForTilesToLoad();
+
+    // Step 2: Wait for GeoJSON vector layers to render
+    showLoading(true, 'Rendering vector layers...');
+    await waitForGeoJSONLayersToRender();
+
+    // Step 3: Give browser one more render cycle to finalize
+    showLoading(true, 'Finalizing map display...');
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Step 4: Force Leaflet to recalculate internal state
+    // This ensures all layer positions are correct
+    map.invalidateSize();
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // Now safe to capture
+    showLoading(true, 'Capturing map image...');
+
+    // Capture map as image using html2canvas
+    const mapElement = document.getElementById('map');
+    const canvas = await html2canvas(mapElement, {
+      useCORS: true,
+      allowTaint: true,
+      scale: 2,  // Higher DPI for better quality
+      logging: false,
+      backgroundColor: '#ffffff',
+      // Ensure we capture all layers
+      onclone: function(clonedDoc) {
+        // Force all Leaflet panes to be visible in clone
+        const panes = clonedDoc.querySelectorAll('.leaflet-pane');
+        panes.forEach(pane => {
+          pane.style.opacity = '1';
+          pane.style.visibility = 'visible';
+        });
+      }
+    });
+
+    // Restore layer visibility to previous state
+    Object.keys(DATASETS).forEach(datasetKey => {
+      if (featureLayers[datasetKey] && !layerStates[datasetKey]) {
+        map.removeLayer(featureLayers[datasetKey]);
+      }
+    });
+
+    showLoading(true, 'Building PDF document...');
+
+    const mapImageData = canvas.toDataURL('image/png');
+
+    // Create PDF using jsPDF
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'in',
+      format: 'letter'  // 8.5 x 11 inches
+    });
+
+    // PDF dimensions (letter size with margins)
+    const pageWidth = 8.5;
+    const pageHeight = 11;
+    const margin = 0.5;
+    const contentWidth = pageWidth - (2 * margin);
+
+    let yPosition = margin;
+
+    // ========== HEADER SECTION ==========
+
+    // Add logo (if available)
+    try {
+      // Note: For production, you may need to convert logo to base64
+      // Project name as main title
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(projectName, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 0.3;
+    } catch (error) {
+      console.warn('Could not add logo to PDF:', error);
+    }
+
+    // Project Application Report as subtitle
+    pdf.setFontSize(14);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('Project Application Report', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 0.3;
+
+    // Date generated
+    pdf.setFontSize(10);
+    pdf.setTextColor(128, 128, 128);
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    pdf.text(`Generated: ${currentDate}`, pageWidth - margin, yPosition, { align: 'right' });
+    yPosition += 0.2;
+
+    // Project length (only for line features)
+    if (drawnGeometry && drawnGeometry.geometry && drawnGeometry.geometry.type === 'LineString') {
+      const lengthInMiles = turf.length(drawnGeometry.geometry, { units: 'miles' });
+      pdf.text(`Project Length: ${lengthInMiles.toFixed(1)} miles`, pageWidth - margin, yPosition, { align: 'right' });
+    }
+
+    pdf.setTextColor(0, 0, 0);
+    yPosition += 0.5;
+
+    // ========== MAP SECTION ==========
+
+    // Add map image
+    const mapWidth = 7;
+    const mapHeight = (canvas.height / canvas.width) * mapWidth;
+    const mapX = (pageWidth - mapWidth) / 2;
+
+    pdf.addImage(mapImageData, 'PNG', mapX, yPosition, mapWidth, mapHeight);
+    yPosition += mapHeight + 0.4;
+
+    // ========== RESULTS SECTION ==========
+    // Only include sections that have results
+
+    // Helper function to check if we need a new page
+    const checkPageBreak = (neededSpace = 0.5) => {
+      const footerSpace = 0.5;
+      if (yPosition + neededSpace > pageHeight - footerSpace) {
+        pdf.addPage();
+        yPosition = margin;
+        return true;
+      }
+      return false;
+    };
+
+    // Check if we have any results from any dataset
+    const hasAnyResults = Object.keys(currentResults).some(datasetKey => {
+      return currentResults[datasetKey] && currentResults[datasetKey].length > 0;
+    });
+
+    if (hasAnyResults) {
+      checkPageBreak(0.5);
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Analysis Results', margin, yPosition);
+      yPosition += 0.3;
+    }
+
+    // Loop through all datasets and add results dynamically
+    Object.keys(DATASETS).forEach(datasetKey => {
+      const config = DATASETS[datasetKey];
+
+      // Skip if dataset is disabled or has no results
+      if (!config.enabled || !currentResults[datasetKey] || currentResults[datasetKey].length === 0) {
+        return;
+      }
+
+      const results = currentResults[datasetKey];
+
+      // Add section header
+      checkPageBreak(0.5);
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${config.name}:`, margin, yPosition);
+      yPosition += 0.2;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+
+      // Render based on resultStyle
+      if (config.resultStyle === 'table' && config.properties.additionalFields.length > 0) {
+        // Table format
+        pdf.setFont('helvetica', 'bold');
+
+        // Table header
+        const columnWidth = 2.5;
+        let xOffset = margin + 0.2;
+
+        pdf.text(config.properties.displayField, xOffset, yPosition);
+        xOffset += columnWidth;
+
+        config.properties.additionalFields.forEach(field => {
+          pdf.text(field, xOffset, yPosition);
+          xOffset += columnWidth;
+        });
+
+        yPosition += 0.18;
+        pdf.setFont('helvetica', 'normal');
+
+        // Table rows
+        results.forEach(result => {
+          checkPageBreak(0.2);
+          xOffset = margin + 0.2;
+
+          // Display field
+          const displayValue = result[config.properties.displayField] || 'Unknown';
+          pdf.text(String(displayValue), xOffset, yPosition);
+          xOffset += columnWidth;
+
+          // Additional fields
+          config.properties.additionalFields.forEach(field => {
+            const fieldValue = result[field] || 'Unknown';
+            pdf.text(String(fieldValue), xOffset, yPosition);
+            xOffset += columnWidth;
+          });
+
+          yPosition += 0.15;
+        });
+
+      } else {
+        // List format (default)
+        results.forEach(result => {
+          checkPageBreak(0.2);
+
+          let displayText;
+          if (typeof result === 'string') {
+            displayText = result;
+          } else if (typeof result === 'object') {
+            displayText = result[config.properties.displayField] || 'Unknown';
+          } else {
+            displayText = String(result);
+          }
+
+          pdf.text(`  • ${displayText}`, margin, yPosition);
+          yPosition += 0.18;
+        });
+        yPosition += 0.15;
+      }
+    });
+
+    // ========== FOOTER (on each page) ==========
+    const totalPages = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(8);
+      pdf.setTextColor(128, 128, 128);
+      const footerY = pageHeight - 0.3;
+      pdf.text('Generated by Memphis MPO Project Application Tool', pageWidth / 2, footerY, { align: 'center' });
+      if (totalPages > 1) {
+        pdf.text(`Page ${i} of ${totalPages}`, pageWidth - margin, footerY, { align: 'right' });
+      }
+    }
+
+    // ========== SAVE PDF ==========
+
+    const fileName = formatFileName(projectName);
+    pdf.save(fileName);
+
+    // Hide loading overlay
+    showLoading(false);
+
+    // Re-enable button
+    pdfButton.disabled = false;
+    pdfButton.textContent = originalText;
+
+  } catch (error) {
+    console.error('PDF generation error:', error);
+
+    // Restore layer visibility to previous state on error
+    Object.keys(DATASETS).forEach(datasetKey => {
+      if (featureLayers[datasetKey] && !layerStates[datasetKey] && map.hasLayer(featureLayers[datasetKey])) {
+        map.removeLayer(featureLayers[datasetKey]);
+      }
+    });
+
+    showLoading(false);
+    showError('Failed to generate PDF. Please try again.');
+
+    // Re-enable button
+    const pdfButton = document.getElementById('pdfButton');
+    pdfButton.disabled = false;
+    pdfButton.textContent = 'Download PDF Report';
+  }
+}
+
+/**
+ * Format project name into valid filename for PDF download
+ * Replaces spaces with underscores and adds ISO date
+ * @param {string} projectName - User-entered project name
+ * @returns {string} Formatted filename
+ */
+function formatFileName(projectName) {
+  // Replace spaces and special characters with underscores
+  const sanitized = projectName.replace(/[^a-zA-Z0-9]/g, '_');
+
+  // Get current date in YYYY-MM-DD format
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+
+  return `Project_Application_${sanitized}_${dateStr}.pdf`;
+}
+
+/**
+ * Wait for all map tiles to finish loading
+ * Returns a promise that resolves when tiles are loaded
+ * @returns {Promise} Resolves when tiles are loaded or after timeout
+ */
+function waitForTilesToLoad() {
+  return new Promise((resolve) => {
+    // Get the tile layer from map
+    let tileLayer = null;
+    map.eachLayer(layer => {
+      if (layer instanceof L.TileLayer) {
+        tileLayer = layer;
+      }
+    });
+
+    if (!tileLayer) {
+      console.warn('No tile layer found');
+      resolve();
+      return;
+    }
+
+    // Helper function to check pending tiles
+    const checkTiles = () => {
+      let pending = 0;
+      const container = tileLayer.getContainer();
+      if (container) {
+        const tiles = container.querySelectorAll('img');
+        tiles.forEach(tile => {
+          if (!tile.complete) pending++;
+        });
+      }
+      return pending;
+    };
+
+    // Check if tiles are already loaded
+    const initialPending = checkTiles();
+    console.log(`Basemap tiles: ${initialPending} pending`);
+
+    if (initialPending === 0) {
+      console.log('✓ All basemap tiles already loaded');
+      resolve();
+      return;
+    }
+
+    // Wait for 'load' event or timeout
+    let resolved = false;
+    let timeoutHandle;
+
+    const onLoad = () => {
+      const stillPending = checkTiles();
+      if (!resolved && stillPending === 0) {
+        resolved = true;
+        clearTimeout(timeoutHandle);
+        tileLayer.off('load', onLoad);
+        tileLayer.off('tileerror', onTileError);
+        console.log('✓ All basemap tiles loaded successfully');
+        resolve();
+      } else if (stillPending > 0) {
+        console.log(`Basemap tiles: ${stillPending} still pending...`);
+      }
+    };
+
+    const onTileError = (error) => {
+      console.warn('Tile load error:', error);
+      // Continue anyway - some tiles may have failed but we should proceed
+    };
+
+    tileLayer.on('load', onLoad);
+    tileLayer.on('tileerror', onTileError);
+
+    // Timeout fallback (5 seconds max wait - increased from 3s)
+    timeoutHandle = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        tileLayer.off('load', onLoad);
+        tileLayer.off('tileerror', onTileError);
+        const finalPending = checkTiles();
+        console.warn(`⚠ Tile load timeout after 5s - ${finalPending} tiles still pending - proceeding anyway`);
+        resolve();
+      }
+    }, 5000);
+  });
+}
+
+/**
+ * Wait for all GeoJSON vector layers to finish rendering in the DOM
+ * GeoJSON layers render as SVG elements in the overlay pane
+ * This ensures all vector features are visible before PDF capture
+ * @returns {Promise} Resolves when layers are rendered or timeout (2s)
+ */
+async function waitForGeoJSONLayersToRender() {
+  return new Promise((resolve) => {
+    let checks = 0;
+    const maxChecks = 20; // 2 seconds max wait (20 * 100ms)
+
+    const checkRendered = () => {
+      checks++;
+
+      // Find the Leaflet overlay pane that contains vector layers
+      const overlayPane = document.querySelector('.leaflet-overlay-pane');
+      if (!overlayPane) {
+        if (checks < maxChecks) {
+          setTimeout(checkRendered, 100);
+        } else {
+          console.warn('GeoJSON layers: overlay pane not found - proceeding anyway');
+          resolve();
+        }
+        return;
+      }
+
+      // Count rendered SVG paths (GeoJSON features render as SVG)
+      const svgPaths = overlayPane.querySelectorAll('svg path');
+      const canvasElements = overlayPane.querySelectorAll('canvas');
+
+      // Count total rendered elements
+      const totalElements = svgPaths.length + canvasElements.length;
+
+      // Log progress every 5 checks
+      if (checks % 5 === 0 || checks === 1) {
+        console.log(`GeoJSON render check ${checks}: ${svgPaths.length} SVG paths, ${canvasElements.length} canvas elements`);
+      }
+
+      // Consider rendered if we have some elements OR reached max checks
+      // We expect at least a few paths for the drawn geometry + reference layers
+      if (totalElements > 0 || checks >= maxChecks) {
+        if (checks >= maxChecks && totalElements === 0) {
+          console.warn('GeoJSON layers: timeout reached with no elements - check if layers are actually enabled');
+        } else {
+          console.log(`✓ GeoJSON layers rendered: ${totalElements} elements found after ${checks * 100}ms`);
+        }
+        resolve();
+      } else {
+        // Keep checking
+        setTimeout(checkRendered, 100);
+      }
+    };
+
+    checkRendered();
+  });
+}
