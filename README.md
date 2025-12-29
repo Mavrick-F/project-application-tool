@@ -1,8 +1,8 @@
 # Memphis MPO Project Application Tool
 
-![Version](https://img.shields.io/badge/version-0.7.0-blue) ![Status](https://img.shields.io/badge/status-in%20development-yellow)
+![Version](https://img.shields.io/badge/version-0.7.1-blue) ![Status](https://img.shields.io/badge/status-in%20development-yellow)
 
-**⚠️ This tool is currently in active development (v0.7.0) and not yet released for production use.**
+**⚠️ This tool is currently in active development (v0.7.1) and not yet released for production use.**
 
 A web-based mapping tool for analyzing transportation project proposals against regional planning datasets. Built for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055.
 
@@ -12,7 +12,7 @@ A web-based mapping tool for analyzing transportation project proposals against 
 
 This tool allows users to draw project alignments or mark specific locations on an interactive map, then automatically identifies intersecting or nearby transportation infrastructure and planning features. The tool generates a PDF report summarizing the spatial relationships between the proposed project and key regional datasets.
 
-**Current Status (v0.7.0):** Codebase refactored into modular architecture with 7 separate files for improved maintainability. Core spatial analysis engine supports 12 datasets across multiple geometry types using a scalable, configuration-driven system. Significant work remains before v1.0 release:
+**Current Status (v0.7.1):** Codebase refactored into modular architecture with 7 separate files for improved maintainability. Layers now grouped by topic (Transportation, Economic, Environmental) for better organization. Core spatial analysis engine supports 12 datasets across multiple geometry types using a scalable, configuration-driven system. Significant work remains before v1.0 release:
 - Integration of remaining ~7 required regional planning datasets
 - User experience improvements and documentation
 - Potential ArcGIS Feature Service integration for large datasets
@@ -43,7 +43,7 @@ The tool performs automated spatial analysis using three different methods:
 - Creates configurable buffer around drawn geometry
 - Identifies all features within specified distance
 
-**Current implementation (v0.7.0)** analyzes against 12 datasets:
+**Current implementation (v0.7.1)** analyzes against 12 datasets:
 - **MATA Routes** - Transit route network
 - **STRAHNET Routes** - Strategic Highway Network
 - **MPO Freight Route Network** - Regional/local freight routes with color-coding
@@ -69,7 +69,7 @@ The tool performs automated spatial analysis using three different methods:
 
 ## Data Requirements
 
-### Implemented Datasets (v0.7.0)
+### Implemented Datasets (v0.7.1)
 
 **Transportation:**
 - ✅ **MATA Routes** (lines) - Transit route network
@@ -150,7 +150,7 @@ The tool performs automated spatial analysis using three different methods:
 
 ### Architecture
 
-**Modular JavaScript Application (v0.7.0)** with 7 focused files:
+**Modular JavaScript Application (v0.7.1)** with 7 focused files:
 
 **Core Files:**
 - **index.html** (~140 lines) - HTML structure and script tags only
@@ -296,7 +296,7 @@ project-application-tool/
 
 ### Adding New Datasets
 
-**Current approach (v0.7.0)** - configuration-driven:
+**Current approach (v0.7.1)** - configuration-driven:
 
 1. **Add GeoJSON file to `/data/` directory**
 
@@ -340,7 +340,7 @@ newDataset: {
 
 ## Known Limitations
 
-**Development Status (v0.7.0):**
+**Development Status (v0.7.1):**
 - 12 of ~19 required datasets currently integrated
 - Large datasets (Congested Segments, Crash Locations) may require ArcGIS Feature Service integration
 - Some specialized analysis logic (crash counting, ALICE criteria) not yet implemented
@@ -354,6 +354,12 @@ newDataset: {
 - Analysis runs synchronously (may cause brief UI freeze on very large projects)
 
 ## Development Roadmap
+
+### v0.7.1 - Completed ✅
+- ✅ **Fixed zoom and layer organization issues**
+  - Fixed zoom extent to show Memphis area instead of continental US
+  - Grouped layers by topic (Transportation, Economic, Environmental)
+  - Fixed freight routes display symbol (MultiLineString support)
 
 ### v0.7.0 - Completed ✅
 - ✅ **Refactored monolithic index.html into modular architecture**

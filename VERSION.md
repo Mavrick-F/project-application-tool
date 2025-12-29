@@ -1,5 +1,19 @@
 # Version History
 
+## v0.7.1 (2025-12-29)
+- Fixed zoom extent to show Memphis area instead of continental US
+- Grouped layers by topic (Transportation, Economic, Environmental) in map view
+- Fixed freight routes display symbol from points to lines (MultiLineString support)
+
+### Bug Fixes
+- **Zoom extent**: Changed `fitMapToBounds()` to use fixed Memphis MPO bounds [34.9, -90.1] to [35.3, -89.6] instead of calculating from all layers
+- **Layer grouping**: Reorganized layer control with visual category headers (Transportation, Economic, Environmental)
+- **Freight routes symbol**: Added MultiLineString check in symbol selection to display '─' (line) instead of '●' (point)
+
+### Configuration Changes
+- Updated dataset categories to use simplified grouping (Transportation, Economic, Environmental)
+- Layer control now displays grouped overlays with category headers and indented layer names
+
 ## v0.7.0 (2025-12-29)
 - Refactored monolithic index.html into 7 modular files
 - No functional changes to user experience

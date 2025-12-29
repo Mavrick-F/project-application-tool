@@ -44,7 +44,7 @@ const DATASETS = {
   mataRoutes: {
     id: 'mataRoutes',
     name: 'MATA Routes',
-    category: 'Transportation - Transit',
+    category: 'Transportation',
     filePath: './data/mata-routes.json',
     geometryType: 'LineString',
     analysisMethod: 'corridor',
@@ -71,7 +71,7 @@ const DATASETS = {
   strahnet: {
     id: 'strahnet',
     name: 'STRAHNET Routes',
-    category: 'Transportation - Freight',
+    category: 'Transportation',
     filePath: './data/strahnet.geojson',
     geometryType: 'LineString',
     analysisMethod: 'corridor',
@@ -99,7 +99,7 @@ const DATASETS = {
   truckRoutes: {
     id: 'truckRoutes',
     name: 'MPO Freight Route Network',
-    category: 'Transportation - Freight',
+    category: 'Transportation',
     filePath: './data/truck_routes.json',
     geometryType: 'MultiLineString',
     analysisMethod: 'corridor',
@@ -133,7 +133,7 @@ const DATASETS = {
   opportunityZones: {
     id: 'opportunityZones',
     name: 'Opportunity Zones',
-    category: 'Economic Development',
+    category: 'Economic',
     filePath: './data/opportunity-zones.json',
     geometryType: 'Polygon',
     analysisMethod: 'intersection',
@@ -161,7 +161,7 @@ const DATASETS = {
   freightClusters: {
     id: 'freightClusters',
     name: 'MPO Freight Zones',
-    category: 'Transportation - Freight',
+    category: 'Transportation',
     filePath: './data/freight_clusters.geojson',
     geometryType: 'Polygon',
     analysisMethod: 'intersection',
@@ -189,7 +189,7 @@ const DATASETS = {
   parks: {
     id: 'parks',
     name: 'Parks',
-    category: 'Environment & Recreation',
+    category: 'Environmental',
     filePath: './data/parks.json',
     geometryType: 'Polygon',
     analysisMethod: 'proximity',
@@ -217,7 +217,7 @@ const DATASETS = {
   historicPolygons: {
     id: 'historicPolygons',
     name: 'NHRP Polygons',
-    category: 'Historic & Cultural',
+    category: 'Environmental',
     filePath: './data/historic_polygons.geojson',
     geometryType: 'Polygon',
     analysisMethod: 'proximity',
@@ -245,7 +245,7 @@ const DATASETS = {
   bridges: {
     id: 'bridges',
     name: 'Bridges',
-    category: 'Infrastructure',
+    category: 'Transportation',
     filePath: './data/bridges.json',
     geometryType: 'Point',
     analysisMethod: 'proximity',
@@ -274,7 +274,7 @@ const DATASETS = {
   majorEmployers: {
     id: 'majorEmployers',
     name: 'Major Employers',
-    category: 'Economic Development',
+    category: 'Economic',
     filePath: './data/major_employers.geojson',
     geometryType: 'Point',
     analysisMethod: 'proximity',
@@ -303,7 +303,7 @@ const DATASETS = {
   touristAttractions: {
     id: 'touristAttractions',
     name: 'Tourist Destinations',
-    category: 'Economic Development',
+    category: 'Economic',
     filePath: './data/tourist_attractions.geojson',
     geometryType: 'Point',
     analysisMethod: 'proximity',
@@ -332,7 +332,7 @@ const DATASETS = {
   historicPoints: {
     id: 'historicPoints',
     name: 'NHRP Points',
-    category: 'Historic & Cultural',
+    category: 'Environmental',
     filePath: './data/historic_points.geojson',
     geometryType: 'Point',
     analysisMethod: 'proximity',
@@ -361,7 +361,7 @@ const DATASETS = {
   epaSuperFundSites: {
     id: 'epaSuperFundSites',
     name: 'EPA Superfund Sites',
-    category: 'Environment & Recreation',
+    category: 'Environmental',
     filePath: './data/epa_superfund_sites.geojson',
     geometryType: 'Point',
     analysisMethod: 'proximity',
