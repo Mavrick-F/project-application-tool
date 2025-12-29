@@ -57,7 +57,7 @@ The tool performs automated spatial analysis using three different methods:
 - **NHRP Points** - Historic sites (individual)
 - **EPA Superfund Sites** - Environmental cleanup locations
 
-**Planned for v1.0:** Analysis will expand to include congested segments, high injury corridors, crash locations, bike networks, and additional environmental/EJ features. See **Data Requirements** section for complete list.
+**Planned for v1.0:** Analysis will expand to include congested segments, high injury corridors, crash locations, bike networks, and additional environmental features. See **Data Requirements** section for complete list.
 
 ### Report Generation
 - Real-time results display in sidebar as you draw
@@ -91,7 +91,7 @@ The tool performs automated spatial analysis using three different methods:
 - ✅ **Parks** (polygons) - Public park boundaries
 - ✅ **EPA Superfund Sites** (points) - Environmental cleanup locations
 
-### Required for v1.0 Release
+### Still Needed for v1.0 Release
 
 **Transportation Infrastructure:**
 - ❌ **Congested Segments** (lines) - Streetlight data with Level of Travel Time Reliability and "Is Congested" flag
@@ -100,22 +100,15 @@ The tool performs automated spatial analysis using three different methods:
 - ❌ **Crash Locations** (points) - Fatality and Serious Injury crashes
   - *Requires counting logic for aggregation*
 - ❌ **Greenprint Plan Network** (lines) - Regional/Intermediate Shared-Use Path and Bikeway connections
-  - *May consist of multiple files/layers*
 
-### Environmental Justice & Environmental Layers
-*Status: Partially speculative - criteria under review by RTP team*
+### Environmental Layers
+- ❌ **Wetlands** (polygons) - Special attention should be paid to forested/shrub wetlands.
+- ❌ **Streams** (lines) - Maybe, large file that's partially redundant with wetlands
+- ❌ **Flood Zones** (polygons) - Maybe, large file that's partially redundant with wetlands
 
-**Environmental Justice:**
-- ❌ **ALICE-Related Criteria** (TBD) - Asset Limited, Income Constrained, Employed populations
-  - *Specific layers and thresholds being determined by RTP team*
-
-**Environmental Features:**
-- ❌ **Parks** (polygons) - Public park boundaries
-- ❌ **Wetlands** (polygons) - Regulated wetland areas
-- ❌ **Streams** (lines) - Waterway network
-- ❌ **NHRP Sites** (points) - National Register of Historic Places individual sites
-- ❌ **NHRP Districts** (polygons) - Historic district boundaries
-- ❌ **Superfund Sites** (points/polygons) - EPA Superfund locations
+**Economic Indicators:**
+- ❌ **ALICE-Related Criteria** (polygons) - Asset Limited, Income Constrained, Employed populations
+  - ZIP Code Tabulation Areas, a ZCTA will be counted if 45% or more of households are below the ALICE threshold
 
 **Excluded from Scope:**
 - Pavement condition data (applicants provide PCI directly)
