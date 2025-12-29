@@ -51,7 +51,8 @@ function initializeMap() {
  * Configures styling, tooltips, and hover interactions for each dataset
  */
 function addReferenceLayers() {
-  const overlayLayers = {};
+  // Group layers by category
+  const layersByCategory = {};
 
   // Loop through all enabled datasets and create layers
   Object.keys(DATASETS).forEach(datasetKey => {
@@ -231,17 +232,23 @@ function addReferenceLayers() {
         });
       }
 
-      // Store layer
+      // Store layer and organize by category
       if (layer) {
         featureLayers[datasetKey] = layer;
 
         // Create layer control label with colored symbol
         let symbol = '●';
         if (config.geometryType === 'Polygon') symbol = '■';
-        if (config.geometryType === 'LineString') symbol = '─';
+        if (config.geometryType === 'LineString' || config.geometryType === 'MultiLineString') symbol = '─';
 
         const layerLabel = `<span style="color:${config.style.color};">${symbol}</span> ${config.name}`;
-        overlayLayers[layerLabel] = layer;
+
+        // Group by category
+        const category = config.category || 'Other';
+        if (!layersByCategory[category]) {
+          layersByCategory[category] = {};
+        }
+        layersByCategory[category][layerLabel] = layer;
       }
 
     } catch (error) {
@@ -250,6 +257,24 @@ function addReferenceLayers() {
   });
 
   // ========== LAYER CONTROL ==========
+  // Build grouped overlay layers with category headers
+  const overlayLayers = {};
+  const categoryOrder = ['Transportation', 'Economic', 'Environmental'];
+
+  categoryOrder.forEach(category => {
+    if (layersByCategory[category]) {
+      // Add category header (non-interactive)
+      const headerKey = `<div style="font-weight: bold; font-size: 13px; color: #333; margin-top: 8px; margin-bottom: 4px; pointer-events: none; border-bottom: 1px solid #ddd; padding-bottom: 4px;">${category}</div>`;
+
+      // Add all layers in this category
+      Object.keys(layersByCategory[category]).forEach(layerLabel => {
+        // Indent layer names under category header
+        const indentedLabel = `<span style="margin-left: 8px; display: inline-block;">${layerLabel}</span>`;
+        overlayLayers[indentedLabel] = layersByCategory[category][layerLabel];
+      });
+    }
+  });
+
   // Add layer control to map if we have any layers
   if (Object.keys(overlayLayers).length > 0) {
     L.control.layers(null, overlayLayers, {
@@ -260,23 +285,20 @@ function addReferenceLayers() {
 }
 
 /**
- * Calculate bounds from all data layers and fit map to show all features
+ * Fit map to Memphis MPO area extent
+ * Uses fixed bounds for consistent viewport
  */
 function fitMapToBounds() {
-  const bounds = L.latLngBounds([]);
+  // Memphis MPO area bounds
+  // Southwest corner: [34.9, -90.1]
+  // Northeast corner: [35.3, -89.6]
+  const memphisBounds = L.latLngBounds(
+    [34.9, -90.1],  // Southwest
+    [35.3, -89.6]   // Northeast
+  );
 
-  // Add bounds from all feature layers dynamically
-  Object.keys(featureLayers).forEach(key => {
-    const layer = featureLayers[key];
-    if (layer && layer.getBounds) {
-      bounds.extend(layer.getBounds());
-    }
-  });
-
-  // Fit map to combined bounds with padding
-  if (bounds.isValid()) {
-    map.fitBounds(bounds, { padding: [50, 50] });
-  }
+  // Fit map to Memphis bounds with padding
+  map.fitBounds(memphisBounds, { padding: [50, 50] });
 }
 
 /**
