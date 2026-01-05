@@ -372,8 +372,35 @@ async function loadGeoJsonData() {
 
     dataResults.forEach((data, index) => {
       const datasetKey = datasetKeys[index];
+      const config = DATASETS[datasetKey];
 
       if (data) {
+        // Apply filters if specified
+        if (config.filterByThreshold) {
+          // Filter features by threshold (for analysis, not display)
+          // Store original data with all features for map display
+          const allFeatures = [...data.features];
+
+          // Filter features that meet the threshold for analysis
+          const filteredFeatures = data.features.filter(feature => {
+            const value = feature.properties[config.filterByThreshold.field];
+            if (config.filterByThreshold.operator === '>=') {
+              return value >= config.filterByThreshold.value;
+            } else if (config.filterByThreshold.operator === '<=') {
+              return value <= config.filterByThreshold.value;
+            } else if (config.filterByThreshold.operator === '>') {
+              return value > config.filterByThreshold.value;
+            } else if (config.filterByThreshold.operator === '<') {
+              return value < config.filterByThreshold.value;
+            }
+            return true;
+          });
+
+          // Store both versions: all features for display, filtered for analysis
+          geoJsonData[datasetKey + '_all'] = { ...data, features: allFeatures };
+          data.features = filteredFeatures;
+        }
+
         geoJsonData[datasetKey] = data;
         loadedCounts[datasetKey] = data.features ? data.features.length : 0;
       } else {
@@ -635,7 +662,9 @@ function setupEventListeners() {
  * @returns {string} HTML string for the results card
  */
 function createResultCard(datasetConfig, results) {
-  const count = results.length;
+  // Handle count results differently (object with total and breakdown)
+  const isCountResult = datasetConfig.resultStyle === 'count' && typeof results === 'object' && 'total' in results;
+  const count = isCountResult ? results.total : results.length;
   const hasResults = count > 0;
 
   let cardHtml = `<div class="results-card" data-dataset="${datasetConfig.id}">`;
@@ -643,6 +672,25 @@ function createResultCard(datasetConfig, results) {
 
   if (!hasResults) {
     cardHtml += `<p class="empty-state">No ${datasetConfig.name.toLowerCase()} found</p>`;
+  } else if (datasetConfig.resultStyle === 'count') {
+    // Count format (for datasets that count features by category)
+    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
+    cardHtml += `<p style="margin: 0 0 10px 0; font-weight: bold; font-size: 14px;">Total: ${results.total}</p>`;
+
+    if (results.breakdown && Object.keys(results.breakdown).length > 0) {
+      cardHtml += `<ul class="results-list" style="margin: 0; padding-left: 20px;">`;
+
+      // Sort breakdown by count (descending)
+      const sortedBreakdown = Object.entries(results.breakdown).sort((a, b) => b[1] - a[1]);
+
+      sortedBreakdown.forEach(([category, categoryCount]) => {
+        cardHtml += `<li><strong>${category}:</strong> ${categoryCount}</li>`;
+      });
+
+      cardHtml += `</ul>`;
+    }
+
+    cardHtml += `</div>`;
   } else if (datasetConfig.resultStyle === 'table') {
     // Table format (for datasets with additional fields like bridges)
     cardHtml += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">`;
@@ -678,6 +726,21 @@ function createResultCard(datasetConfig, results) {
         displayText = result;
       } else if (typeof result === 'object') {
         displayText = result[datasetConfig.properties.displayField] || 'Unknown';
+
+        // Add additional fields if present
+        if (datasetConfig.properties.additionalFields && datasetConfig.properties.additionalFields.length > 0) {
+          datasetConfig.properties.additionalFields.forEach(field => {
+            let value = result[field];
+
+            // Format as percentage if specified
+            if (datasetConfig.properties.formatPercentage === field && value !== undefined && value !== 'Unknown') {
+              value = `${(value * 100).toFixed(1)}%`;
+            }
+
+            const fieldLabel = field === 'F__Below_A' ? '% Below ALICE' : field;
+            displayText += ` | ${fieldLabel}: ${value}`;
+          });
+        }
       } else {
         displayText = String(result);
       }

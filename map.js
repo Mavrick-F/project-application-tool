@@ -205,28 +205,73 @@ function addReferenceLayers() {
 
       } else if (config.geometryType === 'Polygon') {
         // ========== POLYGON LAYERS ==========
-        layer = L.geoJSON(geoJsonData[datasetKey], {
-          style: config.style,
+        // Use all features for display if threshold filtering is enabled
+        const dataToDisplay = config.filterByThreshold && geoJsonData[datasetKey + '_all']
+          ? geoJsonData[datasetKey + '_all']
+          : geoJsonData[datasetKey];
+
+        layer = L.geoJSON(dataToDisplay, {
+          style: (feature) => {
+            // Apply threshold-based styling if configured
+            if (config.filterByThreshold) {
+              const value = feature.properties[config.filterByThreshold.field];
+              const meetsThreshold = config.filterByThreshold.operator === '>='
+                ? value >= config.filterByThreshold.value
+                : value > config.filterByThreshold.value;
+
+              // Use translucent style for features below threshold
+              return meetsThreshold ? config.style : config.styleTranslucent;
+            }
+            return config.style;
+          },
           onEachFeature: (feature, leafletLayer) => {
             // Use staticLabel if defined, otherwise use field value
             const displayValue = config.properties.staticLabel ||
                                 feature.properties[config.properties.displayField] ||
                                 'Unknown';
 
+            // Build tooltip text
+            let tooltipText = displayValue;
+            if (config.properties.additionalFields && config.properties.additionalFields.length > 0) {
+              config.properties.additionalFields.forEach(field => {
+                let value = feature.properties[field];
+
+                // Format as percentage if specified
+                if (config.properties.formatPercentage === field && value !== undefined) {
+                  value = `${(value * 100).toFixed(1)}%`;
+                } else if (value === undefined) {
+                  value = 'Unknown';
+                }
+
+                const fieldLabel = field === 'F__Below_A' ? '% Below ALICE' : field;
+                tooltipText += ` | ${fieldLabel}: ${value}`;
+              });
+            }
+
             // Bind tooltip
-            leafletLayer.bindTooltip(displayValue, {
+            leafletLayer.bindTooltip(tooltipText, {
               sticky: true,
               className: 'leaflet-tooltip'
             });
 
+            // Get current feature style for hover effects
+            let currentStyle = config.style;
+            if (config.filterByThreshold) {
+              const value = feature.properties[config.filterByThreshold.field];
+              const meetsThreshold = config.filterByThreshold.operator === '>='
+                ? value >= config.filterByThreshold.value
+                : value > config.filterByThreshold.value;
+              currentStyle = meetsThreshold ? config.style : config.styleTranslucent;
+            }
+
             // Hover effects
-            const hoverStyle = { ...config.style, fillOpacity: (config.style.fillOpacity || 0.3) + 0.2 };
+            const hoverStyle = { ...currentStyle, fillOpacity: (currentStyle.fillOpacity || 0.3) + 0.2 };
             leafletLayer.on('mouseover', function() {
               this.setStyle(hoverStyle);
             });
 
             leafletLayer.on('mouseout', function() {
-              this.setStyle(config.style);
+              this.setStyle(currentStyle);
             });
           }
         });

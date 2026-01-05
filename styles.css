@@ -474,3 +474,31 @@ header h1 {
 #tutorialPopup .tutorial-close:hover {
   background-color: #0D47A1;
 }
+
+/* ============================================
+   LEAFLET MAP CUSTOMIZATION
+   ============================================ */
+/* Remove black selection box from polygons and paths */
+.leaflet-interactive {
+  outline: none !important;
+  outline-style: none !important;
+  outline-width: 0 !important;
+}
+
+svg.leaflet-zoom-animated path,
+svg.leaflet-zoom-animated g path,
+.leaflet-overlay-pane svg path,
+.leaflet-overlay-pane path {
+  outline: none !important;
+  outline-style: none !important;
+  outline-width: 0 !important;
+}
+
+/* Remove focus outline from all SVG elements */
+svg *:focus {
+  outline: none !important;
+}
+
+path:focus {
+  outline: none !important;
+}

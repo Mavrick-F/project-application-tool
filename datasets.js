@@ -96,9 +96,73 @@ const DATASETS = {
     enabled: true
   },
 
+  highInjuryCorridors: {
+    id: 'highInjuryCorridors',
+    name: 'High Injury Corridors',
+    category: 'Transportation',
+    filePath: './data/HIN_Corridors.geojson',
+    geometryType: 'LineString',
+    analysisMethod: 'corridor',
+    bufferDistance: 100,
+    minSharedLength: 300,
+    proximityBuffer: null,
+    properties: {
+      displayField: 'OBJECTID',
+      staticLabel: 'High Injury Corridor',  // Show static label instead of OBJECTID
+      additionalFields: []
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#CC0000',
+      weight: 3,
+      opacity: 0.8
+    },
+    resultStyle: 'list',
+    enabled: true
+  },
+
+  greenprintNetwork: {
+    id: 'greenprintNetwork',
+    name: 'Greenprint Bike Network',
+    category: 'Transportation',
+    filePath: './data/midsouth_greenprint.geojson',
+    geometryType: 'LineString',
+    analysisMethod: 'corridor',
+    bufferDistance: 100,
+    minSharedLength: 300,
+    proximityBuffer: null,
+    properties: {
+      displayField: 'Priority_T',  // Show Regional, Intermediate, or Local
+      additionalFields: []
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#228B22',  // Default color, overridden by styleByProperty
+      weight: 2,
+      opacity: 0.8,
+      dashArray: '10, 10'  // Dashed line
+    },
+    styleByProperty: {  // Different colors for Regional, Intermediate, Local
+      field: 'Priority_T',
+      values: {
+        'Regional': { color: '#006400', weight: 3, opacity: 0.8, dashArray: '10, 10' },      // Dark green for Regional
+        'Intermediate': { color: '#228B22', weight: 3, opacity: 0.8, dashArray: '10, 10' },  // Medium green for Intermediate
+        'Local': { color: '#90EE90', weight: 2, opacity: 0.8, dashArray: '10, 10' }          // Light green for Local
+      }
+    },
+    resultStyle: 'list',
+    enabled: true
+  },
+
   truckRoutes: {
     id: 'truckRoutes',
-    name: 'MPO Freight Route Network',
+    name: 'Freight Routes',
     category: 'Transportation',
     filePath: './data/truck_routes.json',
     geometryType: 'MultiLineString',
@@ -158,9 +222,50 @@ const DATASETS = {
     enabled: true
   },
 
+  aliceZctas: {
+    id: 'aliceZctas',
+    name: 'ALICE ZCTAs',
+    category: 'Economic',
+    filePath: './data/alice_zctas.geojson',
+    geometryType: 'Polygon',
+    analysisMethod: 'intersection',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: null,
+    filterByThreshold: {  // Filter to only show economically distressed areas
+      field: 'F__Below_A',  // Fraction of households below ALICE threshold
+      operator: '>=',
+      value: 0.45,  // 45% threshold
+      showTranslucentBelow: true  // Show below-threshold areas as translucent
+    },
+    properties: {
+      displayField: 'GEOID20',  // ZIP Code Tabulation Area ID
+      additionalFields: ['F__Below_A'],  // Show percentage in results
+      formatPercentage: 'F__Below_A'  // Format this field as percentage
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#9932CC',  // Dark orchid
+      weight: 2,
+      fillColor: '#DDA0DD',  // Plum
+      fillOpacity: 0.4
+    },
+    styleTranslucent: {  // Style for below-threshold areas (not in report)
+      color: '#9932CC',
+      weight: 1,
+      fillColor: '#DDA0DD',
+      fillOpacity: 0.1  // Very translucent
+    },
+    resultStyle: 'list',
+    enabled: true
+  },
+
   freightClusters: {
     id: 'freightClusters',
-    name: 'MPO Freight Zones',
+    name: 'Freight Zones',
     category: 'Transportation',
     filePath: './data/freight_clusters.geojson',
     geometryType: 'Polygon',
@@ -268,6 +373,36 @@ const DATASETS = {
       weight: 1
     },
     resultStyle: 'table',
+    enabled: true
+  },
+
+  crashLocations: {
+    id: 'crashLocations',
+    name: 'Crash Locations (KSI)',
+    category: 'Transportation',
+    filePath: './data/ksi_crashes.geojson',
+    geometryType: 'Point',
+    analysisMethod: 'proximityCount',  // Use counting analysis
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 300,  // 300 feet buffer
+    countByField: 'Severity',  // Count by Fatal vs Suspected Serious Injury
+    properties: {
+      displayField: 'Severity',  // Show severity in tooltip
+      additionalFields: ['Fatality_C', 'Injured_Co']  // Show deaths and injuries
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#8B0000',  // Dark red for crashes
+      fillColor: '#8B0000',
+      radius: 4,
+      fillOpacity: 0.9,
+      weight: 1
+    },
+    resultStyle: 'count',  // Special result style for counts
     enabled: true
   },
 

@@ -4,20 +4,21 @@
 
 This is a web-based mapping tool for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055. It allows users to draw transportation project alignments or mark locations on an interactive map, then automatically performs spatial analysis to identify intersecting or nearby infrastructure and planning features. The tool generates a PDF report summarizing the findings.
 
-**Current Status:** v0.7.0 (active development, not production-ready)
+**Current Status:** v0.8.0 (active development, not production-ready)
 
 **Primary User:** Engineers from MPO partner agencies will use tool to create pdf reports which they submit as part of project applications. MPO staff will use the pdf reports to evalute project applications.
 
-**Recent Major Update (v0.7.0):**
-- Refactored monolithic 3200+ line index.html into 7 modular files
-- Maintained all functionality with zero breaking changes
-- Improved code maintainability and organization
-- Added cache busting with `?v=0.7.0` query strings
-- Updated all documentation
+**Recent Major Update (v0.8.0):**
+- Added 4 critical datasets: High Injury Corridors, Crash Locations (KSI), Greenprint Bike Network, ALICE ZCTAs
+- Implemented proximity counting for crash aggregation by severity
+- Added threshold-based filtering for ALICE economic indicators (≥45% threshold)
+- Consolidated Greenprint routes into single layer with conditional styling (Regional/Intermediate/Local)
+- Enhanced tooltips and reports to show percentages and additional details
+- Improved UI (removed polygon selection box, better spacing in PDF reports)
 
 ## Architecture & Tech Stack
 
-This is a **modular JavaScript application (v0.7.0)** with 7 separate files:
+This is a **modular JavaScript application (v0.8.0)** with 7 separate files:
 
 **Core Application Files:**
 - **index.html** (~140 lines) - HTML structure and script tags only
@@ -48,15 +49,19 @@ project-application-tool/
 ├── analysis.js                   # Spatial analysis (~550 lines)
 ├── pdf.js                        # PDF generation (~450 lines)
 ├── app.js                        # App initialization & events (~900 lines)
-├── data/                         # GeoJSON datasets (12 total)
+├── data/                         # GeoJSON datasets (16 total)
 │   ├── mata-routes.json          # Transit routes (LineString)
 │   ├── strahnet.geojson          # Strategic highway network (LineString)
 │   ├── truck_routes.json         # Freight routes (LineString, color-coded)
+│   ├── HIN_Corridors.geojson     # High Injury Corridors (LineString)
+│   ├── midsouth_greenprint.geojson # Bike network (LineString, dashed, 3 types)
 │   ├── opportunity-zones.json    # Census tracts (Polygon)
+│   ├── alice_zctas.geojson       # ALICE economic indicators (Polygon)
 │   ├── freight_clusters.geojson  # Freight zones (Polygon)
 │   ├── parks.json                # Public parks (Polygon)
 │   ├── historic_polygons.geojson # Historic districts (Polygon)
 │   ├── bridges.json              # Bridge locations (Point)
+│   ├── ksi_crashes.geojson       # Crash locations (Point, with counting)
 │   ├── major_employers.geojson   # Employment centers (Point)
 │   ├── tourist_attractions.geojson # Tourist destinations (Point)
 │   ├── historic_points.geojson   # Historic sites (Point)
@@ -72,34 +77,45 @@ project-application-tool/
 
 ### Analysis Types
 
-The tool performs three types of spatial analysis:
+The tool performs four types of spatial analysis:
 
 1. **Corridor Matching** (for line features like transit routes)
    - Creates 100ft buffer around drawn line
    - Checks for minimum 300ft of parallel/shared length
-   - Used for: Transit routes (currently), future bike routes, freight corridors
+   - Used for: Transit routes, bike routes, freight corridors, high injury corridors
 
 2. **Intersection Detection** (for polygon features)
    - Uses `turf.booleanIntersects()` for line-to-polygon
    - Uses `turf.booleanPointInPolygon()` for point-in-polygon
-   - Used for: Opportunity Zones (currently), future EJ layers, historic districts
+   - Supports threshold-based filtering (e.g., ALICE ZCTAs with ≥45% threshold)
+   - Used for: Opportunity Zones, ALICE ZCTAs, historic districts, parks
 
 3. **Proximity Analysis** (for point features)
-   - Creates 300ft buffer around drawn geometry
-   - Checks if points fall within buffer
-   - Used for: Bridges (currently), future crash locations, major employers
+   - Creates configurable buffer around drawn geometry
+   - Lists all features within buffer
+   - Used for: Bridges, major employers, tourist destinations, historic sites
 
-### Implemented Datasets (12 of ~19 required)
+4. **Proximity with Counting** (for aggregated point features)
+   - Creates buffer around drawn geometry
+   - Counts features and groups by specified category field
+   - Returns total count and breakdown by category
+   - Used for: Crash locations (groups by Fatal vs Suspected Serious Injury)
+
+### Implemented Datasets (16 of ~19 required)
 
 **Transportation:**
 ✅ **MATA Routes** - Transit network (corridor matching)
 ✅ **STRAHNET Routes** - Strategic highway network (corridor matching)
-✅ **MPO Freight Route Network** - Regional/local freight routes (corridor matching, color-coded)
+✅ **Freight Routes** - Regional/local freight routes (corridor matching, color-coded)
+✅ **High Injury Corridors** - Safety priority corridors (corridor matching)
+✅ **Greenprint Bike Network** - Regional/Intermediate/Local routes (corridor matching, dashed, color-coded)
+✅ **Crash Locations (KSI)** - Fatal/Serious Injury crashes (proximity counting by severity)
 ✅ **Bridges** - NBI structures (proximity analysis)
 
 **Economic Development:**
 ✅ **Opportunity Zones** - Census tracts (intersection detection)
-✅ **MPO Freight Zones** - Freight activity areas (intersection detection)
+✅ **ALICE ZCTAs** - Economic distress indicators (intersection, ≥45% threshold, shows %)
+✅ **Freight Zones** - Freight activity areas (intersection detection)
 ✅ **Major Employers** - Employment centers (proximity analysis)
 ✅ **Tourist Destinations** - Attractions (proximity analysis)
 
@@ -111,46 +127,46 @@ The tool performs three types of spatial analysis:
 ✅ **Parks** - Public parks (proximity analysis)
 ✅ **EPA Superfund Sites** - Cleanup locations (proximity analysis)
 
-### Required for v1.0 (7 additional datasets)
+### Required for v1.0 (3 additional datasets)
 
-**Transportation:** Congested Segments (ArcGIS Feature Service), High Injury Corridors, Crash Locations (counting logic), Greenprint Plan Network (bike infrastructure - CRITICAL)
+**Transportation:** Congested Segments (ArcGIS Feature Service integration)
 
-**Environmental/EJ:** Wetlands, Streams, ALICE criteria (TBD)
+**Environmental:** Wetlands, Streams (evaluate redundancy), Flood Zones (evaluate redundancy)
 
 ## Critical Development Priorities
 
-### ✅ COMPLETED (v0.6.0)
+### ✅ COMPLETED (v0.8.0)
 
-**Architecture Refactor** - ✅ DONE
-- ✅ Created configuration-driven system with centralized `DATASETS` config object
-- ✅ Each dataset specifies: type, analysis method, buffer distance, property mappings
-- ✅ Replaced hardcoded functions with three generic analysis methods
-- ✅ Support for conditional styling via `styleByProperty`
-- ✅ Support for static labels via `staticLabel`
-- ✅ New datasets can be added by updating config only—NO new code required
-- ✅ Integrated 12 datasets using new architecture
+**Advanced Analysis Features** - ✅ DONE
+- ✅ Implemented proximity counting function (`analyzeProximityWithCounting`)
+- ✅ Added threshold-based filtering for polygon datasets (`filterByThreshold`)
+- ✅ Integrated crash counting by severity (Fatal vs Suspected Serious Injury)
+- ✅ Implemented ALICE criteria with 45% threshold filtering
+- ✅ Added percentage formatting for economic indicators
+- ✅ Enhanced tooltips to show additional fields (deaths, injuries, percentages)
 
-### 🔴 BLOCKING for v1.0
+**Dataset Integration** - ✅ DONE (16 of 19 datasets)
+- ✅ High Injury Corridors with safety corridor analysis
+- ✅ Crash Locations (KSI) with proximity counting
+- ✅ Greenprint Bike Network (Regional/Intermediate/Local) with conditional styling
+- ✅ ALICE ZCTAs with threshold filtering and percentage display
 
-**Specialized Analysis Logic:**
-- Crash counting/aggregation (not just listing features)
-- ALICE criteria evaluation (thresholds TBD by RTP team)
-- ArcGIS Feature Service integration for large datasets
+### 🔴 REMAINING for v1.0
 
-### 🟡 Data Integration
+**ArcGIS Feature Service Integration:**
+- Congested Segments dataset (large file requiring Feature Service)
+- Custom query/aggregation logic for Feature Service requests
 
-**Large file concern:** Congested Segments dataset will be very large (Streetlight data). May require ArcGIS Online hosting instead of local GeoJSON.
+**Environmental Datasets:**
+- Wetlands (with forested/shrub categorization)
+- Streams (evaluate if redundant with wetlands)
+- Flood Zones (evaluate if redundant with wetlands)
 
-**Special logic needed:**
-- Crash Locations: Counting/aggregation logic (not just listing)
-- ALICE criteria: Thresholds and criteria still being defined by RTP team
-- Greenprint Network: May consist of multiple files/layers
-
-### 🟢 User Experience
-
+**User Experience Refinements:**
 - Context-aware empty result messages
 - Confirmation dialog for "Clear & Start Over"
 - Real-time validation feedback
+- Loading indicators for Feature Service requests
 
 ## Code Organization (index.html)
 
@@ -264,6 +280,9 @@ The system automatically handles:
 - `styleByProperty` - Conditional styling (e.g., color-code by type)
 - `specialHandling` - Deduplication, suffix removal
 - `additionalFields` - Multi-column table results
+- `countByField` - Field to group results for counting analysis
+- `filterByThreshold` - Numeric threshold filtering with translucent styling
+- `formatPercentage` - Format specific fields as percentages
 
 ### Testing Locally
 
@@ -316,11 +335,11 @@ These are different concepts that should not be confused.
 ## Things to Prioritize
 
 - ✅ **Configuration-driven architecture** - COMPLETED in v0.6.0
+- ✅ **Specialized analysis logic** - COMPLETED in v0.8.0 (counting, thresholds, percentage formatting)
+- ✅ **Critical dataset integration** - COMPLETED in v0.8.0 (16 of 19 datasets integrated)
 - **ArcGIS Feature Service integration** - For large datasets (Congested Segments)
-- **Specialized analysis logic** - Counting, aggregation, thresholds (for crashes, ALICE, etc.)
-- **Dataset integration** - 7 more datasets needed for v1.0
+- **Environmental datasets** - Wetlands, Streams, Flood Zones (3 remaining)
 - **User feedback messages** - Empty states, validation, confirmation dialogs
-- **PDF report improvements** - Better formatting, more context
 
 ## Terminology
 
@@ -338,7 +357,7 @@ These are different concepts that should not be confused.
 When working on new features, consider asking:
 
 1. **For new datasets**: What geometry type? What buffer/threshold? Which properties to display?
-2. **For ALICE criteria**: What are the specific thresholds and data sources? (Still TBD with RTP team)
+2. **For threshold filtering**: What percentage or value threshold? Should below-threshold features be hidden or translucent?
 3. **For large datasets**: Should this be hosted externally (ArcGIS Online) or local GeoJSON?
 4. **For special logic**: Should features be counted, aggregated, or listed individually?
 5. **For buffer distances**: Is this a proximity check, corridor matching, or intersection detection?

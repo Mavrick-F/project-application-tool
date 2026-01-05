@@ -192,7 +192,16 @@ async function generatePDF() {
 
     // Check if we have any results from any dataset
     const hasAnyResults = Object.keys(currentResults).some(datasetKey => {
-      return currentResults[datasetKey] && currentResults[datasetKey].length > 0;
+      const results = currentResults[datasetKey];
+      if (!results) return false;
+
+      // Handle count results (object with total property)
+      if (typeof results === 'object' && 'total' in results) {
+        return results.total > 0;
+      }
+
+      // Handle array results
+      return results.length > 0;
     });
 
     if (hasAnyResults) {
@@ -206,13 +215,21 @@ async function generatePDF() {
     // Loop through all datasets and add results dynamically
     Object.keys(DATASETS).forEach(datasetKey => {
       const config = DATASETS[datasetKey];
+      const results = currentResults[datasetKey];
 
       // Skip if dataset is disabled or has no results
-      if (!config.enabled || !currentResults[datasetKey] || currentResults[datasetKey].length === 0) {
+      if (!config.enabled || !results) {
         return;
       }
 
-      const results = currentResults[datasetKey];
+      // Check if results are empty (handle both array and count results)
+      const isEmpty = typeof results === 'object' && 'total' in results
+        ? results.total === 0
+        : results.length === 0;
+
+      if (isEmpty) {
+        return;
+      }
 
       // Add section header
       checkPageBreak(0.5);
@@ -224,7 +241,27 @@ async function generatePDF() {
       pdf.setFont('helvetica', 'normal');
 
       // Render based on resultStyle
-      if (config.resultStyle === 'table' && config.properties.additionalFields.length > 0) {
+      if (config.resultStyle === 'count') {
+        // Count format
+        checkPageBreak(0.3);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`  Total: ${results.total}`, margin, yPosition);
+        yPosition += 0.18;
+        pdf.setFont('helvetica', 'normal');
+
+        if (results.breakdown && Object.keys(results.breakdown).length > 0) {
+          // Sort breakdown by count (descending)
+          const sortedBreakdown = Object.entries(results.breakdown).sort((a, b) => b[1] - a[1]);
+
+          sortedBreakdown.forEach(([category, count]) => {
+            checkPageBreak(0.2);
+            pdf.text(`    • ${category}: ${count}`, margin, yPosition);
+            yPosition += 0.16;
+          });
+        }
+        yPosition += 0.2;  // Add spacing between datasets
+
+      } else if (config.resultStyle === 'table' && config.properties.additionalFields.length > 0) {
         // Table format
         pdf.setFont('helvetica', 'bold');
 
@@ -262,6 +299,7 @@ async function generatePDF() {
 
           yPosition += 0.15;
         });
+        yPosition += 0.1;  // Add spacing between datasets
 
       } else {
         // List format (default)
@@ -273,6 +311,21 @@ async function generatePDF() {
             displayText = result;
           } else if (typeof result === 'object') {
             displayText = result[config.properties.displayField] || 'Unknown';
+
+            // Add additional fields if present
+            if (config.properties.additionalFields && config.properties.additionalFields.length > 0) {
+              config.properties.additionalFields.forEach(field => {
+                let value = result[field];
+
+                // Format as percentage if specified
+                if (config.properties.formatPercentage === field && value !== undefined && value !== 'Unknown') {
+                  value = `${(value * 100).toFixed(1)}%`;
+                }
+
+                const fieldLabel = field === 'F__Below_A' ? '% Below ALICE' : field;
+                displayText += ` | ${fieldLabel}: ${value}`;
+              });
+            }
           } else {
             displayText = String(result);
           }
@@ -280,7 +333,7 @@ async function generatePDF() {
           pdf.text(`  • ${displayText}`, margin, yPosition);
           yPosition += 0.18;
         });
-        yPosition += 0.15;
+        yPosition += 0.2;  // Add spacing between datasets
       }
     });
 

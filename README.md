@@ -1,8 +1,8 @@
 # Memphis MPO Project Application Tool
 
-![Version](https://img.shields.io/badge/version-0.7.1-blue) ![Status](https://img.shields.io/badge/status-in%20development-yellow)
+![Version](https://img.shields.io/badge/version-0.8.0-blue) ![Status](https://img.shields.io/badge/status-in%20development-yellow)
 
-**⚠️ This tool is currently in active development (v0.7.1) and not yet released for production use.**
+**⚠️ This tool is currently in active development (v0.8.0) and not yet released for production use.**
 
 A web-based mapping tool for analyzing transportation project proposals against regional planning datasets. Built for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055.
 
@@ -12,10 +12,10 @@ A web-based mapping tool for analyzing transportation project proposals against 
 
 This tool allows users to draw project alignments or mark specific locations on an interactive map, then automatically identifies intersecting or nearby transportation infrastructure and planning features. The tool generates a PDF report summarizing the spatial relationships between the proposed project and key regional datasets.
 
-**Current Status (v0.7.1):** Codebase refactored into modular architecture with 7 separate files for improved maintainability. Layers now grouped by topic (Transportation, Economic, Environmental) for better organization. Core spatial analysis engine supports 12 datasets across multiple geometry types using a scalable, configuration-driven system. Significant work remains before v1.0 release:
-- Integration of remaining ~7 required regional planning datasets
-- User experience improvements and documentation
-- Potential ArcGIS Feature Service integration for large datasets
+**Current Status (v0.8.0):** Core feature set complete with 16 integrated datasets across all critical categories. Implemented advanced features including proximity counting (for crash aggregation), threshold-based filtering (for ALICE ZCTAs), and multi-value conditional styling. Added High Injury Corridors, Crash Locations with severity counting, Greenprint Bike Network (Regional/Intermediate/Local routes), and ALICE economic indicators. System now supports complex analysis patterns beyond simple intersection detection. Remaining work for v1.0:
+- Integration of environmental layers (wetlands, streams)
+- Congested Segments via ArcGIS Feature Service
+- Final user experience refinements
 
 See **Data Requirements** section below for full dataset roadmap.
 
@@ -27,7 +27,7 @@ See **Data Requirements** section below for full dataset roadmap.
 - **Interactive Map**: Pan, zoom, and draw on a CartoDB Voyager basemap
 
 ### Spatial Analysis
-The tool performs automated spatial analysis using three different methods:
+The tool performs automated spatial analysis using four different methods:
 
 **1. Corridor Matching (for line features):**
 - Creates configurable buffer around drawn line (typically 100ft)
@@ -38,17 +38,27 @@ The tool performs automated spatial analysis using three different methods:
 **2. Intersection Detection (for polygon features):**
 - Uses `turf.booleanIntersects()` for line-to-polygon
 - Uses `turf.booleanPointInPolygon()` for point-in-polygon
+- Supports threshold-based filtering (e.g., ALICE ZCTAs with ≥45% below threshold)
 
 **3. Proximity Analysis (for point features):**
 - Creates configurable buffer around drawn geometry
 - Identifies all features within specified distance
 
-**Current implementation (v0.7.1)** analyzes against 12 datasets:
+**4. Proximity with Counting (for aggregated point features):**
+- Counts features within buffer zone
+- Groups results by specified category field
+- Used for crash analysis (Fatal vs Suspected Serious Injury)
+
+**Current implementation (v0.8.0)** analyzes against 16 datasets:
 - **MATA Routes** - Transit route network
 - **STRAHNET Routes** - Strategic Highway Network
-- **MPO Freight Route Network** - Regional/local freight routes with color-coding
+- **Freight Routes** - Regional/local freight routes with color-coding
+- **High Injury Corridors** - Safety priority corridors
+- **Greenprint Bike Network** - Regional/Intermediate/Local bike routes (dashed lines, color-coded)
+- **Crash Locations (KSI)** - Fatal and Suspected Serious Injury crashes with severity counting
 - **Opportunity Zones** - Census tract designations
-- **MPO Freight Zones** - Designated freight activity areas
+- **ALICE ZCTAs** - Economic distress indicators (≥45% threshold, shows % below ALICE)
+- **Freight Zones** - Designated freight activity areas
 - **Parks** - Public park boundaries
 - **NHRP Polygons** - Historic district boundaries
 - **Bridges** - Bridge inventory with conditions
@@ -57,7 +67,7 @@ The tool performs automated spatial analysis using three different methods:
 - **NHRP Points** - Historic sites (individual)
 - **EPA Superfund Sites** - Environmental cleanup locations
 
-**Planned for v1.0:** Analysis will expand to include congested segments, high injury corridors, crash locations, bike networks, and additional environmental features. See **Data Requirements** section for complete list.
+**Planned for v1.0:** Analysis will expand to include congested segments (via ArcGIS Feature Service) and additional environmental features (wetlands, streams). See **Data Requirements** section for complete list.
 
 ### Report Generation
 - Real-time results display in sidebar as you draw
@@ -69,17 +79,21 @@ The tool performs automated spatial analysis using three different methods:
 
 ## Data Requirements
 
-### Implemented Datasets (v0.7.1)
+### Implemented Datasets (v0.8.0)
 
 **Transportation:**
 - ✅ **MATA Routes** (lines) - Transit route network
 - ✅ **STRAHNET Routes** (lines) - Strategic Highway Network routes
-- ✅ **MPO Freight Route Network** (lines) - Regional and local freight routes (color-coded)
+- ✅ **Freight Routes** (lines) - Regional and local freight routes (color-coded)
+- ✅ **High Injury Corridors** (lines) - Safety priority corridors
+- ✅ **Greenprint Bike Network** (lines) - Regional/Intermediate/Local routes (dashed, color-coded)
+- ✅ **Crash Locations (KSI)** (points) - Fatal and Suspected Serious Injury crashes with counting
 - ✅ **Bridges** (points) - Bridge inventory with conditions
 
 **Economic Development:**
 - ✅ **Opportunity Zones** (polygons) - Census tract designations
-- ✅ **MPO Freight Zones** (polygons) - Designated freight activity areas
+- ✅ **ALICE ZCTAs** (polygons) - Economic distress (≥45% threshold, displays % below ALICE)
+- ✅ **Freight Zones** (polygons) - Designated freight activity areas
 - ✅ **Major Employers** (points) - Significant employment centers
 - ✅ **Tourist Destinations** (points) - Regional attractions
 
@@ -95,20 +109,12 @@ The tool performs automated spatial analysis using three different methods:
 
 **Transportation Infrastructure:**
 - ❌ **Congested Segments** (lines) - Streetlight data with Level of Travel Time Reliability and "Is Congested" flag
-  - *Note: Will be a large file; strong candidate for ArcGIS Feature Service integration*
-- ❌ **High Injury Corridors** (lines) - Safety priority corridors
-- ❌ **Crash Locations** (points) - Fatality and Serious Injury crashes
-  - *Requires counting logic for aggregation*
-- ❌ **Greenprint Plan Network** (lines) - Regional/Intermediate Shared-Use Path and Bikeway connections
+  - *Note: Will be a large file; requires ArcGIS Feature Service integration*
 
-### Environmental Layers
-- ❌ **Wetlands** (polygons) - Special attention should be paid to forested/shrub wetlands.
+**Environmental Layers:**
+- ❌ **Wetlands** (polygons) - Special attention should be paid to forested/shrub wetlands
 - ❌ **Streams** (lines) - Maybe, large file that's partially redundant with wetlands
 - ❌ **Flood Zones** (polygons) - Maybe, large file that's partially redundant with wetlands
-
-**Economic Indicators:**
-- ❌ **ALICE-Related Criteria** (polygons) - Asset Limited, Income Constrained, Employed populations
-  - ZIP Code Tabulation Areas, a ZCTA will be counted if 45% or more of households are below the ALICE threshold
 
 **Excluded from Scope:**
 - Pavement condition data (applicants provide PCI directly)
@@ -333,10 +339,10 @@ newDataset: {
 
 ## Known Limitations
 
-**Development Status (v0.7.1):**
-- 12 of ~19 required datasets currently integrated
-- Large datasets (Congested Segments, Crash Locations) may require ArcGIS Feature Service integration
-- Some specialized analysis logic (crash counting, ALICE criteria) not yet implemented
+**Development Status (v0.8.0):**
+- 16 of ~19 required datasets currently integrated
+- Large datasets (Congested Segments) require ArcGIS Feature Service integration
+- Specialized analysis features implemented (crash counting, ALICE threshold filtering)
 
 **Current Functionality:**
 - Desktop-only (requires 1024px minimum width)
@@ -347,6 +353,23 @@ newDataset: {
 - Analysis runs synchronously (may cause brief UI freeze on very large projects)
 
 ## Development Roadmap
+
+### v0.8.0 - Completed ✅
+- ✅ **Added 4 critical datasets** (16 total datasets now integrated)
+  - High Injury Corridors with safety analysis
+  - Crash Locations (KSI) with proximity counting by severity
+  - Greenprint Bike Network (Regional/Intermediate/Local) with dashed styling
+  - ALICE ZCTAs with 45% threshold filtering and percentage display
+- ✅ **Implemented advanced analysis features**
+  - Generic proximity counting function for aggregated point data
+  - Threshold-based filtering for polygon datasets
+  - Percentage formatting for economic indicators
+  - Multi-value conditional styling (like Freight Routes)
+- ✅ **UI/UX improvements**
+  - Removed black selection box from polygons
+  - Added crash details to map tooltips (deaths/injuries)
+  - Improved PDF report spacing between sections
+  - Renamed datasets for clarity (Freight Routes, Freight Zones)
 
 ### v0.7.1 - Completed ✅
 - ✅ **Fixed zoom and layer organization issues**
@@ -374,26 +397,19 @@ newDataset: {
 
 ### Priority for v1.0 Release
 
-**Data Integration (Required):**
-- [ ] **Transportation datasets** (4 layers remaining)
-  - Congested Segments (integrate via ArcGIS Feature Service)
-  - High Injury Corridors
-  - Crash Locations (implement counting/aggregation logic)
-  - Greenprint Plan Network (CRITICAL - bike infrastructure)
+**Data Integration (Remaining):**
+- [ ] **Congested Segments** (ArcGIS Feature Service integration required)
+  - Streetlight data with Level of Travel Time Reliability
+  - "Is Congested" flag for filtering
+  - Custom query/aggregation logic for large dataset
 
-- [ ] **Environmental** (~3 layers)
-  - Wetlands
-  - Streams
-  - ALICE-related criteria (coordinate with RTP team)
-
-**Critical Features:**
-- [ ] **Specialized analysis logic**
-  - Crash counting within proximity buffer
-  - ALICE criteria evaluation
-  - Custom aggregation for Feature Service queries
+- [ ] **Environmental layers** (3 layers)
+  - Wetlands (with forested/shrub categorization)
+  - Streams (evaluate redundancy with wetlands)
+  - Flood Zones (evaluate redundancy with wetlands)
 
 **User Experience:**
-- [ ] **Improved user feedback**
+- [ ] **Final UX refinements**
   - Context-aware empty result messages
   - Confirmation dialog for "Clear & Start Over"
   - Real-time validation feedback

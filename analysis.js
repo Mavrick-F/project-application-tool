@@ -275,8 +275,17 @@ function analyzeIntersection(drawnGeometry, datasetConfig, geoJsonData) {
       }
 
       if (intersects) {
-        const featureName = feature.properties[datasetConfig.properties.displayField] || 'Unknown';
-        intersectingFeatures.push(featureName);
+        const featureData = {
+          [datasetConfig.properties.displayField]:
+            feature.properties[datasetConfig.properties.displayField] || 'Unknown'
+        };
+
+        // Add additional fields if configured
+        datasetConfig.properties.additionalFields.forEach(field => {
+          featureData[field] = feature.properties[field] || 'Unknown';
+        });
+
+        intersectingFeatures.push(featureData);
       }
     } catch (error) {
       console.warn('Error checking intersection:', error);
@@ -355,6 +364,65 @@ function analyzeProximity(drawnGeometry, datasetConfig, geoJsonData) {
 }
 
 /**
+ * Analyze proximity with counting for Point datasets
+ * Counts features within buffer and groups by a specified property
+ * Generic function that can be used for any point dataset requiring counts
+ * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+ * @param {Object} datasetConfig - Configuration object from DATASETS
+ * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+ * @returns {Object} Object with counts grouped by category
+ */
+function analyzeProximityWithCounting(drawnGeometry, datasetConfig, geoJsonData) {
+  const counts = {};
+  let totalCount = 0;
+
+  try {
+    // Extract actual geometry from GeoJSON Feature if needed
+    const geometry = drawnGeometry.type === 'Feature'
+      ? drawnGeometry.geometry
+      : drawnGeometry;
+
+    // Create buffer around the drawn geometry
+    const buffered = turf.buffer(geometry, datasetConfig.proximityBuffer, {
+      units: 'feet'
+    });
+
+    // Check each feature against the buffer
+    geoJsonData.features.forEach(feature => {
+      try {
+        let isNearby = false;
+
+        if (datasetConfig.geometryType === 'Point') {
+          // Point features: check if point is in buffer
+          isNearby = turf.booleanPointInPolygon(feature, buffered);
+        }
+
+        if (isNearby) {
+          totalCount++;
+
+          // Count by category if countByField is specified
+          if (datasetConfig.countByField) {
+            const category = feature.properties[datasetConfig.countByField] || 'Unknown';
+            counts[category] = (counts[category] || 0) + 1;
+          }
+        }
+      } catch (error) {
+        console.warn('Error checking proximity for counting:', error);
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating buffer or checking proximity for counting:', error);
+  }
+
+  // Return structured count data
+  return {
+    total: totalCount,
+    breakdown: counts
+  };
+}
+
+/**
  * Master analysis function that loops through all enabled datasets
  * and calls the appropriate analysis function based on analysisMethod
  * @param {Object} drawnGeometry - GeoJSON of drawn line or point
@@ -389,6 +457,10 @@ function analyzeAllDatasets(drawnGeometry) {
 
         case 'proximity':
           datasetResults = analyzeProximity(drawnGeometry, config, geoJsonData[datasetKey]);
+          break;
+
+        case 'proximityCount':
+          datasetResults = analyzeProximityWithCounting(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         default:
