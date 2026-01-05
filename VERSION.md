@@ -1,5 +1,29 @@
 # Version History
 
+## v0.8.0 (2026-01-05)
+- Added 4 critical datasets: High Injury Corridors, Crash Locations (KSI), Greenprint Bike Network, ALICE ZCTAs
+- Implemented advanced analysis features: proximity counting, threshold-based filtering, percentage formatting
+- Expanded dataset integration to 16 total datasets (from 12)
+- Enhanced UI/UX with improved polygon styling and PDF report spacing
+
+### New Features
+- **High Injury Corridors**: Safety priority corridors for corridor matching analysis
+- **Crash Locations (KSI)**: Fatal and Suspected Serious Injury crashes with proximity counting by severity
+- **Greenprint Bike Network**: Regional/Intermediate/Local bike routes with conditional styling and dashed line display
+- **ALICE ZCTAs**: Economic distress indicators with ≥45% threshold filtering and percentage display
+
+### Advanced Analysis Implementation
+- Generic proximity counting function (`analyzeProximityWithCounting`) for aggregated point data
+- Threshold-based filtering with translucent styling for polygon datasets
+- Multi-value conditional styling for datasets like Freight Routes and Greenprint Bike Network
+- Enhanced tooltips showing additional fields (crash severity details, economic percentages)
+
+### UI/UX Improvements
+- Removed black selection box from polygon features
+- Improved PDF report spacing between dataset sections
+- Renamed datasets for clarity (Freight Routes, Freight Zones)
+- Enhanced map layer organization and visibility controls
+
 ## v0.7.1 (2025-12-29)
 - Fixed zoom extent to show Memphis area instead of continental US
 - Grouped layers by topic (Transportation, Economic, Environmental) in map view
