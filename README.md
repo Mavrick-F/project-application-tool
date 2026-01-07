@@ -12,9 +12,8 @@ A web-based mapping tool for analyzing transportation project proposals against 
 
 This tool allows users to draw project alignments or mark specific locations on an interactive map, then automatically identifies intersecting or nearby transportation infrastructure and planning features. The tool generates a PDF report summarizing the spatial relationships between the proposed project and key regional datasets.
 
-**Current Status (v0.8.0):** Core feature set complete with 16 integrated datasets across all critical categories. Implemented advanced features including proximity counting (for crash aggregation), threshold-based filtering (for ALICE ZCTAs), and multi-value conditional styling. Added High Injury Corridors, Crash Locations with severity counting, Greenprint Bike Network (Regional/Intermediate/Local routes), and ALICE economic indicators. System now supports complex analysis patterns beyond simple intersection detection. Remaining work for v1.0:
-- Integration of environmental layers (wetlands, streams)
-- Congested Segments via ArcGIS Feature Service
+**Current Status (v0.8.2):** Core feature set complete with 16 integrated datasets across all critical categories. Implemented advanced features including proximity counting (for crash aggregation), threshold-based filtering (for ALICE ZCTAs), and multi-value conditional styling. Added High Injury Corridors, Crash Locations with severity counting, Greenprint Bike Network (Regional/Intermediate/Local routes), and ALICE economic indicators. System now supports complex analysis patterns beyond simple intersection detection. Remaining work for v1.0:
+- Integration of environmental layers (wetlands, streams) and Congested Segments via ArcGIS Feature Service
 - Final user experience refinements
 
 See **Data Requirements** section below for full dataset roadmap.
@@ -113,7 +112,6 @@ The tool performs automated spatial analysis using four different methods:
 
 **Environmental Layers:**
 - ❌ **Wetlands** (polygons) - Special attention should be paid to forested/shrub wetlands
-- ❌ **Streams** (lines) - Maybe, large file that's partially redundant with wetlands
 - ❌ **Flood Zones** (polygons) - Maybe, large file that's partially redundant with wetlands
 
 **Excluded from Scope:**
@@ -339,7 +337,7 @@ newDataset: {
 
 ## Known Limitations
 
-**Development Status (v0.8.0):**
+**Development Status (v0.8.2):**
 - 16 of ~19 required datasets currently integrated
 - Large datasets (Congested Segments) require ArcGIS Feature Service integration
 - Specialized analysis features implemented (crash counting, ALICE threshold filtering)
