@@ -92,7 +92,23 @@ async function generatePDF() {
     // Show loading overlay with PDF progress
     showLoading(true, 'Preparing map for PDF...');
 
-    // Create temporary filtered layers with only matched features
+    // Auto-zoom map FIRST, before adding filtered layers
+    // Use animate: false to ensure immediate positioning
+    const optimalBounds = getOptimalMapBounds();
+    if (optimalBounds) {
+      map.fitBounds(optimalBounds, {
+        padding: [80, 80],  // Increased padding for better centering
+        maxZoom: 16,        // Prevent zooming in too close
+        animate: false      // Critical: prevents capture during animation
+      });
+    }
+
+    // Force Leaflet to update size/position after zoom
+    map.invalidateSize();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // NOW create temporary filtered layers with only matched features
+    // (after map is at correct position)
     Object.keys(currentResults).forEach(datasetKey => {
       const results = currentResults[datasetKey];
       const config = DATASETS[datasetKey];
@@ -130,32 +146,25 @@ async function generatePDF() {
       tempLayers.push(tempLayer);
     });
 
-    // Auto-zoom map to show drawn line and intersecting features
-    // Use animate: false to ensure immediate positioning
-    const optimalBounds = getOptimalMapBounds();
-    if (optimalBounds) {
-      map.fitBounds(optimalBounds, {
-        padding: [80, 80],  // Increased padding for better centering
-        maxZoom: 16,        // Prevent zooming in too close
-        animate: false      // Critical: prevents capture during animation
-      });
-    }
-
     // === CRITICAL: Wait for all rendering to complete before capture ===
 
     // Step 1: Wait for basemap tiles to load at new position
     showLoading(true, 'Loading basemap tiles...');
     await waitForTilesToLoad();
 
-    // Step 2: Wait for GeoJSON vector layers to render
+    // Step 2: Wait for newly added temp layers to render
+    showLoading(true, 'Rendering filtered layers...');
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Step 3: Wait for GeoJSON vector layers to render
     showLoading(true, 'Rendering vector layers...');
     await waitForGeoJSONLayersToRender();
 
-    // Step 3: Give browser one more render cycle to finalize
+    // Step 4: Give browser one more render cycle to finalize
     showLoading(true, 'Finalizing map display...');
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Step 4: Force Leaflet to recalculate internal state
+    // Step 5: Force Leaflet to recalculate internal state one final time
     // This ensures all layer positions are correct
     map.invalidateSize();
     await new Promise(resolve => setTimeout(resolve, 200));
