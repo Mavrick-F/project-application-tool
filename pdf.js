@@ -6,6 +6,55 @@
  */
 
 // ============================================
+// HELPER FUNCTIONS FOR FILTERED LAYER STYLING
+// ============================================
+
+/**
+ * Get style for a GeoJSON feature based on dataset config
+ * Handles styleByProperty for conditional styling
+ * @param {Object} feature - GeoJSON Feature
+ * @param {Object} config - Dataset configuration from DATASETS
+ * @returns {Object} Leaflet style object
+ */
+function getFeatureStyle(feature, config) {
+  let style = { ...config.style };
+
+  // Apply conditional styling if configured
+  if (config.styleByProperty && feature.properties) {
+    const propertyField = config.styleByProperty.field;
+    const propertyValue = feature.properties[propertyField];
+    const styleMap = config.styleByProperty.values;
+
+    if (styleMap && styleMap[propertyValue]) {
+      style = { ...style, ...styleMap[propertyValue] };
+    }
+  }
+
+  return style;
+}
+
+/**
+ * Create Leaflet marker for Point features
+ * Applies styling from dataset config
+ * @param {Object} feature - GeoJSON Feature
+ * @param {Object} latlng - Leaflet LatLng object
+ * @param {Object} config - Dataset configuration from DATASETS
+ * @returns {Object} Leaflet CircleMarker
+ */
+function createPointMarker(feature, latlng, config) {
+  const style = getFeatureStyle(feature, config);
+
+  return L.circleMarker(latlng, {
+    radius: style.radius || 5,
+    fillColor: style.fillColor || '#007cbf',
+    color: style.color || '#000000',
+    weight: style.weight || 1,
+    opacity: style.opacity || 1,
+    fillOpacity: style.fillOpacity || 0.8
+  });
+}
+
+// ============================================
 // PDF GENERATION
 // ============================================
 
@@ -30,6 +79,9 @@ async function generatePDF() {
     }
   });
 
+  // Temporary layers for filtered rendering
+  const tempLayers = [];
+
   try {
     // Disable button and show loading state
     const pdfButton = document.getElementById('pdfButton');
@@ -40,11 +92,42 @@ async function generatePDF() {
     // Show loading overlay with PDF progress
     showLoading(true, 'Preparing map for PDF...');
 
-    // Temporarily add all reference layers to map for PDF capture
-    Object.keys(DATASETS).forEach(datasetKey => {
-      if (featureLayers[datasetKey] && !layerStates[datasetKey]) {
-        map.addLayer(featureLayers[datasetKey]);
+    // Create temporary filtered layers with only matched features
+    Object.keys(currentResults).forEach(datasetKey => {
+      const results = currentResults[datasetKey];
+      const config = DATASETS[datasetKey];
+
+      if (!results || !config) return;
+
+      // Get features array (handle count results differently)
+      let features;
+      if (results.features) {
+        // proximityCount results have a features array
+        features = results.features;
+      } else if (Array.isArray(results) && results.length > 0 && results[0] && results[0].geometry) {
+        // corridor, intersection, proximity results are arrays of features
+        features = results;
+      } else {
+        // No features to render (empty results or unexpected format)
+        return;
       }
+
+      if (features.length === 0) return;
+
+      // Create GeoJSON FeatureCollection
+      const featureCollection = {
+        type: 'FeatureCollection',
+        features: features
+      };
+
+      // Create Leaflet layer with appropriate styling
+      const tempLayer = L.geoJSON(featureCollection, {
+        style: (feature) => getFeatureStyle(feature, config),
+        pointToLayer: (feature, latlng) => createPointMarker(feature, latlng, config)
+      });
+
+      tempLayer.addTo(map);
+      tempLayers.push(tempLayer);
     });
 
     // Auto-zoom map to show drawn line and intersecting features
@@ -99,12 +182,8 @@ async function generatePDF() {
       }
     });
 
-    // Restore layer visibility to previous state
-    Object.keys(DATASETS).forEach(datasetKey => {
-      if (featureLayers[datasetKey] && !layerStates[datasetKey]) {
-        map.removeLayer(featureLayers[datasetKey]);
-      }
-    });
+    // Remove temporary filtered layers
+    tempLayers.forEach(layer => map.removeLayer(layer));
 
     showLoading(true, 'Building PDF document...');
 
@@ -285,14 +364,17 @@ async function generatePDF() {
           checkPageBreak(0.2);
           xOffset = margin + 0.2;
 
+          // Access properties from Feature or flat object
+          const props = result.properties || result;
+
           // Display field
-          const displayValue = result[config.properties.displayField] || 'Unknown';
+          const displayValue = props[config.properties.displayField] || 'Unknown';
           pdf.text(String(displayValue), xOffset, yPosition);
           xOffset += columnWidth;
 
           // Additional fields
           config.properties.additionalFields.forEach(field => {
-            const fieldValue = result[field] || 'Unknown';
+            const fieldValue = props[field] || 'Unknown';
             pdf.text(String(fieldValue), xOffset, yPosition);
             xOffset += columnWidth;
           });
@@ -310,12 +392,14 @@ async function generatePDF() {
           if (typeof result === 'string') {
             displayText = result;
           } else if (typeof result === 'object') {
-            displayText = result[config.properties.displayField] || 'Unknown';
+            // Access properties from Feature or flat object
+            const props = result.properties || result;
+            displayText = props._displayName || props[config.properties.displayField] || 'Unknown';
 
             // Add additional fields if present
             if (config.properties.additionalFields && config.properties.additionalFields.length > 0) {
               config.properties.additionalFields.forEach(field => {
-                let value = result[field];
+                let value = props[field];
 
                 // Format as percentage if specified
                 if (config.properties.formatPercentage === field && value !== undefined && value !== 'Unknown') {
@@ -365,10 +449,10 @@ async function generatePDF() {
   } catch (error) {
     console.error('PDF generation error:', error);
 
-    // Restore layer visibility to previous state on error
-    Object.keys(DATASETS).forEach(datasetKey => {
-      if (featureLayers[datasetKey] && !layerStates[datasetKey] && map.hasLayer(featureLayers[datasetKey])) {
-        map.removeLayer(featureLayers[datasetKey]);
+    // Clean up temporary layers on error
+    tempLayers.forEach(layer => {
+      if (map.hasLayer(layer)) {
+        map.removeLayer(layer);
       }
     });
 

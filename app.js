@@ -706,10 +706,13 @@ function createResultCard(datasetConfig, results) {
     results.forEach((result, index) => {
       const bgColor = index % 2 === 0 ? 'white' : '#F9F9F9';
       cardHtml += `<tr style="background-color: ${bgColor};">`;
-      cardHtml += `<td style="padding: 8px 10px; border: 1px solid #CCCCCC; font-size: 12px;">${result[datasetConfig.properties.displayField]}</td>`;
+
+      // Access properties from Feature or flat object
+      const props = result.properties || result;
+      cardHtml += `<td style="padding: 8px 10px; border: 1px solid #CCCCCC; font-size: 12px;">${props[datasetConfig.properties.displayField]}</td>`;
 
       datasetConfig.properties.additionalFields.forEach(field => {
-        cardHtml += `<td style="padding: 8px 10px; border: 1px solid #CCCCCC; font-size: 12px;">${result[field]}</td>`;
+        cardHtml += `<td style="padding: 8px 10px; border: 1px solid #CCCCCC; font-size: 12px;">${props[field]}</td>`;
       });
 
       cardHtml += `</tr>`;
@@ -725,12 +728,14 @@ function createResultCard(datasetConfig, results) {
       if (typeof result === 'string') {
         displayText = result;
       } else if (typeof result === 'object') {
-        displayText = result[datasetConfig.properties.displayField] || 'Unknown';
+        // Access properties from Feature or flat object
+        const props = result.properties || result;
+        displayText = props._displayName || props[datasetConfig.properties.displayField] || 'Unknown';
 
         // Add additional fields if present
         if (datasetConfig.properties.additionalFields && datasetConfig.properties.additionalFields.length > 0) {
           datasetConfig.properties.additionalFields.forEach(field => {
-            let value = result[field];
+            let value = props[field];
 
             // Format as percentage if specified
             if (datasetConfig.properties.formatPercentage === field && value !== undefined && value !== 'Unknown') {

@@ -1,0 +1,53 @@
+PRD: Filtered Layer Rendering for PDF Generation
+Problem
+PDF generation takes 20 seconds due to html2canvas rendering 10,000+ vector features across all 16 layers. Resulting maps are visually cluttered and unreadable.
+
+Solution
+Render only the specific features that matched during analysis, not entire layers. Store matched feature geometries during analysis, create temporary filtered layers during PDF generation.
+
+Technical Requirements
+1. Modify Analysis Functions (analysis.js)
+All three analysis functions must return complete GeoJSON features, not just properties.
+
+analyzeCorridorMatch(): Store matched route geometries
+analyzeIntersection(): Store matched polygon geometries
+analyzeProximity(): Already stores properties - add geometry
+
+Return format:
+javascript{
+  type: 'Feature',
+  geometry: { ... },
+  properties: { ... }
+}
+
+2. Modify PDF Generation (pdf.js)
+Replace "add all layers" logic with filtered layer creation.
+Around line 45 in generatePDF():
+
+Remove Object.keys(DATASETS).forEach(...) that adds all layers
+Create temporary L.geoJSON layers containing only currentResults[datasetKey] features
+Apply proper styling from DATASETS config
+Handle Point/LineString/Polygon geometry types
+Add temp layers to map for capture
+Remove temp layers after capture
+
+3. Maintain Backward Compatibility
+
+Results display in sidebar unchanged (still shows names/properties)
+PDF results section unchanged (still lists matched features)
+Only map rendering changes
+
+Success Criteria
+
+PDF generation completes in 5-10 seconds (down from 20)
+PDF map shows ONLY: basemap + drawn project + matched features
+Visual clutter eliminated
+Project line is clearly visible in PDF map
+All existing functionality preserved
+
+Out of Scope
+
+Changing analysis logic or thresholds
+Modifying result display format
+Adding new datasets
+Feature Service integration

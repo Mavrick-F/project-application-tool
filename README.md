@@ -1,8 +1,8 @@
 # Memphis MPO Project Application Tool
 
-![Version](https://img.shields.io/badge/version-0.8.0-blue) ![Status](https://img.shields.io/badge/status-in%20development-yellow)
+![Version](https://img.shields.io/badge/version-0.8.2-blue) ![Status](https://img.shields.io/badge/status-in%20development-yellow)
 
-**⚠️ This tool is currently in active development (v0.8.0) and not yet released for production use.**
+**⚠️ This tool is currently in active development (v0.8.2) and not yet released for production use.**
 
 A web-based mapping tool for analyzing transportation project proposals against regional planning datasets. Built for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055.
 
@@ -49,7 +49,7 @@ The tool performs automated spatial analysis using four different methods:
 - Groups results by specified category field
 - Used for crash analysis (Fatal vs Suspected Serious Injury)
 
-**Current implementation (v0.8.0)** analyzes against 16 datasets:
+**Current implementation (v0.8.2)** analyzes against 16 datasets:
 - **MATA Routes** - Transit route network
 - **STRAHNET Routes** - Strategic Highway Network
 - **Freight Routes** - Regional/local freight routes with color-coding
@@ -79,7 +79,7 @@ The tool performs automated spatial analysis using four different methods:
 
 ## Data Requirements
 
-### Implemented Datasets (v0.8.0)
+### Implemented Datasets (v0.8.2)
 
 **Transportation:**
 - ✅ **MATA Routes** (lines) - Transit route network

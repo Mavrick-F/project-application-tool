@@ -137,7 +137,7 @@ function measureSegmentInsideBuffer(segment, buffer) {
  * @returns {Array} Array of matching feature names/IDs
  */
 function analyzeCorridorMatch(drawnGeometry, datasetConfig, geoJsonData) {
-  const matchingFeatures = new Set();
+  const matchingFeatures = new Map(); // Changed from Set to Map for deduplication with geometry
 
   // Extract actual geometry from GeoJSON Feature if needed
   const geometry = drawnGeometry.type === 'Feature'
@@ -158,14 +158,25 @@ function analyzeCorridorMatch(drawnGeometry, datasetConfig, geoJsonData) {
           if (datasetConfig.specialHandling?.removeDirectionalSuffixes) {
             processedName = cleanCorridorName(featureName);
           }
-          matchingFeatures.add(processedName);
+
+          // Store complete feature with geometry, keyed by processed name for deduplication
+          if (!matchingFeatures.has(processedName)) {
+            matchingFeatures.set(processedName, {
+              type: 'Feature',
+              geometry: feature.geometry,
+              properties: {
+                ...feature.properties,
+                _displayName: processedName
+              }
+            });
+          }
         }
       } catch (error) {
         console.warn('Error checking point corridor match:', error);
       }
     });
 
-    return Array.from(matchingFeatures).sort();
+    return Array.from(matchingFeatures.values());
   }
 
   // LineString corridor matching using buffer intersection approach
@@ -234,7 +245,17 @@ function analyzeCorridorMatch(drawnGeometry, datasetConfig, geoJsonData) {
           processedName = cleanCorridorName(featureName);
         }
 
-        matchingFeatures.add(processedName);
+        // Store complete feature with geometry, keyed by processed name for deduplication
+        if (!matchingFeatures.has(processedName)) {
+          matchingFeatures.set(processedName, {
+            type: 'Feature',
+            geometry: feature.geometry,
+            properties: {
+              ...feature.properties,
+              _displayName: processedName
+            }
+          });
+        }
       }
 
     } catch (error) {
@@ -242,8 +263,8 @@ function analyzeCorridorMatch(drawnGeometry, datasetConfig, geoJsonData) {
     }
   });
 
-  // Convert Set to sorted array
-  return Array.from(matchingFeatures).sort();
+  // Convert Map values to array (already deduplicated by Map key)
+  return Array.from(matchingFeatures.values());
 }
 
 /**
@@ -275,15 +296,23 @@ function analyzeIntersection(drawnGeometry, datasetConfig, geoJsonData) {
       }
 
       if (intersects) {
-        const featureData = {
+        // Build properties object
+        const props = {
           [datasetConfig.properties.displayField]:
             feature.properties[datasetConfig.properties.displayField] || 'Unknown'
         };
 
         // Add additional fields if configured
         datasetConfig.properties.additionalFields.forEach(field => {
-          featureData[field] = feature.properties[field] || 'Unknown';
+          props[field] = feature.properties[field] || 'Unknown';
         });
+
+        // Return complete GeoJSON Feature with geometry
+        const featureData = {
+          type: 'Feature',
+          geometry: feature.geometry,
+          properties: props
+        };
 
         intersectingFeatures.push(featureData);
       }
@@ -332,15 +361,23 @@ function analyzeProximity(drawnGeometry, datasetConfig, geoJsonData) {
         }
 
         if (isNearby) {
-          const featureData = {
+          // Build properties object
+          const props = {
             [datasetConfig.properties.displayField]:
               feature.properties[datasetConfig.properties.displayField] || 'Unknown'
           };
 
           // Add additional fields if configured
           datasetConfig.properties.additionalFields.forEach(field => {
-            featureData[field] = feature.properties[field] || 'Unknown';
+            props[field] = feature.properties[field] || 'Unknown';
           });
+
+          // Return complete GeoJSON Feature with geometry
+          const featureData = {
+            type: 'Feature',
+            geometry: feature.geometry,
+            properties: props
+          };
 
           nearbyFeatures.push(featureData);
         }
@@ -375,6 +412,7 @@ function analyzeProximity(drawnGeometry, datasetConfig, geoJsonData) {
 function analyzeProximityWithCounting(drawnGeometry, datasetConfig, geoJsonData) {
   const counts = {};
   let totalCount = 0;
+  const matchedFeatures = []; // Store matched features for PDF rendering
 
   try {
     // Extract actual geometry from GeoJSON Feature if needed
@@ -400,6 +438,13 @@ function analyzeProximityWithCounting(drawnGeometry, datasetConfig, geoJsonData)
         if (isNearby) {
           totalCount++;
 
+          // Store complete feature for PDF rendering
+          matchedFeatures.push({
+            type: 'Feature',
+            geometry: feature.geometry,
+            properties: { ...feature.properties }
+          });
+
           // Count by category if countByField is specified
           if (datasetConfig.countByField) {
             const category = feature.properties[datasetConfig.countByField] || 'Unknown';
@@ -415,10 +460,11 @@ function analyzeProximityWithCounting(drawnGeometry, datasetConfig, geoJsonData)
     console.error('Error creating buffer or checking proximity for counting:', error);
   }
 
-  // Return structured count data
+  // Return structured count data with features for PDF rendering
   return {
     total: totalCount,
-    breakdown: counts
+    breakdown: counts,
+    features: matchedFeatures
   };
 }
 

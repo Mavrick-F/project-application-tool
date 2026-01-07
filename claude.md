@@ -4,11 +4,25 @@
 
 This is a web-based mapping tool for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055. It allows users to draw transportation project alignments or mark locations on an interactive map, then automatically performs spatial analysis to identify intersecting or nearby infrastructure and planning features. The tool generates a PDF report summarizing the findings.
 
-**Current Status:** v0.8.0 (active development, not production-ready)
+**Current Status:** v0.8.2 (active development, not production-ready)
 
 **Primary User:** Engineers from MPO partner agencies will use tool to create pdf reports which they submit as part of project applications. MPO staff will use the pdf reports to evalute project applications.
 
-**Recent Major Update (v0.8.0):**
+**Recent Major Updates:**
+
+**v0.8.2 (2026-01-07):**
+- Redesigned color scheme to eliminate conflicts and make red project line stand out
+- Increased project line thickness from 8px to 12px (50% thicker)
+- No more red/orange/crimson layers competing with project line
+- Separated ALICE ZCTAs (purple) from Freight Zones (now teal/turquoise)
+
+**v0.8.1 (2026-01-07):**
+- Optimized PDF generation with filtered layer rendering
+- Reduced PDF generation time from ~20 seconds to ~5-10 seconds (60-75% faster)
+- PDF maps now show only matched features instead of all 10,000+ features
+- Eliminated visual clutter in exported PDF maps
+
+**v0.8.0:**
 - Added 4 critical datasets: High Injury Corridors, Crash Locations (KSI), Greenprint Bike Network, ALICE ZCTAs
 - Implemented proximity counting for crash aggregation by severity
 - Added threshold-based filtering for ALICE economic indicators (≥45% threshold)
@@ -18,7 +32,7 @@ This is a web-based mapping tool for the Memphis Metropolitan Planning Organizat
 
 ## Architecture & Tech Stack
 
-This is a **modular JavaScript application (v0.8.0)** with 7 separate files:
+This is a **modular JavaScript application (v0.8.2)** with 7 separate files:
 
 **Core Application Files:**
 - **index.html** (~140 lines) - HTML structure and script tags only
@@ -286,13 +300,22 @@ The system automatically handles:
 
 ### Testing Locally
 
-```bash
-# Serve with Python
-python -m http.server 8000
+**IMPORTANT: Always use port 8080** (not 8000) to avoid corporate firewall issues:
 
-# Or use any static file server
-# Open http://localhost:8000
+```bash
+# Standard procedure - use port 8080
+python -m http.server 8080
+
+# Then open: http://localhost:8080 or http://127.0.0.1:8080
 ```
+
+**Why port 8080?** Port 8080 is a standard HTTP alternate port and is commonly whitelisted in corporate firewall configurations. Other ports (8000, 3000, 5000) may be blocked by Windows Firewall or corporate security policies.
+
+**If port 8080 doesn't work:**
+1. Try ports in this order: 8080 → 3000 → 5500 → 5173
+2. Try both `http://localhost:8080` and `http://127.0.0.1:8080`
+3. Check Windows Defender Firewall (allow Python)
+4. Use Incognito/Private browsing to bypass extensions/cache
 
 ### Common Issues
 

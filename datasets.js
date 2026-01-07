@@ -21,11 +21,11 @@ const CONFIG = {
   basemapUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   basemapAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
 
-  // Drawn geometry style
+  // Drawn geometry style - BOLD RED for maximum visibility
   drawnLineStyle: {
-    color: '#FF0000',
-    weight: 8,
-    opacity: 0.8
+    color: '#FF0000',        // Bright red
+    weight: 12,              // Much thicker (was 8)
+    opacity: 0.9             // Slightly more opaque
   },
 
   // Logo path
@@ -88,7 +88,7 @@ const DATASETS = {
       deduplicate: false
     },
     style: {
-      color: '#FF6600',
+      color: '#8B6914',        // Dark goldenrod (highway brown, was orange #FF6600)
       weight: 3,
       opacity: 0.8
     },
@@ -116,9 +116,9 @@ const DATASETS = {
       deduplicate: false
     },
     style: {
-      color: '#CC0000',
+      color: '#FFD700',        // Gold/amber (caution color, was dark red #CC0000)
       weight: 3,
-      opacity: 0.8
+      opacity: 0.9
     },
     resultStyle: 'list',
     enabled: true
@@ -186,8 +186,8 @@ const DATASETS = {
     styleByProperty: {  // Different colors for Regional vs Local
       field: 'Type',
       values: {
-        'Regional': { color: '#CC0000', weight: 3, opacity: 0.8 },  // Red for Regional
-        'Local': { color: '#FF9900', weight: 2, opacity: 0.7 }       // Orange for Local
+        'Regional': { color: '#2F4F4F', weight: 3, opacity: 0.8 },  // Dark slate gray (was red #CC0000)
+        'Local': { color: '#DEB887', weight: 2, opacity: 0.7 }      // Burlywood/tan (was orange #FF9900)
       }
     },
     resultStyle: 'list',
@@ -282,9 +282,9 @@ const DATASETS = {
       deduplicate: false
     },
     style: {
-      color: '#9966CC',
+      color: '#20B2AA',        // Light sea green (was purple #9966CC)
       weight: 2,
-      fillColor: '#CC99FF',
+      fillColor: '#AFEEEE',    // Pale turquoise (was light purple #CC99FF)
       fillOpacity: 0.3
     },
     resultStyle: 'list',
@@ -366,8 +366,8 @@ const DATASETS = {
       deduplicate: false
     },
     style: {
-      color: '#DC143C',
-      fillColor: '#DC143C',
+      color: '#8B4513',        // Saddle brown (was crimson #DC143C)
+      fillColor: '#8B4513',
       radius: 3,
       fillOpacity: 0.8,
       weight: 1
@@ -396,8 +396,8 @@ const DATASETS = {
       deduplicate: false
     },
     style: {
-      color: '#8B0000',  // Dark red for crashes
-      fillColor: '#8B0000',
+      color: '#191970',        // Midnight blue (was dark red #8B0000)
+      fillColor: '#191970',
       radius: 4,
       fillOpacity: 0.9,
       weight: 1
