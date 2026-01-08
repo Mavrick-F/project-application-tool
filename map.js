@@ -27,9 +27,11 @@ const featureLayers = {};
  */
 function initializeMap() {
   // Create map instance
+  // Using canvas renderer instead of SVG to fix html2canvas offset issues in PDF export
   map = L.map('map', {
     zoomControl: true,
-    attributionControl: true
+    attributionControl: true,
+    renderer: L.canvas()
   });
 
   // Add CartoDB Voyager basemap (streets style, similar to Google Maps)
