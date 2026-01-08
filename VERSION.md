@@ -1,4 +1,39 @@
 # Version History
+
+## v0.8.3 (2026-01-08)
+- Fixed PDF layer alignment issue where GeoJSON features were offset from basemap
+- Switched Leaflet renderer from SVG to Canvas to eliminate html2canvas transform handling issues
+- Simplified html2canvas capture back to v0.7.1 approach
+- Code cleanup: removed ~67 lines of unused/problematic code
+
+### Bug Fix Details
+**Problem**: PDF maps showed all layers offset upward (and sometimes left/right) from the basemap tiles. This was a known html2canvas limitation with Leaflet's CSS transform-based positioning system.
+
+**Solution**:
+1. Added `renderer: L.canvas()` to map initialization in `map.js`
+   - Renders all GeoJSON/vector layers as canvas instead of SVG
+   - Canvas elements don't have the same transform issues as SVG
+   - No visual degradation - canvas is fully compatible with Leaflet styling
+
+2. Reverted html2canvas capture to simple v0.7.1 approach in `pdf.js`
+   - Removed problematic options (`foreignObjectRendering`, `scrollX/Y`, dimension specifications)
+   - Removed ~115 lines of unused transform manipulation code
+   - Kept simple visibility toggle in `onclone` callback
+
+3. Code cleanup in `analysis.js`
+   - Removed deprecated `analyzeIntersections()` function (replaced by `analyzeAllDatasets()`)
+   - Removed unused `findNearbyBridges()` function (replaced by generic proximity analysis)
+
+### Preserved for Future Work
+- All ArcGIS Feature Service query functions remain in `app.js`
+- Ready for upcoming integration of Congested Segments dataset from ArcGIS Online
+
+### Testing
+- Verified PDF generation produces correctly aligned maps
+- Tested at multiple zoom levels
+- Confirmed live map display unaffected
+- All spatial analysis results accurate
+
 ## v0.8.2 (2026-01-07)
 - Redesigned color scheme to eliminate conflicts and make project line stand out
 - Increased project line thickness from 8px to 12px for maximum visibility
