@@ -173,6 +173,7 @@ async function generatePDF() {
     showLoading(true, 'Capturing map image...');
 
     // Capture map as image using html2canvas
+    // Using simple v0.7.1 approach - only visibility toggles in onclone
     const mapElement = document.getElementById('map');
     const canvas = await html2canvas(mapElement, {
       useCORS: true,
@@ -180,9 +181,8 @@ async function generatePDF() {
       scale: 2,  // Higher DPI for better quality
       logging: false,
       backgroundColor: '#ffffff',
-      // Ensure we capture all layers
       onclone: function(clonedDoc) {
-        // Force all Leaflet panes to be visible in clone
+        // Simple: just ensure all Leaflet panes are visible
         const panes = clonedDoc.querySelectorAll('.leaflet-pane');
         panes.forEach(pane => {
           pane.style.opacity = '1';
@@ -635,3 +635,4 @@ async function waitForGeoJSONLayersToRender() {
     checkRendered();
   });
 }
+
