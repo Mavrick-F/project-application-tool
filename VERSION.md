@@ -167,3 +167,14 @@ All 17 required datasets now integrated:
 - All tests pass
 - Verified complete workflow: map loading, drawing, analysis, PDF generation
 - Confirmed cross-browser compatibility (Chrome, Firefox)
+
+### v0.6.0 - Completed 
+- **Refactored to configuration-driven dataset system**
+  - Created centralized DATASETS config object
+  - Implemented three generic analysis functions (corridor, intersection, proximity)
+  - Dynamic layer creation, tooltip generation, and PDF reporting
+  - Support for conditional styling via `styleByProperty`
+  - Support for static labels via `staticLabel`
+- **Integrated 12 datasets** across all geometry types
+- **Prepared for ArcGIS Feature Service integration** (architecture in place)
+
