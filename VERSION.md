@@ -1,5 +1,41 @@
 # Version History
 
+## v0.9.0 (2026-01-09) - Feature Complete ✅
+- Integrated Travel Time Reliability dataset (17 total datasets - all core datasets complete)
+- Renamed from "Congested Segments" to "Travel Time Reliability" for user-facing display
+- Implemented new analysis method: `analyzeCorridorLengthByStatus` for length summation by status
+- Added `hideInPdfRendering` config option to exclude layers from PDF maps while maintaining analysis
+- All 17 required core datasets now integrated and operational
+- **Status: Feature-complete for v1.0 release**
+
+### New Features
+- **Travel Time Reliability dataset**: Road segments with travel time reliability status (local GeoJSON)
+- **Corridor Length by Status analysis**: Sums segment lengths grouped by reliability status
+  - Results show total miles and breakdown by category (e.g., 1.2 miles reliable / 2.4 unreliable)
+  - Uses accurate buffer intersection with segment clipping for precise measurements
+- **PDF layer exclusion feature**: `hideInPdfRendering` config option controls which layers appear in PDF maps
+  - Travel Time Reliability layer hidden from PDF map for cleaner presentation
+  - Analysis results still included in PDF reports
+
+### Dataset Completion
+All 17 required datasets now integrated:
+- 7 Transportation datasets (MATA, STRAHNET, Freight Routes, High Injury Corridors, Greenprint, Travel Time Reliability, Bridges)
+- 5 Economic Development datasets (Opportunity Zones, ALICE ZCTAs, Freight Zones, Major Employers, Tourist Destinations)
+- 2 Historic & Cultural datasets (NHRP Polygons, NHRP Points)
+- 3 Environment & Recreation datasets (Parks, EPA Superfund Sites, Crash Locations)
+
+### Analysis Methods Supported (5 total)
+1. **Corridor Matching**: For line features with 100ft buffer, 300ft minimum overlap
+2. **Corridor Length by Status**: New - for line features with categorical breakdown (Travel Time Reliability)
+3. **Intersection Detection**: For polygon features with optional threshold filtering
+4. **Proximity Analysis**: For point features within configurable buffer
+5. **Proximity with Counting**: For aggregated point features with category breakdown
+
+### Configuration-Driven Architecture
+- All datasets defined in centralized DATASETS configuration object
+- No code changes required to add new datasets
+- Support for conditional styling, threshold filtering, special handling, and custom result formatting
+
 ## v0.8.3 (2026-01-08)
 - Fixed PDF layer alignment issue where GeoJSON features were offset from basemap
 - Switched Leaflet renderer from SVG to Canvas to eliminate html2canvas transform handling issues
