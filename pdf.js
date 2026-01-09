@@ -115,6 +115,11 @@ async function generatePDF() {
 
       if (!results || !config) return;
 
+      // Skip rendering if dataset is marked to not show in PDF
+      if (config.hideInPdfRendering) {
+        return;
+      }
+
       // Get features array (handle count results differently)
       let features;
       if (results.features) {
@@ -310,10 +315,17 @@ async function generatePDF() {
         return;
       }
 
-      // Check if results are empty (handle both array and count results)
-      const isEmpty = typeof results === 'object' && 'total' in results
-        ? results.total === 0
-        : results.length === 0;
+      // Check if results are empty (handle different result types)
+      let isEmpty = false;
+      if (config.resultStyle === 'binary' && typeof results === 'object' && 'detected' in results) {
+        isEmpty = !results.detected;
+      } else if (config.resultStyle === 'lengthByStatus' && typeof results === 'object' && 'total' in results) {
+        isEmpty = results.total === 0;
+      } else if (typeof results === 'object' && 'total' in results) {
+        isEmpty = results.total === 0;
+      } else {
+        isEmpty = results.length === 0;
+      }
 
       if (isEmpty) {
         return;
@@ -329,7 +341,50 @@ async function generatePDF() {
       pdf.setFont('helvetica', 'normal');
 
       // Render based on resultStyle
-      if (config.resultStyle === 'count') {
+      if (config.resultStyle === 'binary') {
+        // Binary format (for flood zones - just show Yes)
+        checkPageBreak(0.3);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`  ${config.binaryLabel || config.name}: Yes`, margin, yPosition);
+        yPosition += 0.2;
+        pdf.setFont('helvetica', 'normal');
+        yPosition += 0.1;  // Add spacing between datasets
+
+      } else if (config.resultStyle === 'acreage') {
+        // Acreage format (for wetlands - show total acreage)
+        checkPageBreak(0.3);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`  Total Acreage: ${results.sum.toFixed(2)} acres`, margin, yPosition);
+        yPosition += 0.2;
+        pdf.setFont('helvetica', 'normal');
+        yPosition += 0.1;  // Add spacing between datasets
+
+      } else if (config.resultStyle === 'lengthByStatus') {
+        // Length by status format (for travel time reliability - show miles by status)
+        checkPageBreak(0.3);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`  Total: ${results.total.toFixed(1)} miles`, margin, yPosition);
+        yPosition += 0.18;
+        pdf.setFont('helvetica', 'normal');
+
+        if (results.breakdown && Object.keys(results.breakdown).length > 0) {
+          // Sort breakdown by status (True first, then False)
+          const sortedBreakdown = Object.entries(results.breakdown).sort((a, b) => {
+            if (a[0] === 'True' && b[0] !== 'True') return -1;
+            if (a[0] !== 'True' && b[0] === 'True') return 1;
+            return 0;
+          });
+
+          sortedBreakdown.forEach(([status, miles]) => {
+            checkPageBreak(0.2);
+            const statusLabel = status === 'True' ? 'Reliable' : 'Unreliable';
+            pdf.text(`    • ${statusLabel}: ${miles.toFixed(1)} miles`, margin, yPosition);
+            yPosition += 0.16;
+          });
+        }
+        yPosition += 0.2;  // Add spacing between datasets
+
+      } else if (config.resultStyle === 'count') {
         // Count format
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'bold');

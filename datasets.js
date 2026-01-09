@@ -520,5 +520,137 @@ const DATASETS = {
     },
     resultStyle: 'list',
     enabled: true
+  },
+
+  // ========== ARCGIS FEATURE SERVICE DATASETS ==========
+
+  wetlands: {
+    id: 'wetlands',
+    name: 'Wetlands',
+    lazyLoad: true,
+    category: 'Environmental',
+    featureServiceUrl: 'https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0',
+    geometryType: 'Polygon',
+    analysisMethod: 'proximityAcreage',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 200,
+    sumField: 'ACRES',
+    properties: {
+      displayField: 'WETLAND_TY',
+      additionalFields: ['ACRES']
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#4682B4',
+      weight: 2,
+      fillColor: '#87CEEB',
+      fillOpacity: 0.4
+    },
+    resultStyle: 'acreage',
+    enabled: true
+  },
+
+  criticalWetlands: {
+    id: 'criticalWetlands',
+    name: 'Critical Wetlands',
+    lazyLoad: true,
+    category: 'Environmental',
+    featureServiceUrl: 'https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0',
+    geometryType: 'Polygon',
+    analysisMethod: 'proximityAcreage',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 200,
+    sumField: 'ACRES',
+    analysisFilter: {
+      field: 'WETLAND_TY',
+      operator: '=',
+      value: 'Freshwater Forested/Shrub Wetland'
+    },
+    properties: {
+      displayField: 'WETLAND_TY',
+      additionalFields: ['ACRES']
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#228B22',
+      weight: 2,
+      fillColor: '#90EE90',
+      fillOpacity: 0.5
+    },
+    resultStyle: 'acreage',
+    enabled: true
+  },
+
+  floodZones: {
+    id: 'floodZones',
+    name: 'Flood Zones',
+    lazyLoad: true,
+    category: 'Environmental',
+    featureServiceUrl: 'https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MPO_Flood_Zones/FeatureServer/0',
+    geometryType: 'Polygon',
+    analysisMethod: 'binaryProximity',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 200,
+    properties: {
+      displayField: 'FLD_ZONE',
+      additionalFields: []
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#1E90FF',
+      weight: 2,
+      fillColor: '#ADD8E6',
+      fillOpacity: 0.25
+    },
+    resultStyle: 'binary',
+    binaryLabel: 'Within Flood Zone',
+    enabled: true
+  },
+
+  travelTimeReliability: {
+    id: 'travelTimeReliability',
+    name: 'Travel Time Reliability',
+    category: 'Transportation',
+    filePath: './data/road_congestion.json',
+    geometryType: 'LineString',
+    analysisMethod: 'corridorLengthByStatus',
+    bufferDistance: 100,
+    minSharedLength: 300,
+    proximityBuffer: null,
+    properties: {
+      displayField: 'name',
+      additionalFields: ['Travel_Time_Index', 'Level_of_Travel_Time_Reliability']
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: true
+    },
+    style: {
+      color: '#808080',
+      weight: 3,
+      opacity: 0.6
+    },
+    styleByProperty: {
+      field: 'Reliable_Segment_',
+      values: {
+        'True': { color: '#808080', weight: 3, opacity: 0.6 },
+        'False': { color: '#FFD700', weight: 4, opacity: 0.9 }
+      }
+    },
+    resultStyle: 'lengthByStatus',
+    hideInPdfRendering: true,
+    enabled: true
   }
 };

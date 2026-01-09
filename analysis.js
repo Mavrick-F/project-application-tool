@@ -192,6 +192,25 @@ function analyzeCorridorMatch(drawnGeometry, datasetConfig, geoJsonData) {
 
   geoJsonData.features.forEach(feature => {
     try {
+      // Apply analysis filter if configured (e.g., only unreliable segments)
+      if (datasetConfig.analysisFilter) {
+        const filterField = datasetConfig.analysisFilter.field;
+        const filterValue = datasetConfig.analysisFilter.value;
+        const filterOperator = datasetConfig.analysisFilter.operator;
+        const featureValue = feature.properties[filterField];
+
+        let matchesFilter = false;
+        if (filterOperator === '=') {
+          matchesFilter = featureValue === filterValue;
+        } else if (filterOperator === '!=') {
+          matchesFilter = featureValue !== filterValue;
+        }
+
+        if (!matchesFilter) {
+          return; // Skip features that don't match the filter
+        }
+      }
+
       // Quick check: does route intersect buffer at all?
       if (!turf.booleanIntersects(corridorBuffer, feature)) {
         return; // No intersection, skip this feature
@@ -401,6 +420,135 @@ function analyzeProximity(drawnGeometry, datasetConfig, geoJsonData) {
 }
 
 /**
+ * Analyze proximity with acreage summation for Polygon datasets
+ * Creates buffer around drawn geometry and sums acreage of intersecting features
+ * Optionally filters features by a property value (e.g., wetland type)
+ * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+ * @param {Object} datasetConfig - Configuration object from DATASETS
+ * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+ * @returns {Object} Object with total count, acreage sum, and matched features
+ */
+function analyzeProximityWithAcreage(drawnGeometry, datasetConfig, geoJsonData) {
+  const matchedFeatures = [];
+  let totalAcreage = 0;
+
+  try {
+    // Extract actual geometry from GeoJSON Feature if needed
+    const geometry = drawnGeometry.type === 'Feature'
+      ? drawnGeometry.geometry
+      : drawnGeometry;
+
+    // Create buffer around the drawn geometry
+    const buffered = turf.buffer(geometry, datasetConfig.proximityBuffer, {
+      units: 'feet'
+    });
+
+    // Check each feature against the buffer
+    geoJsonData.features.forEach(feature => {
+      try {
+        // Apply analysis filter if configured (e.g., wetland type filter)
+        if (datasetConfig.analysisFilter) {
+          const filterField = datasetConfig.analysisFilter.field;
+          const filterValue = datasetConfig.analysisFilter.value;
+          const filterOperator = datasetConfig.analysisFilter.operator;
+          const featureValue = feature.properties[filterField];
+
+          let matchesFilter = false;
+          if (filterOperator === '=') {
+            matchesFilter = featureValue === filterValue;
+          } else if (filterOperator === '!=') {
+            matchesFilter = featureValue !== filterValue;
+          }
+
+          if (!matchesFilter) {
+            return; // Skip features that don't match the filter
+          }
+        }
+
+        // Check if polygon intersects buffer
+        const isNearby = turf.booleanIntersects(feature, buffered);
+
+        if (isNearby) {
+          // Store matched feature
+          matchedFeatures.push({
+            type: 'Feature',
+            geometry: feature.geometry,
+            properties: { ...feature.properties }
+          });
+
+          // Sum acreage if sumField is configured
+          if (datasetConfig.sumField) {
+            const acreage = parseFloat(feature.properties[datasetConfig.sumField]) || 0;
+            totalAcreage += acreage;
+          }
+        }
+      } catch (error) {
+        console.warn('Error checking proximity for acreage:', error);
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in proximity acreage analysis:', error);
+  }
+
+  return {
+    total: matchedFeatures.length,
+    sum: totalAcreage,
+    features: matchedFeatures
+  };
+}
+
+/**
+ * Analyze binary proximity for Polygon datasets
+ * Simply checks if any features exist within the proximity buffer
+ * Used for flood zones where we just need yes/no detection
+ * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+ * @param {Object} datasetConfig - Configuration object from DATASETS
+ * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+ * @returns {Object} Object with detected boolean and matched features
+ */
+function analyzeBinaryProximity(drawnGeometry, datasetConfig, geoJsonData) {
+  const matchedFeatures = [];
+
+  try {
+    // Extract actual geometry from GeoJSON Feature if needed
+    const geometry = drawnGeometry.type === 'Feature'
+      ? drawnGeometry.geometry
+      : drawnGeometry;
+
+    // Create buffer around the drawn geometry
+    const buffered = turf.buffer(geometry, datasetConfig.proximityBuffer, {
+      units: 'feet'
+    });
+
+    // Check each feature against the buffer
+    for (const feature of geoJsonData.features) {
+      try {
+        const isNearby = turf.booleanIntersects(feature, buffered);
+
+        if (isNearby) {
+          matchedFeatures.push({
+            type: 'Feature',
+            geometry: feature.geometry,
+            properties: { ...feature.properties }
+          });
+        }
+      } catch (error) {
+        console.warn('Error checking binary proximity:', error);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error in binary proximity analysis:', error);
+  }
+
+  return {
+    detected: matchedFeatures.length > 0,
+    features: matchedFeatures
+  };
+}
+
+/**
  * Analyze proximity with counting for Point datasets
  * Counts features within buffer and groups by a specified property
  * Generic function that can be used for any point dataset requiring counts
@@ -469,6 +617,135 @@ function analyzeProximityWithCounting(drawnGeometry, datasetConfig, geoJsonData)
 }
 
 /**
+ * Analyze corridor with length summation by reliability status
+ * Sums up the total length of segments that fall within the corridor buffer,
+ * grouped by reliability status (reliable vs unreliable)
+ * Used specifically for Travel Time Reliability dataset
+ * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+ * @param {Object} datasetConfig - Configuration object from DATASETS
+ * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+ * @returns {Object} Object with lengths by reliability status and matched features
+ */
+function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData) {
+  const lengthsByStatus = {};  // Track lengths by Reliable_Segment_ value
+  const matchedFeatures = [];  // Store matched features for map rendering
+  let totalLength = 0;
+
+  // Extract actual geometry from GeoJSON Feature if needed
+  const geometry = drawnGeometry.type === 'Feature'
+    ? drawnGeometry.geometry
+    : drawnGeometry;
+
+  // Handle Point geometry separately (simple buffer intersection)
+  if (geometry.type === 'Point') {
+    const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
+      units: 'feet'
+    });
+
+    geoJsonData.features.forEach(feature => {
+      try {
+        if (turf.booleanIntersects(corridorBuffer, feature)) {
+          const status = feature.properties['Reliable_Segment_'] || 'Unknown';
+          const length = turf.length(feature, { units: 'miles' });
+          lengthsByStatus[status] = (lengthsByStatus[status] || 0) + length;
+          totalLength += length;
+
+          matchedFeatures.push({
+            type: 'Feature',
+            geometry: feature.geometry,
+            properties: { ...feature.properties }
+          });
+        }
+      } catch (error) {
+        console.warn('Error checking point corridor length:', error);
+      }
+    });
+
+    return {
+      total: totalLength,
+      breakdown: lengthsByStatus,
+      features: matchedFeatures
+    };
+  }
+
+  // LineString corridor matching
+  if (geometry.type !== 'LineString') {
+    console.warn(`Unsupported geometry type for corridor length: ${geometry.type}`);
+    return { total: 0, breakdown: {}, features: [] };
+  }
+
+  // Create buffer around drawn line
+  const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
+    units: 'feet'
+  });
+
+  geoJsonData.features.forEach(feature => {
+    try {
+      // Quick check: does feature intersect buffer at all?
+      if (!turf.booleanIntersects(corridorBuffer, feature)) {
+        return; // No intersection, skip
+      }
+
+      // Normalize feature to array of LineStrings
+      const routeLines = normalizeToLineStrings(feature);
+      let featureOverlapLength = 0;
+
+      // Calculate how much of the feature falls within the corridor buffer
+      for (const routeLine of routeLines) {
+        try {
+          const routeCoords = turf.getCoords(routeLine);
+
+          // Check each segment of the route
+          for (let i = 0; i < routeCoords.length - 1; i++) {
+            const segment = turf.lineString([routeCoords[i], routeCoords[i + 1]]);
+
+            // Skip if segment doesn't intersect buffer
+            if (!turf.booleanIntersects(segment, corridorBuffer)) {
+              continue;
+            }
+
+            // Calculate actual length inside buffer
+            const insideLength = measureSegmentInsideBuffer(segment, corridorBuffer);
+            featureOverlapLength += insideLength;
+          }
+
+          // Early exit if we found significant overlap
+          if (featureOverlapLength >= datasetConfig.minSharedLength) {
+            break;
+          }
+
+        } catch (segmentError) {
+          console.warn('Error calculating segment length:', segmentError);
+        }
+      }
+
+      // Feature matches if total overlap meets minimum threshold
+      if (featureOverlapLength >= datasetConfig.minSharedLength) {
+        const status = feature.properties['Reliable_Segment_'] || 'Unknown';
+        const lengthInMiles = featureOverlapLength / 5280;  // Convert feet to miles
+        lengthsByStatus[status] = (lengthsByStatus[status] || 0) + lengthInMiles;
+        totalLength += lengthInMiles;
+
+        matchedFeatures.push({
+          type: 'Feature',
+          geometry: feature.geometry,
+          properties: { ...feature.properties }
+        });
+      }
+
+    } catch (error) {
+      console.warn(`Error analyzing corridor length for ${datasetConfig.name}:`, error);
+    }
+  });
+
+  return {
+    total: totalLength,
+    breakdown: lengthsByStatus,
+    features: matchedFeatures
+  };
+}
+
+/**
  * Master analysis function that loops through all enabled datasets
  * and calls the appropriate analysis function based on analysisMethod
  * @param {Object} drawnGeometry - GeoJSON of drawn line or point
@@ -497,6 +774,10 @@ function analyzeAllDatasets(drawnGeometry) {
           datasetResults = analyzeCorridorMatch(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
+        case 'corridorLengthByStatus':
+          datasetResults = analyzeCorridorLengthByStatus(drawnGeometry, config, geoJsonData[datasetKey]);
+          break;
+
         case 'intersection':
           datasetResults = analyzeIntersection(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
@@ -507,6 +788,14 @@ function analyzeAllDatasets(drawnGeometry) {
 
         case 'proximityCount':
           datasetResults = analyzeProximityWithCounting(drawnGeometry, config, geoJsonData[datasetKey]);
+          break;
+
+        case 'proximityAcreage':
+          datasetResults = analyzeProximityWithAcreage(drawnGeometry, config, geoJsonData[datasetKey]);
+          break;
+
+        case 'binaryProximity':
+          datasetResults = analyzeBinaryProximity(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         default:
