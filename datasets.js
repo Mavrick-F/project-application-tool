@@ -128,7 +128,7 @@ const DATASETS = {
     id: 'greenprintNetwork',
     name: 'Greenprint Bike Network',
     category: 'Transportation',
-    filePath: './data/midsouth_greenprint.geojson',
+    filePath: './data/greenprint.geojson',
     geometryType: 'LineString',
     analysisMethod: 'corridor',
     bufferDistance: 100,
@@ -163,9 +163,9 @@ const DATASETS = {
   truckRoutes: {
     id: 'truckRoutes',
     name: 'Freight Routes',
-    category: 'Transportation',
-    filePath: './data/truck_routes.json',
-    geometryType: 'MultiLineString',
+    category: 'Economic Development',
+    filePath: './data/freight_routes.json',
+    geometryType: 'LineString',
     analysisMethod: 'corridor',
     bufferDistance: 100,
     minSharedLength: 300,
@@ -197,7 +197,7 @@ const DATASETS = {
   opportunityZones: {
     id: 'opportunityZones',
     name: 'Opportunity Zones',
-    category: 'Economic',
+    category: 'Economic Development',
     filePath: './data/opportunity-zones.json',
     geometryType: 'Polygon',
     analysisMethod: 'intersection',
@@ -225,7 +225,7 @@ const DATASETS = {
   aliceZctas: {
     id: 'aliceZctas',
     name: 'ALICE ZCTAs',
-    category: 'Economic',
+    category: 'Economic Development',
     filePath: './data/alice_zctas.geojson',
     geometryType: 'Polygon',
     analysisMethod: 'intersection',
@@ -266,7 +266,7 @@ const DATASETS = {
   freightClusters: {
     id: 'freightClusters',
     name: 'Freight Zones',
-    category: 'Transportation',
+    category: 'Economic Development',
     filePath: './data/freight_clusters.geojson',
     geometryType: 'Polygon',
     analysisMethod: 'intersection',
@@ -294,7 +294,7 @@ const DATASETS = {
   parks: {
     id: 'parks',
     name: 'Parks',
-    category: 'Environmental',
+    category: 'Environmental/Cultural',
     filePath: './data/parks.json',
     geometryType: 'Polygon',
     analysisMethod: 'proximity',
@@ -322,7 +322,7 @@ const DATASETS = {
   historicPolygons: {
     id: 'historicPolygons',
     name: 'NHRP Polygons',
-    category: 'Environmental',
+    category: 'Environmental/Cultural',
     filePath: './data/historic_polygons.geojson',
     geometryType: 'Polygon',
     analysisMethod: 'proximity',
@@ -409,7 +409,7 @@ const DATASETS = {
   majorEmployers: {
     id: 'majorEmployers',
     name: 'Major Employers',
-    category: 'Economic',
+    category: 'Economic Development',
     filePath: './data/major_employers.geojson',
     geometryType: 'Point',
     analysisMethod: 'proximity',
@@ -438,7 +438,7 @@ const DATASETS = {
   touristAttractions: {
     id: 'touristAttractions',
     name: 'Tourist Destinations',
-    category: 'Economic',
+    category: 'Economic Development',
     filePath: './data/tourist_attractions.geojson',
     geometryType: 'Point',
     analysisMethod: 'proximity',
@@ -467,7 +467,7 @@ const DATASETS = {
   historicPoints: {
     id: 'historicPoints',
     name: 'NHRP Points',
-    category: 'Environmental',
+    category: 'Environmental/Cultural',
     filePath: './data/historic_points.geojson',
     geometryType: 'Point',
     analysisMethod: 'proximity',
@@ -496,7 +496,7 @@ const DATASETS = {
   epaSuperFundSites: {
     id: 'epaSuperFundSites',
     name: 'EPA Superfund Sites',
-    category: 'Environmental',
+    category: 'Environmental/Cultural',
     filePath: './data/epa_superfund_sites.geojson',
     geometryType: 'Point',
     analysisMethod: 'proximity',
@@ -528,14 +528,13 @@ const DATASETS = {
     id: 'wetlands',
     name: 'Wetlands',
     lazyLoad: true,
-    category: 'Environmental',
+    category: 'Environmental/Cultural',
     featureServiceUrl: 'https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0',
     geometryType: 'Polygon',
-    analysisMethod: 'proximityAcreage',
+    analysisMethod: 'binaryProximity',
     bufferDistance: null,
     minSharedLength: null,
     proximityBuffer: 200,
-    sumField: 'ACRES',
     properties: {
       displayField: 'WETLAND_TY',
       additionalFields: ['ACRES']
@@ -545,12 +544,13 @@ const DATASETS = {
       deduplicate: false
     },
     style: {
-      color: '#4682B4',
+      color: '#556B2F',          // Olive green border
       weight: 2,
-      fillColor: '#87CEEB',
+      fillColor: '#6B8E23',      // Olive drab fill
       fillOpacity: 0.4
     },
-    resultStyle: 'acreage',
+    resultStyle: 'binary',
+    binaryLabel: 'Within Wetlands',
     enabled: true
   },
 
@@ -558,14 +558,13 @@ const DATASETS = {
     id: 'criticalWetlands',
     name: 'Critical Wetlands',
     lazyLoad: true,
-    category: 'Environmental',
+    category: 'Environmental/Cultural',
     featureServiceUrl: 'https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0',
     geometryType: 'Polygon',
-    analysisMethod: 'proximityAcreage',
+    analysisMethod: 'binaryProximity',
     bufferDistance: null,
     minSharedLength: null,
     proximityBuffer: 200,
-    sumField: 'ACRES',
     analysisFilter: {
       field: 'WETLAND_TY',
       operator: '=',
@@ -580,12 +579,13 @@ const DATASETS = {
       deduplicate: false
     },
     style: {
-      color: '#228B22',
-      weight: 2,
-      fillColor: '#90EE90',
-      fillOpacity: 0.5
+      color: '#32CD32',          // Lime green border (matches fill)
+      weight: 0.5,               // Very thin border
+      fillColor: '#32CD32',      // Lime green fill
+      fillOpacity: 1.0           // 100% opaque - fully solid
     },
-    resultStyle: 'acreage',
+    resultStyle: 'binary',
+    binaryLabel: 'Within Critical Wetlands',
     enabled: true
   },
 
@@ -593,7 +593,7 @@ const DATASETS = {
     id: 'floodZones',
     name: 'Flood Zones',
     lazyLoad: true,
-    category: 'Environmental',
+    category: 'Environmental/Cultural',
     featureServiceUrl: 'https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MPO_Flood_Zones/FeatureServer/0',
     geometryType: 'Polygon',
     analysisMethod: 'binaryProximity',
@@ -609,10 +609,11 @@ const DATASETS = {
       deduplicate: false
     },
     style: {
-      color: '#1E90FF',
-      weight: 2,
-      fillColor: '#ADD8E6',
-      fillOpacity: 0.25
+      color: '#00008B',          // Dark blue border
+      weight: 4,                 // Thick border
+      fillColor: '#87CEEB',      // Sky blue fill
+      fillOpacity: 0.35,
+      dashArray: '5, 5'          // Regular dashed pattern
     },
     resultStyle: 'binary',
     binaryLabel: 'Within Flood Zone',

@@ -32,7 +32,6 @@ function cleanCorridorName(name) {
 
 /**
  * Normalize a GeoJSON feature to an array of LineStrings
- * Handles both LineString and MultiLineString geometry types
  * @param {Object} feature - GeoJSON Feature or geometry object
  * @returns {Array} Array of Turf.js LineString objects
  */
@@ -41,8 +40,6 @@ function normalizeToLineStrings(feature) {
 
   if (geom.type === 'LineString') {
     return [turf.lineString(geom.coordinates)];
-  } else if (geom.type === 'MultiLineString') {
-    return geom.coordinates.map(coords => turf.lineString(coords));
   }
 
   return [];
@@ -524,6 +521,25 @@ function analyzeBinaryProximity(drawnGeometry, datasetConfig, geoJsonData) {
     // Check each feature against the buffer
     for (const feature of geoJsonData.features) {
       try {
+        // Apply analysis filter if configured (e.g., filter by wetland type)
+        if (datasetConfig.analysisFilter) {
+          const filterField = datasetConfig.analysisFilter.field;
+          const filterValue = datasetConfig.analysisFilter.value;
+          const filterOperator = datasetConfig.analysisFilter.operator;
+          const featureValue = feature.properties[filterField];
+
+          let matchesFilter = false;
+          if (filterOperator === '=') {
+            matchesFilter = featureValue === filterValue;
+          } else if (filterOperator === '!=') {
+            matchesFilter = featureValue !== filterValue;
+          }
+
+          if (!matchesFilter) {
+            continue; // Skip features that don't match the filter
+          }
+        }
+
         const isNearby = turf.booleanIntersects(feature, buffered);
 
         if (isNearby) {

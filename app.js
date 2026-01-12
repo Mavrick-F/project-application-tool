@@ -187,7 +187,7 @@ async function queryFeatureService(serviceUrl, options = {}) {
       where: options.where || '1=1',
       outFields: options.outFields ? options.outFields.join(',') : '*',
       returnGeometry: 'true',
-      outSR: '4326',  // Request WGS84 coordinates
+      outSR: '4326',  // Request WGS84 coordinates for output
       f: 'json'
     });
 
@@ -198,10 +198,12 @@ async function queryFeatureService(serviceUrl, options = {}) {
         xmin: minX,
         ymin: minY,
         xmax: maxX,
-        ymax: maxY
+        ymax: maxY,
+        spatialReference: { wkid: 3857 }  // Input bbox is in Web Mercator
       }));
       params.append('geometryType', 'esriGeometryEnvelope');
       params.append('spatialRel', 'esriSpatialRelIntersects');
+      params.append('inSR', '3857');  // Input spatial reference is Web Mercator
     }
 
     // Add max records limit
@@ -330,7 +332,7 @@ function convertArcGISGeometry(arcgisGeom, geometryType) {
 
 /**
  * Dynamically load all enabled GeoJSON datasets from the DATASETS configuration
- * Fetches all dataset files in parallel for better performance
+ * Fetches all dataset files and feature services in parallel for better performance
  * @returns {Promise} Resolves when all data is loaded
  */
 async function loadGeoJsonData() {
@@ -342,27 +344,48 @@ async function loadGeoJsonData() {
     Object.keys(DATASETS).forEach(datasetKey => {
       const config = DATASETS[datasetKey];
 
-      // Only load enabled datasets
-      if (config.enabled) {
-        fetchPromises.push(fetch(config.filePath));
-        datasetKeys.push(datasetKey);
+      // Only load enabled datasets that are NOT lazy-loaded
+      if (config.enabled && !config.lazyLoad) {
+        if (config.filePath) {
+          // Regular GeoJSON file
+          fetchPromises.push(fetch(config.filePath));
+          datasetKeys.push({ key: datasetKey, isFeatureService: false });
+        } else if (config.featureServiceUrl) {
+          // Feature service - needs to query for data
+          // Note: Don't use bbox filter - feature services are stored in Web Mercator (EPSG:3857)
+          // and bbox filtering with WGS84 coords fails. These services are already scoped to Memphis area.
+          fetchPromises.push(queryFeatureService(config.featureServiceUrl, {
+            maxRecords: 5000
+          }));
+          datasetKeys.push({ key: datasetKey, isFeatureService: true });
+        }
       }
     });
 
     // Fetch all datasets in parallel for better performance
     const responses = await Promise.all(fetchPromises);
 
-    // Parse JSON data for each response
+    // Process responses based on type
     const dataPromises = responses.map((response, index) => {
-      const datasetKey = datasetKeys[index];
-      const config = DATASETS[datasetKey];
+      const datasetInfo = datasetKeys[index];
+      const config = DATASETS[datasetInfo.key];
 
-      if (!response.ok) {
-        console.warn(`Failed to load ${config.name}: ${response.status} ${response.statusText}`);
-        return null;
+      if (datasetInfo.isFeatureService) {
+        // Feature service returns {success, data, error}
+        if (response.success) {
+          return response.data;
+        } else {
+          console.warn(`Failed to query ${config.name}: ${response.error}`);
+          return null;
+        }
+      } else {
+        // Regular HTTP fetch response
+        if (!response.ok) {
+          console.warn(`Failed to load ${config.name}: ${response.status} ${response.statusText}`);
+          return null;
+        }
+        return response.json();
       }
-
-      return response.json();
     });
 
     const dataResults = await Promise.all(dataPromises);
@@ -371,7 +394,8 @@ async function loadGeoJsonData() {
     const loadedCounts = {};
 
     dataResults.forEach((data, index) => {
-      const datasetKey = datasetKeys[index];
+      const datasetInfo = datasetKeys[index];
+      const datasetKey = datasetInfo.key;
       const config = DATASETS[datasetKey];
 
       if (data) {
@@ -426,6 +450,90 @@ async function loadGeoJsonData() {
 }
 
 /**
+ * Load lazy-load datasets (feature services) on demand
+ * Called when user draws a project to query feature services with project bounds
+ * @param {Object} drawnGeometry - GeoJSON geometry of drawn project
+ * @returns {Promise} Resolves when all lazy datasets are loaded
+ */
+async function loadLazyDatasets(drawnGeometry) {
+  try {
+    const lazyDatasets = Object.keys(DATASETS).filter(key =>
+      DATASETS[key].enabled && DATASETS[key].lazyLoad && DATASETS[key].featureServiceUrl
+    );
+
+    if (lazyDatasets.length === 0) {
+      return; // No lazy datasets to load
+    }
+
+    console.log(`Loading ${lazyDatasets.length} lazy-load datasets...`);
+
+    // Extract geometry from Feature if needed
+    const geometry = drawnGeometry.type === 'Feature' ? drawnGeometry.geometry : drawnGeometry;
+
+    // Create a buffer around the drawn geometry (use max proximityBuffer from all lazy datasets)
+    const maxBuffer = Math.max(...lazyDatasets.map(key => DATASETS[key].proximityBuffer || 200));
+    const buffered = turf.buffer(geometry, maxBuffer, { units: 'feet' });
+
+    // Get the bounding box of the buffered geometry in WGS84
+    const bbox = turf.bbox(buffered); // [minX, minY, maxX, maxY] in WGS84
+
+    // Convert WGS84 bbox to Web Mercator (EPSG:3857) for feature service query
+    // Feature services are stored in Web Mercator
+    const webMercatorBbox = convertWGS84BboxToWebMercator(bbox);
+
+    console.log(`Query bbox (Web Mercator): [${webMercatorBbox.map(v => v.toFixed(2)).join(', ')}]`);
+
+    // Query all feature services in parallel with spatial filter
+    const queryPromises = lazyDatasets.map(datasetKey => {
+      const config = DATASETS[datasetKey];
+      return queryFeatureService(config.featureServiceUrl, {
+        bbox: webMercatorBbox,
+        maxRecords: 1000  // Reduced since we're only querying nearby features
+      });
+    });
+
+    const results = await Promise.all(queryPromises);
+
+    // Store loaded data
+    results.forEach((result, index) => {
+      const datasetKey = lazyDatasets[index];
+      const config = DATASETS[datasetKey];
+
+      if (result.success && result.data) {
+        geoJsonData[datasetKey] = result.data;
+        console.log(`✓ ${config.name}: ${result.data.features.length} features loaded`);
+      } else {
+        console.warn(`Failed to load ${config.name}:`, result.error);
+        geoJsonData[datasetKey] = null;
+      }
+    });
+
+  } catch (error) {
+    console.error('Error loading lazy datasets:', error);
+  }
+}
+
+/**
+ * Convert WGS84 bounding box to Web Mercator (EPSG:3857)
+ * @param {Array} bbox - [minX, minY, maxX, maxY] in WGS84 (longitude, latitude)
+ * @returns {Array} [minX, minY, maxX, maxY] in Web Mercator
+ */
+function convertWGS84BboxToWebMercator(bbox) {
+  const [minLon, minLat, maxLon, maxLat] = bbox;
+
+  // Web Mercator transformation formulas
+  const earthRadius = 6378137; // Earth radius in meters
+
+  const minX = earthRadius * minLon * Math.PI / 180;
+  const maxX = earthRadius * maxLon * Math.PI / 180;
+
+  const minY = earthRadius * Math.log(Math.tan(Math.PI / 4 + minLat * Math.PI / 360));
+  const maxY = earthRadius * Math.log(Math.tan(Math.PI / 4 + maxLat * Math.PI / 360));
+
+  return [minX, minY, maxX, maxY];
+}
+
+/**
  * Validate that GeoJSON data is in WGS84 (EPSG:4326) coordinate system
  * Throws error if coordinates appear to be in projected CRS
  * @param {Object} data - GeoJSON FeatureCollection
@@ -445,12 +553,12 @@ function validateProjection(data, datasetName) {
     coords = firstFeature.geometry.coordinates;
   } else if (firstFeature.geometry.type === 'LineString') {
     coords = firstFeature.geometry.coordinates[0];
+  } else if (firstFeature.geometry.type === 'MultiLineString') {
+    coords = firstFeature.geometry.coordinates[0][0];
   } else if (firstFeature.geometry.type === 'Polygon') {
     coords = firstFeature.geometry.coordinates[0][0];
   } else if (firstFeature.geometry.type === 'MultiPolygon') {
     coords = firstFeature.geometry.coordinates[0][0][0];
-  } else if (firstFeature.geometry.type === 'MultiLineString') {
-    coords = firstFeature.geometry.coordinates[0][0];
   } else if (firstFeature.geometry.type === 'MultiPoint') {
     coords = firstFeature.geometry.coordinates[0];
   }
@@ -497,7 +605,7 @@ function validateProjection(data, datasetName) {
  * @param {Object} event - Leaflet draw event
  * @param {L.FeatureGroup} drawnItems - Feature group containing drawn items
  */
-function onDrawCreated(event, drawnItems) {
+async function onDrawCreated(event, drawnItems) {
   const layer = event.layer;
 
   // Remove any previous drawing
@@ -527,17 +635,36 @@ function onDrawCreated(event, drawnItems) {
     return;
   }
 
-  // Run spatial analysis on all datasets
-  const results = analyzeAllDatasets(drawnGeometry);
+  // Show loading overlay while querying feature services
+  showLoading(true, 'Loading environmental datasets...');
 
-  // Display results in sidebar
-  displayResults(results);
+  try {
+    // Load lazy-load datasets (feature services) before analysis
+    await loadLazyDatasets(drawnGeometry);
 
-  // Show project name/PDF section
-  document.getElementById('projectNameSection').classList.add('visible');
+    // Hide loading overlay
+    showLoading(false);
 
-  // Focus project name input
-  document.getElementById('projectName').focus();
+    // Run spatial analysis on all datasets
+    const results = analyzeAllDatasets(drawnGeometry);
+
+    // Display results in sidebar
+    displayResults(results);
+
+    // Show project name/PDF section
+    document.getElementById('projectNameSection').classList.add('visible');
+
+    // Disable draw buttons after project is drawn
+    setDrawButtonsEnabled(false);
+
+    // Focus project name input
+    document.getElementById('projectName').focus();
+
+  } catch (error) {
+    showLoading(false);
+    console.error('Error during analysis:', error);
+    showError('Failed to complete analysis. Please try again.');
+  }
 }
 
 /**
@@ -552,11 +679,23 @@ function onClearClicked() {
     drawnGeometry = null;
   }
 
+  // Clear lazy-loaded datasets from memory
+  Object.keys(DATASETS).forEach(datasetKey => {
+    const config = DATASETS[datasetKey];
+    if (config.lazyLoad && geoJsonData[datasetKey]) {
+      geoJsonData[datasetKey] = null;
+      console.log(`Cleared lazy-loaded data: ${config.name}`);
+    }
+  });
+
   // Clear results
   clearResults();
 
   // Hide project name/PDF section
   document.getElementById('projectNameSection').classList.remove('visible');
+
+  // Re-enable draw buttons
+  setDrawButtonsEnabled(true);
 }
 
 /**
@@ -634,6 +773,30 @@ function updateDrawButtonStates(isDrawing) {
   } else {
     lineButton.classList.remove('active');
     pointButton.classList.remove('active');
+  }
+}
+
+/**
+ * Enable or disable draw buttons
+ * @param {boolean} enabled - Whether buttons should be enabled
+ */
+function setDrawButtonsEnabled(enabled) {
+  const lineButton = document.getElementById('drawLineButton');
+  const pointButton = document.getElementById('drawPointButton');
+
+  lineButton.disabled = !enabled;
+  pointButton.disabled = !enabled;
+
+  if (!enabled) {
+    lineButton.style.opacity = '0.5';
+    pointButton.style.opacity = '0.5';
+    lineButton.style.cursor = 'not-allowed';
+    pointButton.style.cursor = 'not-allowed';
+  } else {
+    lineButton.style.opacity = '1';
+    pointButton.style.opacity = '1';
+    lineButton.style.cursor = 'pointer';
+    pointButton.style.cursor = 'pointer';
   }
 }
 
@@ -773,21 +936,72 @@ function displayResults(results) {
   // Clear existing results
   resultsContainer.innerHTML = '';
 
-  // Loop through DATASETS in order and create result cards
+  // Group datasets by category
+  const categoryOrder = ['Transportation', 'Economic Development', 'Environmental/Cultural'];
+  const datasetsByCategory = {};
+
   Object.keys(DATASETS).forEach(datasetKey => {
     const config = DATASETS[datasetKey];
+    const datasetResults = results[datasetKey];
 
-    // Skip disabled datasets or datasets without loaded data
-    if (!config.enabled || !geoJsonData[datasetKey]) {
+    // Skip disabled datasets
+    if (!config.enabled) {
       return;
     }
 
-    // Get results for this dataset
-    const datasetResults = results[datasetKey] || [];
+    // Skip datasets that don't exist in results (not analyzed) or are explicitly undefined/null
+    if (datasetResults === undefined || datasetResults === null) {
+      return;
+    }
 
-    // Create and append result card
-    const cardHtml = createResultCard(config, datasetResults);
-    resultsContainer.innerHTML += cardHtml;
+    // Determine if results are empty based on result type
+    let isEmpty = true; // Default to empty
+
+    if (config.resultStyle === 'binary' && typeof datasetResults === 'object' && 'detected' in datasetResults) {
+      isEmpty = !datasetResults.detected;
+    } else if (config.resultStyle === 'lengthByStatus' && typeof datasetResults === 'object' && 'total' in datasetResults) {
+      isEmpty = datasetResults.total === 0;
+    } else if (typeof datasetResults === 'object' && 'total' in datasetResults) {
+      isEmpty = datasetResults.total === 0;
+    } else if (Array.isArray(datasetResults)) {
+      isEmpty = datasetResults.length === 0;
+    } else {
+      // Unknown result type - skip it
+      return;
+    }
+
+    // Skip datasets with no results
+    if (isEmpty) {
+      return;
+    }
+
+    const category = config.category || 'Other';
+    if (!datasetsByCategory[category]) {
+      datasetsByCategory[category] = [];
+    }
+    datasetsByCategory[category].push({ key: datasetKey, config });
+  });
+
+  // Display results by category
+  categoryOrder.forEach(category => {
+    if (!datasetsByCategory[category]) return;
+
+    // Add category header
+    resultsContainer.innerHTML += `
+      <div style="font-weight: bold; font-size: 16px; color: #333; margin-top: 20px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0066CC;">
+        ${category}
+      </div>
+    `;
+
+    // Add dataset cards for this category
+    datasetsByCategory[category].forEach(({ key, config }) => {
+      // Get results for this dataset
+      const datasetResults = results[key] || [];
+
+      // Create and append result card
+      const cardHtml = createResultCard(config, datasetResults);
+      resultsContainer.innerHTML += cardHtml;
+    });
   });
 
   // Enable PDF button if project name is entered
