@@ -107,6 +107,13 @@ async function generatePDF() {
     map.invalidateSize();
     await new Promise(resolve => setTimeout(resolve, 100));
 
+    // Turn off all user-selected layers before adding filtered features
+    Object.keys(DATASETS).forEach(datasetKey => {
+      if (featureLayers[datasetKey] && map.hasLayer(featureLayers[datasetKey])) {
+        map.removeLayer(featureLayers[datasetKey]);
+      }
+    });
+
     // NOW create temporary filtered layers with only matched features
     // (after map is at correct position)
     Object.keys(currentResults).forEach(datasetKey => {
@@ -198,6 +205,13 @@ async function generatePDF() {
 
     // Remove temporary filtered layers
     tempLayers.forEach(layer => map.removeLayer(layer));
+
+    // Restore user-selected layers
+    Object.keys(DATASETS).forEach(datasetKey => {
+      if (featureLayers[datasetKey] && layerStates[datasetKey]) {
+        map.addLayer(featureLayers[datasetKey]);
+      }
+    });
 
     showLoading(true, 'Building PDF document...');
 
@@ -305,7 +319,10 @@ async function generatePDF() {
       yPosition += 0.3;
     }
 
-    // Loop through all datasets and add results dynamically
+    // Group datasets by category
+    const categoryOrder = ['Transportation', 'Economic Development', 'Environmental/Cultural'];
+    const datasetsByCategory = {};
+
     Object.keys(DATASETS).forEach(datasetKey => {
       const config = DATASETS[datasetKey];
       const results = currentResults[datasetKey];
@@ -331,6 +348,32 @@ async function generatePDF() {
         return;
       }
 
+      // Group by category
+      const category = config.category || 'Other';
+      if (!datasetsByCategory[category]) {
+        datasetsByCategory[category] = [];
+      }
+      datasetsByCategory[category].push({ config, results });
+    });
+
+    // Loop through categories in order
+    categoryOrder.forEach(category => {
+      if (!datasetsByCategory[category] || datasetsByCategory[category].length === 0) {
+        return;
+      }
+
+      // Add category header
+      checkPageBreak(0.4);
+      pdf.setFontSize(13);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(0, 102, 204); // Blue color for category headers
+      pdf.text(category, margin, yPosition);
+      yPosition += 0.25;
+      pdf.setTextColor(0, 0, 0); // Reset to black
+
+      // Loop through datasets in this category
+      datasetsByCategory[category].forEach(({ config, results }) => {
+
       // Add section header
       checkPageBreak(0.5);
       pdf.setFontSize(11);
@@ -342,12 +385,11 @@ async function generatePDF() {
 
       // Render based on resultStyle
       if (config.resultStyle === 'binary') {
-        // Binary format (for flood zones - just show Yes)
+        // Binary format (for flood zones and wetlands - just show Yes)
         checkPageBreak(0.3);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(`  ${config.binaryLabel || config.name}: Yes`, margin, yPosition);
-        yPosition += 0.2;
         pdf.setFont('helvetica', 'normal');
+        pdf.text(`  Yes`, margin, yPosition);
+        yPosition += 0.2;
         yPosition += 0.1;  // Add spacing between datasets
 
       } else if (config.resultStyle === 'acreage') {
@@ -483,7 +525,8 @@ async function generatePDF() {
         });
         yPosition += 0.2;  // Add spacing between datasets
       }
-    });
+      }); // End of datasets in category loop
+    }); // End of category loop
 
     // ========== FOOTER (on each page) ==========
     const totalPages = pdf.internal.getNumberOfPages();

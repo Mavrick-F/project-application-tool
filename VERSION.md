@@ -1,5 +1,68 @@
 # Version History
 
+## v0.9.1 (2026-01-12) - Feature Services Integration & Categorization
+- **Integrated ArcGIS Feature Services**: Wetlands, Critical Wetlands, and Flood Zones now load via lazy-loading from ArcGIS Online
+- **Lazy-loading architecture**: Feature services query on project draw (not at startup) with 200ft bounding box filter for fast performance
+- **Organized by categories**: All datasets grouped into Transportation, Economic Development, and Environmental/Cultural
+- **Category headers**: Added blue category headers to analysis results and PDF reports
+- **Improved styling**: Feature services have distinctive dashed borders (flood zones) and solid fills (wetlands)
+- Changed wetlands and flood zones analysis from acreage to binary (Yes/No) detection
+- Simplified PDF binary results from "Within X: Yes" to just "Yes"
+
+### Feature Service Integration
+- Wetlands and Flood Zones load from ArcGIS Feature Services on demand
+- `lazyLoad: true` flag prevents loading at startup (instant app load)
+- When project is drawn, queries feature services with Web Mercator bbox around project (200ft buffer)
+- Automatic WGS84 ↔ Web Mercator coordinate conversion
+- Data cleared from memory when user clicks "Clear & Start Over"
+- Critical Wetlands filters to only "Freshwater Forested/Shrub Wetland" type via `analysisFilter`
+
+### Category Organization
+- **Transportation**: MATA Routes, STRAHNET, High Injury Corridors, Greenprint Bike Network, Travel Time Reliability, Bridges, Crash Locations
+- **Economic Development**: Opportunity Zones, ALICE ZCTAs, Freight Routes, Freight Zones, Major Employers, Tourist Destinations
+- **Environmental/Cultural**: Parks, Historic Polygons, Historic Points, EPA Superfund Sites, Wetlands, Critical Wetlands, Flood Zones
+- Category headers appear in: Layer Control (with spacing), Analysis Results (blue headers), PDF Reports (blue headers)
+
+### Styling Improvements
+- **Wetlands**: Olive green (#6B8E23), 40% opacity, no distinctive border
+- **Critical Wetlands**: Bright lime green (#32CD32), 100% opacity, minimal border (0.5px)
+- **Flood Zones**: Sky blue fill with dark blue dashed border (5px dash pattern)
+- All three feature services stand out clearly from regular datasets
+
+### Known Issues
+- **Undefined results bug**: Some datasets show "undefined" count in sidebar when they shouldn't appear
+  - Analysis completes but filtering logic needs refinement
+  - Does not affect PDF generation or data accuracy
+  - Fix pending for v0.9.2
+
+### Previous v0.9.1 Changes (2026-01-12)
+- Removed all MultiLineString-specific code logic for cleaner codebase
+- Improved PDF generation: now clears all user-selected layers before rendering filtered features
+- Enhanced drawing UX: draw tools now grey out and become unselectable after project is drawn
+- Draw tools re-enable when user clicks "Clear & Start Over"
+
+### Code Cleanup
+- Removed `MultiLineString` handling from `normalizeToLineStrings()` in analysis.js
+- Removed entire MultiLineString layer creation block from map.js
+- Removed MultiLineString validation from app.js projection check
+- Simplified geometry type checks throughout codebase
+
+### Dataset Configuration Changes
+- **Wetlands**: Changed from `proximityAcreage` analysis to `binaryProximity`, result style now `binary`
+- **Critical Wetlands**: Changed from `proximityAcreage` analysis to `binaryProximity`, result style now `binary`, opacity increased to 0.85
+
+### PDF Generation Improvements
+- User-selected layers are now temporarily removed before adding filtered result layers
+- Prevents visual clutter and ensures only relevant features appear in PDF maps
+- User layers are restored after PDF capture completes
+
+### UI/UX Enhancements
+- New `setDrawButtonsEnabled()` function controls draw button state
+- Draw buttons display as greyed out (50% opacity) with "not-allowed" cursor when disabled
+- Buttons disable automatically after successful drawing
+- Buttons re-enable when "Clear & Start Over" is clicked
+- Improves user clarity on when drawing actions are available
+
 ## v0.9.0 (2026-01-09) - Feature Complete ✅
 - Integrated Travel Time Reliability dataset (17 total datasets - all core datasets complete)
 - Renamed from "Congested Segments" to "Travel Time Reliability" for user-facing display

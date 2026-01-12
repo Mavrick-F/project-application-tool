@@ -156,55 +156,6 @@ function addReferenceLayers() {
           }
         });
 
-      } else if (config.geometryType === 'MultiLineString') {
-        // ========== MULTILINESTRING LAYERS ==========
-        // Use same logic as LineString - Leaflet handles MultiLineString automatically
-        layer = L.geoJSON(geoJsonData[datasetKey], {
-          style: (feature) => {
-            // Check if style should vary by property
-            if (config.styleByProperty) {
-              const propertyValue = feature.properties[config.styleByProperty.field];
-              const propertyStyle = config.styleByProperty.values[propertyValue];
-              if (propertyStyle) {
-                return { ...config.style, ...propertyStyle };
-              }
-            }
-            return config.style;
-          },
-          onEachFeature: (feature, leafletLayer) => {
-            // Use staticLabel if defined, otherwise use field value
-            const displayValue = config.properties.staticLabel ||
-                                feature.properties[config.properties.displayField] ||
-                                'Unknown';
-
-            // Bind tooltip
-            leafletLayer.bindTooltip(displayValue, {
-              sticky: true,
-              className: 'leaflet-tooltip'
-            });
-
-            // Get current feature style for hover effects
-            let currentStyle = config.style;
-            if (config.styleByProperty) {
-              const propertyValue = feature.properties[config.styleByProperty.field];
-              const propertyStyle = config.styleByProperty.values[propertyValue];
-              if (propertyStyle) {
-                currentStyle = { ...config.style, ...propertyStyle };
-              }
-            }
-
-            // Hover effects
-            const hoverStyle = { ...currentStyle, weight: (currentStyle.weight || 2) + 0.5, opacity: (currentStyle.opacity || 0.7) + 0.15 };
-            leafletLayer.on('mouseover', function() {
-              this.setStyle(hoverStyle);
-            });
-
-            leafletLayer.on('mouseout', function() {
-              this.setStyle(currentStyle);
-            });
-          }
-        });
-
       } else if (config.geometryType === 'Polygon') {
         // ========== POLYGON LAYERS ==========
         // Use all features for display if threshold filtering is enabled
@@ -286,7 +237,7 @@ function addReferenceLayers() {
         // Create layer control label with colored symbol
         let symbol = '●';
         if (config.geometryType === 'Polygon') symbol = '■';
-        if (config.geometryType === 'LineString' || config.geometryType === 'MultiLineString') symbol = '─';
+        if (config.geometryType === 'LineString') symbol = '─';
 
         const layerLabel = `<span style="color:${config.style.color};">${symbol}</span> ${config.name}`;
 
@@ -304,20 +255,21 @@ function addReferenceLayers() {
   });
 
   // ========== LAYER CONTROL ==========
-  // Build grouped overlay layers with category headers
+  // Build overlay layers grouped by category (with spacing between categories)
   const overlayLayers = {};
-  const categoryOrder = ['Transportation', 'Economic', 'Environmental'];
+  const categoryOrder = ['Transportation', 'Economic Development', 'Environmental/Cultural'];
 
-  categoryOrder.forEach(category => {
+  categoryOrder.forEach((category, catIndex) => {
     if (layersByCategory[category]) {
-      // Add category header (non-interactive)
-      const headerKey = `<div style="font-weight: bold; font-size: 13px; color: #333; margin-top: 8px; margin-bottom: 4px; pointer-events: none; border-bottom: 1px solid #ddd; padding-bottom: 4px;">${category}</div>`;
-
       // Add all layers in this category
-      Object.keys(layersByCategory[category]).forEach(layerLabel => {
-        // Indent layer names under category header
-        const indentedLabel = `<span style="margin-left: 8px; display: inline-block;">${layerLabel}</span>`;
-        overlayLayers[indentedLabel] = layersByCategory[category][layerLabel];
+      Object.keys(layersByCategory[category]).forEach((layerLabel, index) => {
+        // Add extra top margin to first layer of non-first categories for visual separation
+        let styledLabel = layerLabel;
+        if (index === 0 && catIndex > 0) {
+          // Add spacing by wrapping in inline-block span with margin-top
+          styledLabel = `<span style="display: inline-block; margin-top: 12px;">${layerLabel}</span>`;
+        }
+        overlayLayers[styledLabel] = layersByCategory[category][layerLabel];
       });
     }
   });
