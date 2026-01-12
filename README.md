@@ -1,6 +1,6 @@
 # Memphis MPO Project Application Tool
 
-![Version](https://img.shields.io/badge/version-0.9.0-blue) ![Status](https://img.shields.io/badge/status-feature%20complete-brightgreen)
+![Version](https://img.shields.io/badge/version-0.9.1-blue) ![Status](https://img.shields.io/badge/status-feature%20complete-brightgreen)
 
 A web-based mapping tool for analyzing transportation project proposals against regional planning datasets. Built for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055.
 
@@ -10,7 +10,7 @@ A web-based mapping tool for analyzing transportation project proposals against 
 
 Users draw project alignments or mark specific locations on an interactive map. The tool automatically identifies intersecting or nearby transportation infrastructure and planning features, then generates a PDF report summarizing the findings.
 
-**Current Status:** v0.9.0 - Feature complete with all 19 core datasets integrated. Ready for v1.0 release.
+**Current Status:** v0.9.1 - Feature complete with all 19 core datasets integrated. Ready for v1.0 release.
 
 ## Features
 
@@ -197,3 +197,4 @@ Built by Mavrick Fitzgerald using Claude Code. Uses open-source mapping librarie
 ---
 
 **Memphis Metropolitan Planning Organization** | Regional Transportation Plan 2055
+
