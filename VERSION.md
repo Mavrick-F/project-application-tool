@@ -1,5 +1,35 @@
 # Version History
 
+## v0.9.3 (2026-01-14) - YAML Configuration & Code Organization
+
+### Configuration System Overhaul
+- **Migrated to YAML-based configuration**: Datasets now defined in `datasets.yaml` instead of JavaScript
+- **Self-documenting YAML**: Comprehensive inline comments explain every field, geometry types, analysis methods, and styling options
+- **Zero breaking changes**: All analysis functions, map rendering, and PDF generation work identically
+- **Easier dataset management**: Non-coders can add new datasets by copying/modifying YAML entries
+
+### Code Organization
+- **Created `src/` folder**: Core application files now organized (analysis.js, app.js, datasets.js, map.js, pdf.js, styles.css)
+- **Root-level HTML**: index.html remains at root for direct access
+- **Data folder**: All GeoJSON files stay in root-level `data/` folder
+
+### Dataset Management
+- **Deleted outdated files**: Removed `midsouth_greenprint.geojson` and `truck_routes.json` from data folder
+- **Added Pavement Condition example**: Demonstrates conditional styling pattern in YAML for future dataset additions
+
+### User Experience Improvements
+- **Tighter map zoom**: Reduced project bounds padding from 50% to 5% for focused views on long projects
+- **Better visual framing**: Long corridors now zoom to show primarily the project with minimal surrounding context
+
+### Technical Implementation
+- **Added js-yaml CDN library**: For YAML parsing in the browser
+- **Async dataset loading**: App waits for YAML to load before initializing (transparent to user)
+- **Logging**: Console message confirms successful dataset load with count
+
+### Documentation Updates
+- **Updated claude.md**: Added instructions for adding datasets via YAML
+- **Updated README.md**: Explains new file structure and YAML configuration system
+
 ## v0.9.2 (2026-01-14) - Travel Time Reliability & Visual Polish
 
 ### Travel Time Reliability Improvements

@@ -1,6 +1,6 @@
 # Memphis MPO Project Application Tool
 
-![Version](https://img.shields.io/badge/version-0.9.2-blue) ![Status](https://img.shields.io/badge/status-feature%20complete-brightgreen)
+![Version](https://img.shields.io/badge/version-0.9.3-blue) ![Status](https://img.shields.io/badge/status-feature%20complete-brightgreen)
 
 A web-based mapping tool for analyzing transportation project proposals against regional planning datasets. Built for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055.
 
@@ -10,7 +10,7 @@ A web-based mapping tool for analyzing transportation project proposals against 
 
 Users draw project alignments or mark specific locations on an interactive map. The tool automatically identifies intersecting or nearby transportation infrastructure and planning features, then generates a PDF report summarizing the findings.
 
-**Current Status:** v0.9.2 - Feature complete with all 20 core datasets integrated and alphabetically organized. Ready for v1.0 release.
+**Current Status:** v0.9.3 - Feature complete with YAML-based configuration system for easy dataset management. Ready for v1.0 release.
 
 ## Features
 
@@ -103,14 +103,27 @@ python -m http.server 5050
 
 ### Architecture
 
-**7 modular files** (vanilla JavaScript, no build process):
-- `index.html` - HTML structure
-- `styles.css` - All CSS styling
-- `datasets.js` - Configuration (CONFIG and DATASETS objects)
-- `map.js` - Map initialization, layers, drawing controls
-- `analysis.js` - Spatial analysis functions
-- `pdf.js` - PDF generation
-- `app.js` - Application initialization and event handlers
+**File Structure:**
+```
+project-application-tool/
+├── index.html                    # Main HTML (stays at root)
+├── datasets.yaml                 # Dataset configuration (self-documenting)
+├── assets/                       # Logos and images
+├── data/                         # GeoJSON datasets
+├── src/                          # Application code
+│   ├── datasets.js              # CONFIG + YAML loader
+│   ├── map.js                   # Map init, layers, drawing
+│   ├── analysis.js              # Spatial analysis functions
+│   ├── pdf.js                   # PDF generation
+│   ├── app.js                   # Init and event handlers
+│   └── styles.css               # All CSS styling
+```
+
+**Configuration System (v0.9.3):**
+- `datasets.yaml` - YAML-based configuration (replaces hardcoded JavaScript)
+- Self-documenting with inline comments explaining every field
+- Non-coders can add datasets by copying/modifying YAML entries
+- Zero code changes required for new datasets
 
 **External libraries** (via CDN):
 - Leaflet.js (v1.9.4) - Interactive mapping
@@ -118,45 +131,73 @@ python -m http.server 5050
 - Turf.js (v6.5.0) - Geospatial analysis
 - jsPDF (v2.5.1) - PDF generation
 - html2canvas (v1.4.1) - Map capture
+- js-yaml (v4.1.0) - YAML parsing
 
 ### Adding New Datasets
 
-**Configuration-driven** - add datasets by updating `datasets.js` only:
+**Configuration-driven** - add datasets by updating `datasets.yaml`:
 
-```javascript
-newDataset: {
-  id: 'newDataset',
-  name: 'Display Name',
-  category: 'Transportation',          // or 'Economic' or 'Environmental'
-  filePath: './data/new-dataset.json',
-  geometryType: 'Point',               // or 'LineString' or 'Polygon'
-  analysisMethod: 'proximity',         // or 'corridor' or 'intersection'
-  proximityBuffer: 500,                // distance in feet
-  properties: {
-    displayField: 'NAME'               // field to display in results
-  },
-  style: {
-    color: '#FF0000',
-    weight: 2,
-    opacity: 0.7
-  },
-  enabled: true
-}
+1. **Open `datasets.yaml`** in the root directory
+2. **Find a similar dataset** (matching your geometry type)
+3. **Copy and modify** the YAML entry:
+
+```yaml
+pavementCondition:
+  id: pavementCondition
+  name: Pavement Condition
+  category: Transportation
+  filePath: ../data/pavement_condition.geojson
+  geometryType: LineString               # Point, LineString, or Polygon
+  analysisMethod: corridor               # corridor, intersection, proximity, etc.
+
+  bufferDistance: 100                    # 100ft buffer for initial intersection
+  minSharedLength: 300                   # 300ft minimum parallel overlap
+  proximityBuffer: null
+
+  properties:
+    displayField: STREET_NAME            # Field shown in results
+    additionalFields:
+      - CONDITION
+      - LAST_SURVEY
+
+  specialHandling:
+    removeDirectionalSuffixes: false     # Strip " NB"/" SB" from names
+    deduplicate: false                   # Merge duplicates
+
+  style:
+    color: '#808080'                     # Default color (hex format)
+    weight: 3                            # Line thickness
+    opacity: 0.7                         # Transparency (0.0-1.0)
+
+  styleByProperty:                       # Conditional styling
+    field: CONDITION                     # Field to check
+    values:
+      Good:
+        color: '#228B22'                 # Forest green
+        weight: 3
+      Fair:
+        color: '#FFA500'                 # Orange
+        weight: 3
+      Poor:
+        color: '#DC143C'                 # Crimson red
+        weight: 4
+
+  resultStyle: list                      # How to display: list, table, count, binary
+  enabled: false                         # Set to true when data file exists
 ```
 
-**Advanced config options:**
-- `staticLabel` - Show constant text instead of field value
-- `styleByProperty` - Conditional styling (e.g., color-code by type)
-- `specialHandling` - Deduplication, suffix removal
-- `additionalFields` - Multi-column table results
-- `hideInPdfRendering` - Exclude from PDF map capture
+4. **Save and refresh** - no code changes needed
 
-System automatically handles:
-- Data loading and validation
-- Layer creation with tooltips
-- Spatial analysis
-- Results display
-- PDF report inclusion
+**Available config options:**
+- `geometryType`: Point, LineString, Polygon, MultiLineString
+- `analysisMethod`: corridor, intersection, proximity, proximityCount, binaryProximity, corridorLengthByStatus
+- `styleByProperty` - Conditional colors/styles based on field values
+- `staticLabel` - Show constant text instead of field value
+- `filterByThreshold` - Filter by field value with translucent below-threshold display
+- `lazyLoad` - Load Feature Services on-demand (not at startup)
+- `featureServiceUrl` - ArcGIS Feature Service URL (alternative to filePath)
+
+The YAML file includes extensive inline comments documenting every field and valid values.
 
 ### Data Requirements
 

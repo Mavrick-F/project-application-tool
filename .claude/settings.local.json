@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -m http.server:*)"
+      "Bash(python -m http.server:*)",
+      "Bash(timeout 2 cmd:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Bash(taskkill:*)",
+      "Bash(git add:*)"
     ]
   }
 }

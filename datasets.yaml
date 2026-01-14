@@ -1,0 +1,776 @@
+# ============================================
+# DATASET CONFIGURATION FOR MEMPHIS MPO PROJECT APPLICATION TOOL
+# ============================================
+# This YAML file defines all datasets used in spatial analysis.
+# Each dataset specifies its file location, geometry type, analysis method, and styling.
+#
+# GEOMETRY TYPES:
+#   - Point: Single coordinate locations (bridges, employers, crash sites)
+#   - LineString: Connected line segments (roads, routes, corridors)
+#   - Polygon: Closed shapes defining areas (zones, wetlands, districts)
+#
+# ANALYSIS METHODS:
+#   - corridor: For lines running parallel to project (requires bufferDistance & minSharedLength)
+#   - intersection: For areas that overlap with project (polygons, geometric overlap)
+#   - proximity: For features near project (requires proximityBuffer distance)
+#   - proximityCount: Like proximity but counts features by a field (e.g., crash severity)
+#   - binaryProximity: Returns yes/no if ANY feature is within buffer (for large datasets)
+#   - corridorLengthByStatus: Calculates total length broken down by status field
+#
+# COLOR CODES: Use hex format (#RRGGBB) or named colors
+#   Examples: '#FF0000' (red), '#228B22' (forest green), '#0066CC' (blue)
+#
+# OPACITY VALUES: 0.0 (transparent) to 1.0 (fully opaque)
+#   Typical values: 0.3 (light), 0.6 (medium), 0.9 (strong)
+#
+# WEIGHT: Line thickness in pixels (1-5 typical, 10+ for emphasis)
+#
+# ============================================
+
+# ========== TRANSPORTATION DATASETS ==========
+
+bridges:
+  id: bridges  # Unique identifier, must match the key name
+  name: Bridges  # Display name shown in UI and reports
+  category: Transportation  # Groups datasets in sidebar (Transportation, Economic Development, Environmental/Cultural)
+  filePath: ../data/bridges.json  # Relative path from src/ folder to GeoJSON file
+  geometryType: Point  # Point features (single lat/lon coordinates)
+  analysisMethod: proximity  # Find bridges within buffer distance of project
+
+  # Buffer/distance parameters (set to null if not used by this analysis method)
+  bufferDistance: null  # Not used for proximity analysis
+  minSharedLength: null  # Not used for proximity analysis
+  proximityBuffer: 300  # Find bridges within 300 feet of project
+
+  # Feature properties configuration
+  properties:
+    displayField: STRUCTURE_  # Main field shown in results (bridge structure ID)
+    additionalFields:  # Extra fields shown in tooltips and details
+      - Condition  # Bridge condition rating
+
+  # Special data processing flags
+  specialHandling:
+    removeDirectionalSuffixes: false  # If true, removes " NB"/" SB" from names to merge duplicates
+    deduplicate: false  # If true, removes duplicate entries with same display name
+
+  # Base map style (can be overridden by styleByProperty)
+  style:
+    color: '#8B4513'  # Saddle brown - outline color
+    fillColor: '#8B4513'  # Fill color for points
+    radius: 4.5  # Point marker size in pixels
+    fillOpacity: 0.8  # Fill transparency (0.0-1.0)
+    weight: 1  # Border thickness in pixels
+
+  # Conditional styling - different colors based on field value
+  styleByProperty:
+    field: Condition  # Field to check for styling rules
+    values:  # Define style for each field value
+      Good:
+        color: '#228B22'  # Forest green outline
+        fillColor: '#228B22'  # Forest green fill
+      Fair:
+        color: '#FFD700'  # Gold outline
+        fillColor: '#FFD700'  # Gold fill
+      Poor:
+        color: '#CC0000'  # Bright red outline
+        fillColor: '#CC0000'  # Bright red fill
+
+  legendColor: '#999999'  # Gray color for legend display (not used on map)
+  resultStyle: table  # How to display results: 'list', 'table', 'count', 'binary', 'lengthByStatus'
+  enabled: true  # Set to false to disable this dataset
+
+crashLocations:
+  id: crashLocations
+  name: Crash Locations (KSI)  # KSI = Killed or Seriously Injured
+  category: Transportation
+  filePath: ../data/ksi_crashes.geojson
+  geometryType: Point
+  analysisMethod: proximityCount  # Counts features and groups by field value
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 300  # 300 feet buffer around project
+
+  countByField: Severity  # Group count results by this field (Fatal vs Suspected Serious Injury)
+
+  properties:
+    displayField: Severity  # Show crash severity type
+    additionalFields:
+      - Fatality_C  # Number of deaths
+      - Injured_Co  # Number of injuries
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#191970'  # Midnight blue
+    fillColor: '#191970'
+    radius: 2.5
+    fillOpacity: 0.9
+    weight: 1
+
+  resultStyle: count  # Special result style showing counts by category
+  enabled: true
+
+greenprintNetwork:
+  id: greenprintNetwork
+  name: Greenprint Bike Network
+  category: Transportation
+  filePath: ../data/greenprint.geojson
+  geometryType: LineString  # Line features (connected coordinate sequences)
+  analysisMethod: corridor  # Find lines running parallel to project
+
+  bufferDistance: 100  # Create 100ft buffer around project for initial intersection check
+  minSharedLength: 300  # Require 300ft of parallel overlap to count as match
+  proximityBuffer: null
+
+  properties:
+    displayField: Priority_T  # Show priority tier (Regional, Intermediate, or Local)
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  # Base style (overridden by styleByProperty)
+  style:
+    color: '#228B22'  # Forest green
+    weight: 2  # Line thickness in pixels
+    opacity: 0.8  # Line opacity (0.0-1.0)
+    dashArray: '10, 10'  # Dashed line pattern (10px dash, 10px gap)
+
+  # Style different priority tiers with different colors
+  styleByProperty:
+    field: Priority_T
+    values:
+      Regional:
+        color: '#006400'  # Dark green for highest priority
+        weight: 3
+        opacity: 0.8
+        dashArray: '10, 10'
+      Intermediate:
+        color: '#228B22'  # Medium green for medium priority
+        weight: 3
+        opacity: 0.8
+        dashArray: '10, 10'
+      Local:
+        color: '#90EE90'  # Light green for local priority
+        weight: 2
+        opacity: 0.8
+        dashArray: '10, 10'
+
+  resultStyle: list
+  enabled: true
+
+highInjuryCorridors:
+  id: highInjuryCorridors
+  name: High Injury Corridors
+  category: Transportation
+  filePath: ../data/HIN_Corridors.geojson
+  geometryType: LineString
+  analysisMethod: corridor
+
+  bufferDistance: 100
+  minSharedLength: 300
+  proximityBuffer: null
+
+  properties:
+    displayField: OBJECTID  # Technical ID field
+    staticLabel: High Injury Corridor  # Override field value with this constant text in results
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#FFD700'  # Gold/amber caution color
+    weight: 3
+    opacity: 0.9
+
+  resultStyle: list
+  enabled: true
+
+mataRoutes:
+  id: mataRoutes
+  name: MATA Routes  # Memphis Area Transit Authority
+  category: Transportation
+  filePath: ../data/mata-routes.json
+  geometryType: LineString
+  analysisMethod: corridor
+
+  bufferDistance: 100
+  minSharedLength: 300
+  proximityBuffer: null
+
+  properties:
+    displayField: Name  # Route name
+    additionalFields: []
+
+  # Special handling to clean up transit route data
+  specialHandling:
+    removeDirectionalSuffixes: true  # Remove " NB"/" SB" from route names
+    deduplicate: true  # Merge routes with same name after removing suffixes
+
+  style:
+    color: '#0066CC'  # Blue
+    weight: 2
+    opacity: 0.7
+
+  resultStyle: list
+  enabled: true
+
+strahnet:
+  id: strahnet
+  name: STRAHNET Routes  # Strategic Highway Network for national defense
+  category: Transportation
+  filePath: ../data/strahnet.geojson
+  geometryType: LineString
+  analysisMethod: corridor
+
+  bufferDistance: 100
+  minSharedLength: 300
+  proximityBuffer: null
+
+  properties:
+    displayField: OBJECTID
+    staticLabel: STRAHNET  # Show constant label instead of object ID
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#8B6914'  # Dark goldenrod (highway brown)
+    weight: 3
+    opacity: 0.8
+
+  resultStyle: list
+  enabled: true
+
+travelTimeReliability:
+  id: travelTimeReliability
+  name: Travel Time Reliability
+  category: Transportation
+  filePath: ../data/road_congestion.json
+  geometryType: LineString
+  analysisMethod: corridorLengthByStatus  # Calculate total length broken down by status
+
+  bufferDistance: 100
+  minSharedLength: 300
+  proximityBuffer: null
+
+  properties:
+    displayField: name  # Road name
+    additionalFields:
+      - Travel_Time_Index  # Congestion metric
+      - Level_of_Travel_Time_Reliability  # Reliability metric
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: true  # Merge duplicate road segments
+
+  style:
+    color: '#808080'  # Gray for reliable segments
+    weight: 3
+    opacity: 0.6
+
+  # Different styles for reliable vs unreliable segments
+  styleByProperty:
+    field: Reliable_Segment_  # Boolean field (True/False)
+    values:
+      'True':
+        color: '#808080'  # Gray for reliable
+        weight: 3
+        opacity: 0.6
+      'False':
+        color: '#FFD700'  # Gold for unreliable (attention needed)
+        weight: 4
+        opacity: 0.9
+
+  resultStyle: lengthByStatus  # Show total feet of reliable vs unreliable segments
+  hideInPdfRendering: true  # Don't show on map in PDF capture
+  enabled: true
+
+# ========== ECONOMIC DEVELOPMENT DATASETS ==========
+
+aliceZctas:
+  id: aliceZctas
+  name: ALICE ZCTAs  # Asset Limited, Income Constrained, Employed households by ZIP Code
+  category: Economic Development
+  filePath: ../data/alice_zctas.geojson
+  geometryType: Polygon  # Area features (closed shapes)
+  analysisMethod: intersection  # Check if project overlaps with polygon areas
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: null
+
+  # Filter features by threshold value
+  filterByThreshold:
+    field: F__Below_A  # Fraction of households below ALICE threshold (0.0-1.0)
+    operator: '>='  # Comparison operator: '>=', '>', '<=', '<', '='
+    value: 0.45  # Show only areas with 45%+ households below threshold
+    showTranslucentBelow: true  # Still render below-threshold areas with translucent style
+
+  properties:
+    displayField: GEOID20  # ZIP Code Tabulation Area ID
+    additionalFields:
+      - F__Below_A  # Fraction below ALICE threshold
+    formatPercentage: F__Below_A  # Format this field as percentage in display
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#9932CC'  # Dark orchid border
+    weight: 2
+    fillColor: '#DDA0DD'  # Plum fill
+    fillOpacity: 0.4
+
+  # Style for areas below threshold (when showTranslucentBelow is true)
+  styleTranslucent:
+    color: '#9932CC'
+    weight: 1
+    fillColor: '#DDA0DD'
+    fillOpacity: 0.1  # Very translucent (almost invisible)
+
+  resultStyle: list
+  enabled: true
+
+freightClusters:
+  id: freightClusters
+  name: Freight Zones
+  category: Economic Development
+  filePath: ../data/freight_clusters.geojson
+  geometryType: Polygon
+  analysisMethod: intersection
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: null
+
+  properties:
+    displayField: N  # Zone name
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#20B2AA'  # Light sea green
+    weight: 2
+    fillColor: '#AFEEEE'  # Pale turquoise
+    fillOpacity: 0.3
+
+  resultStyle: list
+  enabled: true
+
+truckRoutes:
+  id: truckRoutes
+  name: Freight Routes
+  category: Economic Development
+  filePath: ../data/freight_routes.json
+  geometryType: LineString
+  analysisMethod: corridor
+
+  bufferDistance: 100
+  minSharedLength: 300
+  proximityBuffer: null
+
+  properties:
+    displayField: Type  # Regional or Local
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#CD853F'  # Peru (default, overridden by styleByProperty)
+    weight: 2
+    opacity: 0.7
+
+  # Different styles for regional vs local routes
+  styleByProperty:
+    field: Type
+    values:
+      Regional:
+        color: '#8B4513'  # Saddle brown (darker for major routes)
+        weight: 3
+        opacity: 0.8
+      Local:
+        color: '#DEB887'  # Burlywood (lighter for local routes)
+        weight: 2
+        opacity: 0.7
+
+  resultStyle: list
+  enabled: true
+
+majorEmployers:
+  id: majorEmployers
+  name: Major Employers
+  category: Economic Development
+  filePath: ../data/major_employers.geojson
+  geometryType: Point
+  analysisMethod: proximity
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 1320  # 1320 feet = 0.25 miles
+
+  properties:
+    displayField: company_name
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#4169E1'  # Royal blue
+    fillColor: '#4169E1'
+    radius: 4
+    fillOpacity: 0.8
+    weight: 1
+
+  resultStyle: list
+  enabled: true
+
+opportunityZones:
+  id: opportunityZones
+  name: Opportunity Zones  # Federal tax incentive areas
+  category: Economic Development
+  filePath: ../data/opportunity-zones.json
+  geometryType: Polygon
+  analysisMethod: intersection
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: null
+
+  properties:
+    displayField: CENSUSTRAC  # Census tract identifier
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#FF8C00'  # Dark orange
+    weight: 2
+    fillColor: '#FFD700'  # Gold
+    fillOpacity: 0.3
+
+  resultStyle: list
+  enabled: true
+
+touristAttractions:
+  id: touristAttractions
+  name: Tourist Destinations
+  category: Economic Development
+  filePath: ../data/tourist_attractions.geojson
+  geometryType: Point
+  analysisMethod: proximity
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 1320  # 0.25 miles
+
+  properties:
+    displayField: NAME  # Attraction name (case-sensitive field name)
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#FF1493'  # Deep pink
+    fillColor: '#FF1493'
+    radius: 4
+    fillOpacity: 0.8
+    weight: 1
+
+  resultStyle: list
+  enabled: true
+
+# ========== ENVIRONMENTAL/CULTURAL DATASETS ==========
+
+criticalWetlands:
+  id: criticalWetlands
+  name: Critical Wetlands
+  category: Environmental/Cultural
+  lazyLoad: true  # Don't load until analysis runs (for performance with large datasets)
+  featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0  # ArcGIS Feature Service URL (alternative to filePath)
+  geometryType: Polygon
+  analysisMethod: binaryProximity  # Returns simple yes/no (optimized for large datasets)
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 200  # 200 feet
+
+  # Filter which features to include in analysis
+  analysisFilter:
+    field: WETLAND_TY  # Wetland type field
+    operator: '='  # Equals
+    value: Freshwater Forested/Shrub Wetland  # Only include this type
+
+  properties:
+    displayField: WETLAND_TY
+    additionalFields:
+      - ACRES
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#32CD32'  # Lime green
+    weight: 0.5  # Very thin border
+    fillColor: '#32CD32'
+    fillOpacity: 1.0  # Fully opaque/solid
+
+  resultStyle: binary  # Shows "Yes" or "No" result
+  binaryLabel: Within Critical Wetlands  # Label for yes/no result
+  enabled: true
+
+epaSuperFundSites:
+  id: epaSuperFundSites
+  name: EPA Superfund Sites  # Contaminated sites requiring long-term cleanup
+  category: Environmental/Cultural
+  filePath: ../data/epa_superfund_sites.geojson
+  geometryType: Point
+  analysisMethod: proximity
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 200
+
+  properties:
+    displayField: PRIMARY_NAME  # Site name
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#000000'  # Black
+    fillColor: '#000000'
+    radius: 5
+    fillOpacity: 0.8
+    weight: 1
+
+  resultStyle: list
+  enabled: true
+
+floodZones:
+  id: floodZones
+  name: Flood Zones
+  category: Environmental/Cultural
+  lazyLoad: true
+  featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MPO_Flood_Zones/FeatureServer/0
+  geometryType: Polygon
+  analysisMethod: binaryProximity
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 200
+
+  properties:
+    displayField: FLD_ZONE  # Flood zone designation (100-year, 500-year, etc.)
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#00008B'  # Dark blue
+    weight: 4  # Thick border for visibility
+    fillColor: '#87CEEB'  # Sky blue
+    fillOpacity: 0.35
+    dashArray: '5, 5'  # Dashed pattern (5px dash, 5px gap)
+
+  resultStyle: binary
+  binaryLabel: Within Flood Zone
+  enabled: true
+
+historicPoints:
+  id: historicPoints
+  name: NHRP Points  # National Historic Register of Places - point features
+  category: Environmental/Cultural
+  filePath: ../data/historic_points.geojson
+  geometryType: Point
+  analysisMethod: proximity
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 200
+
+  properties:
+    displayField: RESNAME  # Resource name
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#8B4513'  # Saddle brown
+    fillColor: '#8B4513'
+    radius: 3
+    fillOpacity: 0.8
+    weight: 1
+
+  resultStyle: list
+  enabled: true
+
+historicPolygons:
+  id: historicPolygons
+  name: NHRP Polygons  # National Historic Register - area features (districts)
+  category: Environmental/Cultural
+  filePath: ../data/historic_polygons.geojson
+  geometryType: Polygon
+  analysisMethod: proximity
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 200
+
+  properties:
+    displayField: RESNAME
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#8B4513'  # Saddle brown
+    weight: 2
+    fillColor: '#DEB887'  # Burlywood
+    fillOpacity: 0.3
+
+  resultStyle: list
+  enabled: true
+
+parks:
+  id: parks
+  name: Parks
+  category: Environmental/Cultural
+  filePath: ../data/parks.json
+  geometryType: Polygon
+  analysisMethod: proximity
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 200
+
+  properties:
+    displayField: NAME
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#228B22'  # Forest green
+    weight: 2
+    fillColor: '#90EE90'  # Light green
+    fillOpacity: 0.3
+
+  resultStyle: list
+  enabled: true
+
+wetlands:
+  id: wetlands
+  name: Wetlands
+  category: Environmental/Cultural
+  lazyLoad: true
+  featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0
+  geometryType: Polygon
+  analysisMethod: binaryProximity
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 200
+
+  properties:
+    displayField: WETLAND_TY
+    additionalFields:
+      - ACRES
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#556B2F'  # Dark olive green
+    weight: 2
+    fillColor: '#6B8E23'  # Olive drab
+    fillOpacity: 0.4
+
+  resultStyle: binary
+  binaryLabel: Within Wetlands
+  enabled: true
+
+# ========== EXAMPLE: PAVEMENT CONDITION DATASET ==========
+# This example demonstrates conditional styling for future dataset additions.
+# Copy this pattern and modify values to add similar datasets.
+
+pavementCondition:
+  id: pavementCondition
+  name: Pavement Condition
+  category: Transportation
+  filePath: ../data/pavement_condition.geojson  # Create this file with pavement data
+  geometryType: LineString  # Road segments
+  analysisMethod: corridor  # Find roads running parallel to project
+
+  bufferDistance: 100  # 100 feet buffer for initial intersection
+  minSharedLength: 300  # Require 300 feet of parallel overlap
+  proximityBuffer: null
+
+  properties:
+    displayField: STREET_NAME  # Road name
+    additionalFields:
+      - CONDITION  # Good/Fair/Poor rating
+      - LAST_SURVEY  # Date of last condition survey
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  # Base style (will be overridden by conditional styling)
+  style:
+    color: '#808080'  # Gray default
+    weight: 3
+    opacity: 0.7
+
+  # CONDITIONAL STYLING EXAMPLE
+  # Different colors for each condition rating
+  styleByProperty:
+    field: CONDITION  # Field name to check (must match GeoJSON property exactly)
+    values:  # Define styles for each possible value
+      Good:  # Roads in good condition = green
+        color: '#228B22'  # Forest green
+        weight: 3
+        opacity: 0.8
+      Fair:  # Roads in fair condition = yellow/orange
+        color: '#FFA500'  # Orange
+        weight: 3
+        opacity: 0.8
+      Poor:  # Roads in poor condition = red (needs repair)
+        color: '#DC143C'  # Crimson red
+        weight: 4  # Thicker line to emphasize poor condition
+        opacity: 0.9
+
+  resultStyle: list  # Display matching roads as a list
+  enabled: false  # Set to true when data file is available

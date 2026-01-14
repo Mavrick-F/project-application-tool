@@ -20,6 +20,11 @@ const geoJsonData = {};  // Raw GeoJSON data for all datasets
  */
 async function init() {
   try {
+    showLoading(true, 'Loading configuration...');
+
+    // Wait for datasets configuration to load from YAML
+    await datasetsLoaded;
+
     showLoading(true, 'Loading map data...');
 
     // Load all GeoJSON files

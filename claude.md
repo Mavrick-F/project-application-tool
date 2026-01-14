@@ -52,13 +52,22 @@ Web-based spatial analysis tool for Memphis MPO's RTP 2055. Users draw project a
 
 ## Configuration-Driven System (v0.6.0+)
 
-New datasets = just update `DATASETS` config in `datasets.js`. No code changes needed.
+**v0.9.3+: YAML Configuration**
+New datasets = just edit `datasets.yaml` in the root directory. The file is self-documenting with inline comments explaining every field and valid values.
+
+**How to add a dataset:**
+1. Open `datasets.yaml`
+2. Copy an existing dataset that matches your geometry type (Point, LineString, or Polygon)
+3. Modify the values (file path, field names, colors, analysis method)
+4. Save - no code changes needed, just refresh the browser
 
 **Key config properties:**
-- `analysisMethod`: 'corridor' | 'intersection' | 'proximity'
+- `analysisMethod`: 'corridor' | 'intersection' | 'proximity' | 'proximityCount' | 'binaryProximity' | 'corridorLengthByStatus'
 - `geometryType`: 'Point' | 'LineString' | 'MultiLineString' | 'Polygon'
 - `styleByProperty`: Conditional styling (e.g., color-code freight routes by Regional/Local)
 - `staticLabel`: Override field value with constant text (e.g., "STRAHNET" for all features)
+- `filterByThreshold`: Filter features by field value with optional translucent display
+- `lazyLoad`: Load large Feature Service datasets only when analysis runs
 
 ## Things to Avoid
 - Don't add build tooling - breaks deployment workflow
@@ -82,9 +91,10 @@ python -m http.server 8000
 3. **Proximity** - Point-in-buffer (bridges, crashes, employers)
 
 **File Structure:**
-- `datasets.js` - CONFIG and DATASETS configuration
-- `map.js` - Leaflet map, layers, drawing controls
-- `analysis.js` - Three generic analysis functions
-- `pdf.js` - PDF generation with html2canvas
-- `app.js` - Init, event handlers, UI management
+- `datasets.yaml` - Dataset configuration (self-documenting with inline comments)
+- `src/datasets.js` - CONFIG object and YAML loader
+- `src/map.js` - Leaflet map, layers, drawing controls
+- `src/analysis.js` - Generic analysis functions for all methods
+- `src/pdf.js` - PDF generation with html2canvas
+- `src/app.js` - Init, event handlers, UI management
 - `data/*.json` - GeoJSON datasets (12+ files)

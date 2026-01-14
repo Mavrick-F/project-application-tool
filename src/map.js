@@ -380,9 +380,9 @@ function getOptimalMapBounds() {
     const latDiff = Math.abs(lineBounds.getNorth() - lineBounds.getSouth());
     const lngDiff = Math.abs(lineBounds.getEast() - lineBounds.getWest());
 
-    // Expand bounds evenly around center by 50% on each side for better framing
-    const latPad = latDiff * 0.5;
-    const lngPad = lngDiff * 0.5;
+    // Expand bounds evenly around center by 5% on each side for tight zoom on project
+    const latPad = latDiff * 0.05;
+    const lngPad = lngDiff * 0.05;
 
     // Create new bounds centered on the project center
     return L.latLngBounds([
