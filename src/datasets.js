@@ -53,11 +53,18 @@ let DATASETS = {};
  */
 async function loadDatasets() {
   try {
-    const response = await fetch('datasets.yaml');
+    console.log('Loading datasets from YAML...');
+    const response = await fetch('./datasets.yaml');
+
     if (!response.ok) {
+      console.error(`Failed to fetch datasets.yaml: ${response.status} ${response.statusText}`);
+      console.error('Fetch URL was:', response.url);
       throw new Error(`Failed to load datasets.yaml: ${response.statusText}`);
     }
+
     const yamlText = await response.text();
+    console.log(`Received YAML (${yamlText.length} characters)`);
+
     const parsedDatasets = jsyaml.load(yamlText);
 
     // Populate DATASETS object with parsed YAML data
@@ -66,6 +73,7 @@ async function loadDatasets() {
     console.log('✓ Datasets loaded successfully from YAML:', Object.keys(DATASETS).length, 'datasets');
   } catch (error) {
     console.error('Error loading datasets from YAML:', error);
+    console.error('Stack trace:', error.stack);
     throw error;
   }
 }

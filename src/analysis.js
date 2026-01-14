@@ -16,6 +16,19 @@ const currentResults = {};        // Analysis results keyed by dataset ID
 // ============================================
 
 /**
+ * Validate that a feature has valid geometry
+ * @param {Object} feature - GeoJSON Feature
+ * @returns {boolean} True if geometry is valid
+ */
+function hasValidGeometry(feature) {
+  return feature &&
+         feature.geometry &&
+         feature.geometry.coordinates &&
+         Array.isArray(feature.geometry.coordinates) &&
+         feature.geometry.coordinates.length > 0;
+}
+
+/**
  * Clean corridor names by removing directional suffixes
  * @param {string} name - Original corridor name
  * @returns {string} Cleaned name
@@ -149,6 +162,8 @@ function analyzeCorridorMatch(drawnGeometry, datasetConfig, geoJsonData) {
 
     geoJsonData.features.forEach(feature => {
       try {
+        if (!hasValidGeometry(feature)) return;
+
         if (turf.booleanIntersects(corridorBuffer, feature)) {
           const featureName = feature.properties[datasetConfig.properties.displayField] || 'Unknown';
           let processedName = featureName;
@@ -189,6 +204,8 @@ function analyzeCorridorMatch(drawnGeometry, datasetConfig, geoJsonData) {
 
   geoJsonData.features.forEach(feature => {
     try {
+      if (!hasValidGeometry(feature)) return;
+
       // Apply analysis filter if configured (e.g., only unreliable segments)
       if (datasetConfig.analysisFilter) {
         const filterField = datasetConfig.analysisFilter.field;
@@ -301,6 +318,11 @@ function analyzeIntersection(drawnGeometry, datasetConfig, geoJsonData) {
 
   geoJsonData.features.forEach(feature => {
     try {
+      // Skip features with invalid geometry
+      if (!hasValidGeometry(feature)) {
+        return;
+      }
+
       let intersects = false;
 
       if (geometry.type === 'LineString') {
@@ -366,6 +388,8 @@ function analyzeProximity(drawnGeometry, datasetConfig, geoJsonData) {
     // Check each feature against the buffer
     geoJsonData.features.forEach(feature => {
       try {
+        if (!hasValidGeometry(feature)) return;
+
         let isNearby = false;
 
         if (datasetConfig.geometryType === 'Point') {
@@ -592,6 +616,8 @@ function analyzeProximityWithCounting(drawnGeometry, datasetConfig, geoJsonData)
     // Check each feature against the buffer
     geoJsonData.features.forEach(feature => {
       try {
+        if (!hasValidGeometry(feature)) return;
+
         let isNearby = false;
 
         if (datasetConfig.geometryType === 'Point') {
@@ -663,6 +689,8 @@ function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData
 
     geoJsonData.features.forEach(feature => {
       try {
+        if (!hasValidGeometry(feature)) return;
+
         if (turf.booleanIntersects(corridorBuffer, feature)) {
           const status = feature.properties['Reliable_Segment_'] || 'Unknown';
           const length = turf.length(feature, { units: 'miles' });
@@ -719,6 +747,8 @@ function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData
 
   geoJsonData.features.forEach(feature => {
     try {
+      if (!hasValidGeometry(feature)) return;
+
       // Quick check: does feature intersect buffer at all?
       if (!turf.booleanIntersects(corridorBuffer, feature)) {
         return; // No intersection, skip

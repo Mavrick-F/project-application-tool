@@ -25,6 +25,11 @@ async function init() {
     // Wait for datasets configuration to load from YAML
     await datasetsLoaded;
 
+    // Validate that datasets loaded successfully
+    if (Object.keys(DATASETS).length === 0) {
+      throw new Error('No datasets loaded from YAML configuration. Check console for errors.');
+    }
+
     showLoading(true, 'Loading map data...');
 
     // Load all GeoJSON files

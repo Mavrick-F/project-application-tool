@@ -28,7 +28,6 @@ Users draw project alignments or mark specific locations on an interactive map. 
 ### PDF Reports
 - Static map showing project location with all reference layers
 - Complete analysis results organized by category
-- Bridge inventory table with NBI IDs and conditions
 - Project length, metadata, and timestamp
 
 ## Integrated Datasets (20 total)
@@ -122,7 +121,7 @@ project-application-tool/
 **Configuration System (v0.9.3):**
 - `datasets.yaml` - YAML-based configuration (replaces hardcoded JavaScript)
 - Self-documenting with inline comments explaining every field
-- Non-coders can add datasets by copying/modifying YAML entries
+- Planners can add datasets by copying/modifying YAML entries
 - Zero code changes required for new datasets
 
 **External libraries** (via CDN):
@@ -140,52 +139,6 @@ project-application-tool/
 1. **Open `datasets.yaml`** in the root directory
 2. **Find a similar dataset** (matching your geometry type)
 3. **Copy and modify** the YAML entry:
-
-```yaml
-pavementCondition:
-  id: pavementCondition
-  name: Pavement Condition
-  category: Transportation
-  filePath: ../data/pavement_condition.geojson
-  geometryType: LineString               # Point, LineString, or Polygon
-  analysisMethod: corridor               # corridor, intersection, proximity, etc.
-
-  bufferDistance: 100                    # 100ft buffer for initial intersection
-  minSharedLength: 300                   # 300ft minimum parallel overlap
-  proximityBuffer: null
-
-  properties:
-    displayField: STREET_NAME            # Field shown in results
-    additionalFields:
-      - CONDITION
-      - LAST_SURVEY
-
-  specialHandling:
-    removeDirectionalSuffixes: false     # Strip " NB"/" SB" from names
-    deduplicate: false                   # Merge duplicates
-
-  style:
-    color: '#808080'                     # Default color (hex format)
-    weight: 3                            # Line thickness
-    opacity: 0.7                         # Transparency (0.0-1.0)
-
-  styleByProperty:                       # Conditional styling
-    field: CONDITION                     # Field to check
-    values:
-      Good:
-        color: '#228B22'                 # Forest green
-        weight: 3
-      Fair:
-        color: '#FFA500'                 # Orange
-        weight: 3
-      Poor:
-        color: '#DC143C'                 # Crimson red
-        weight: 4
-
-  resultStyle: list                      # How to display: list, table, count, binary
-  enabled: false                         # Set to true when data file exists
-```
-
 4. **Save and refresh** - no code changes needed
 
 **Available config options:**
@@ -241,7 +194,7 @@ python optimize_geojson.py input.json output.json --tolerance 0.001
 
 - **Desktop only** - Requires 1024px minimum width (complex mapping UI)
 - **No data persistence** - Refresh clears all work (by design)
-- **PDF capture timing** - Must wait for all layers to render (~20 seconds with many features)
+- **PDF capture timing** - Must wait for all layers to render (~5-10 seconds with many features)
 - **No undo/redo** - During drawing (Leaflet.Draw limitation) (Just draw a new line)
 - **Synchronous analysis** - May briefly freeze UI on very large projects with many overlaps
 
