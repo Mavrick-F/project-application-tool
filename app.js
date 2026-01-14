@@ -825,6 +825,18 @@ function setupEventListeners() {
  * @returns {string} HTML string for the results card
  */
 function createResultCard(datasetConfig, results) {
+  // Feature service datasets (wetlands, flood zones) have display issues in sidebar
+  // Show simplified message instead
+  if (datasetConfig.lazyLoad) {
+    let cardHtml = `<div class="results-card" data-dataset="${datasetConfig.id}">`;
+    cardHtml += `<div class="section-heading">${datasetConfig.name}</div>`;
+    cardHtml += `<p style="padding: 10px; background-color: #F5F5F5; border-left: 4px solid #0066CC; margin-top: 10px; font-size: 14px;">
+      <strong>See Full PDF Report</strong> for detailed results from ArcGIS Feature Services
+    </p>`;
+    cardHtml += `</div>`;
+    return cardHtml;
+  }
+
   // Handle count results differently (object with total and breakdown)
   const isCountResult = datasetConfig.resultStyle === 'count' && typeof results === 'object' && 'total' in results;
   const isLengthByStatusResult = datasetConfig.resultStyle === 'lengthByStatus' && typeof results === 'object' && 'total' in results;
