@@ -208,6 +208,35 @@ All datasets must be:
 
 Expected Memphis bounds: lng -90.1 to -89.6, lat 34.9 to 35.3
 
+### Optimizing GeoJSON Files
+
+Use `optimize_geojson.py` to reduce file sizes for large datasets (recommended before adding to `data/` folder):
+
+```bash
+# Basic optimization (default tolerance 0.0001)
+python optimize_geojson.py input.json
+
+# Custom output file
+python optimize_geojson.py input.json output.json
+
+# Aggressive simplification (larger tolerance = smaller files but less detail)
+python optimize_geojson.py input.json output.json --tolerance 0.001
+```
+
+**What it does:**
+- Reduces coordinate precision to decrease file size
+- Simplifies line and polygon geometries
+- Analyzes before/after file sizes
+- Supports all geometry types (Point, LineString, Polygon, Multi-* variants)
+
+**Example:** A 1.4MB file reduced to 500KB with minimal visual impact.
+
+**Typical workflow:**
+1. Export GeoJSON from GIS tool (ArcGIS, QGIS, etc.)
+2. Run `optimize_geojson.py input.json data/my_dataset.json`
+3. Add dataset entry to `datasets.yaml`
+4. Refresh browser to see new data on map
+
 ## Known Limitations
 
 - **Desktop only** - Requires 1024px minimum width (complex mapping UI)
