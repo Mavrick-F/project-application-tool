@@ -29,7 +29,7 @@ const CONFIG = {
   },
 
   // Logo path
-  logoPath: '../assets/rtp-2055-logo.jpg'
+  logoPath: './assets/rtp-2055-logo.jpg'
 };
 
 // ============================================
