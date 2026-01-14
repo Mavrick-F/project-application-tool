@@ -33,7 +33,7 @@ bridges:
   id: bridges  # Unique identifier, must match the key name
   name: Bridges  # Display name shown in UI and reports
   category: Transportation  # Groups datasets in sidebar (Transportation, Economic Development, Environmental/Cultural)
-  filePath: ../data/bridges.json  # Relative path from src/ folder to GeoJSON file
+  filePath: ./data/bridges.json  # Relative path from project root to GeoJSON file
   geometryType: Point  # Point features (single lat/lon coordinates)
   analysisMethod: proximity  # Find bridges within buffer distance of project
 
@@ -83,7 +83,7 @@ crashLocations:
   id: crashLocations
   name: Crash Locations (KSI)  # KSI = Killed or Seriously Injured
   category: Transportation
-  filePath: ../data/ksi_crashes.geojson
+  filePath: ./data/ksi_crashes.geojson
   geometryType: Point
   analysisMethod: proximityCount  # Counts features and groups by field value
 
@@ -117,7 +117,7 @@ greenprintNetwork:
   id: greenprintNetwork
   name: Greenprint Bike Network
   category: Transportation
-  filePath: ../data/greenprint.geojson
+  filePath: ./data/greenprint.geojson
   geometryType: LineString  # Line features (connected coordinate sequences)
   analysisMethod: corridor  # Find lines running parallel to project
 
@@ -167,7 +167,7 @@ highInjuryCorridors:
   id: highInjuryCorridors
   name: High Injury Corridors
   category: Transportation
-  filePath: ../data/HIN_Corridors.geojson
+  filePath: ./data/HIN_Corridors.geojson
   geometryType: LineString
   analysisMethod: corridor
 
@@ -196,7 +196,7 @@ mataRoutes:
   id: mataRoutes
   name: MATA Routes  # Memphis Area Transit Authority
   category: Transportation
-  filePath: ../data/mata-routes.json
+  filePath: ./data/mata-routes.json
   geometryType: LineString
   analysisMethod: corridor
 
@@ -225,7 +225,7 @@ strahnet:
   id: strahnet
   name: STRAHNET Routes  # Strategic Highway Network for national defense
   category: Transportation
-  filePath: ../data/strahnet.geojson
+  filePath: ./data/strahnet.geojson
   geometryType: LineString
   analysisMethod: corridor
 
@@ -254,7 +254,7 @@ travelTimeReliability:
   id: travelTimeReliability
   name: Travel Time Reliability
   category: Transportation
-  filePath: ../data/road_congestion.json
+  filePath: ./data/road_congestion.json
   geometryType: LineString
   analysisMethod: corridorLengthByStatus  # Calculate total length broken down by status
 
@@ -300,7 +300,7 @@ aliceZctas:
   id: aliceZctas
   name: ALICE ZCTAs  # Asset Limited, Income Constrained, Employed households by ZIP Code
   category: Economic Development
-  filePath: ../data/alice_zctas.geojson
+  filePath: ./data/alice_zctas.geojson
   geometryType: Polygon  # Area features (closed shapes)
   analysisMethod: intersection  # Check if project overlaps with polygon areas
 
@@ -345,7 +345,7 @@ freightClusters:
   id: freightClusters
   name: Freight Zones
   category: Economic Development
-  filePath: ../data/freight_clusters.geojson
+  filePath: ./data/freight_clusters.geojson
   geometryType: Polygon
   analysisMethod: intersection
 
@@ -374,7 +374,7 @@ truckRoutes:
   id: truckRoutes
   name: Freight Routes
   category: Economic Development
-  filePath: ../data/freight_routes.json
+  filePath: ./data/freight_routes.json
   geometryType: LineString
   analysisMethod: corridor
 
@@ -415,7 +415,7 @@ majorEmployers:
   id: majorEmployers
   name: Major Employers
   category: Economic Development
-  filePath: ../data/major_employers.geojson
+  filePath: ./data/major_employers.geojson
   geometryType: Point
   analysisMethod: proximity
 
@@ -445,7 +445,7 @@ opportunityZones:
   id: opportunityZones
   name: Opportunity Zones  # Federal tax incentive areas
   category: Economic Development
-  filePath: ../data/opportunity-zones.json
+  filePath: ./data/opportunity-zones.json
   geometryType: Polygon
   analysisMethod: intersection
 
@@ -474,7 +474,7 @@ touristAttractions:
   id: touristAttractions
   name: Tourist Destinations
   category: Economic Development
-  filePath: ../data/tourist_attractions.geojson
+  filePath: ./data/tourist_attractions.geojson
   geometryType: Point
   analysisMethod: proximity
 
@@ -544,7 +544,7 @@ epaSuperFundSites:
   id: epaSuperFundSites
   name: EPA Superfund Sites  # Contaminated sites requiring long-term cleanup
   category: Environmental/Cultural
-  filePath: ../data/epa_superfund_sites.geojson
+  filePath: ./data/epa_superfund_sites.geojson
   geometryType: Point
   analysisMethod: proximity
 
@@ -606,7 +606,7 @@ historicPoints:
   id: historicPoints
   name: NHRP Points  # National Historic Register of Places - point features
   category: Environmental/Cultural
-  filePath: ../data/historic_points.geojson
+  filePath: ./data/historic_points.geojson
   geometryType: Point
   analysisMethod: proximity
 
@@ -636,7 +636,7 @@ historicPolygons:
   id: historicPolygons
   name: NHRP Polygons  # National Historic Register - area features (districts)
   category: Environmental/Cultural
-  filePath: ../data/historic_polygons.geojson
+  filePath: ./data/historic_polygons.geojson
   geometryType: Polygon
   analysisMethod: proximity
 
@@ -665,7 +665,7 @@ parks:
   id: parks
   name: Parks
   category: Environmental/Cultural
-  filePath: ../data/parks.json
+  filePath: ./data/parks.json
   geometryType: Polygon
   analysisMethod: proximity
 
@@ -730,7 +730,7 @@ pavementCondition:
   id: pavementCondition
   name: Pavement Condition
   category: Transportation
-  filePath: ../data/pavement_condition.geojson  # Create this file with pavement data
+  filePath: ./data/pavement_condition.geojson  # Create this file with pavement data
   geometryType: LineString  # Road segments
   analysisMethod: corridor  # Find roads running parallel to project
 
