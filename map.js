@@ -258,7 +258,9 @@ function addReferenceLayers() {
         if (config.geometryType === 'Polygon') symbol = '■';
         if (config.geometryType === 'LineString') symbol = '─';
 
-        const layerLabel = `<span style="color:${config.style.color};">${symbol}</span> ${config.name}`;
+        // Use legendColor if specified, otherwise use style color
+        const symbolColor = config.legendColor || config.style.color;
+        const layerLabel = `<span style="color:${symbolColor};">${symbol}</span> ${config.name}`;
 
         // Group by category
         const category = config.category || 'Other';

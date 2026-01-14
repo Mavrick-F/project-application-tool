@@ -76,6 +76,7 @@ const DATASETS = {
         'Poor': { color: '#CC0000', fillColor: '#CC0000' }      // Bright red (lighter than project line)
       }
     },
+    legendColor: '#999999',    // Gray color for legend only (not on map)
     resultStyle: 'table',
     enabled: true
   },
@@ -511,9 +512,9 @@ const DATASETS = {
       deduplicate: false
     },
     style: {
-      color: '#FF4500',
-      fillColor: '#FF4500',
-      radius: 4,
+      color: '#000000',
+      fillColor: '#000000',
+      radius: 5,
       fillOpacity: 0.8,
       weight: 1
     },
