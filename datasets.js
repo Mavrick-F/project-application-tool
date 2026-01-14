@@ -41,6 +41,139 @@ const CONFIG = {
  * display properties, and styling options
  */
 const DATASETS = {
+  // ========== TRANSPORTATION (7 datasets - alphabetical) ==========
+
+  bridges: {
+    id: 'bridges',
+    name: 'Bridges',
+    category: 'Transportation',
+    filePath: './data/bridges.json',
+    geometryType: 'Point',
+    analysisMethod: 'proximity',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 300,
+    properties: {
+      displayField: 'STRUCTURE_',
+      additionalFields: ['Condition']
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#8B4513',        // Default color, overridden by styleByProperty
+      fillColor: '#8B4513',
+      radius: 4.5,
+      fillOpacity: 0.8,
+      weight: 1
+    },
+    styleByProperty: {  // Color by condition: green for good, yellow for fair, red for poor
+      field: 'Condition',
+      values: {
+        'Good': { color: '#228B22', fillColor: '#228B22' },     // Forest green
+        'Fair': { color: '#FFD700', fillColor: '#FFD700' },     // Gold
+        'Poor': { color: '#CC0000', fillColor: '#CC0000' }      // Bright red (lighter than project line)
+      }
+    },
+    resultStyle: 'table',
+    enabled: true
+  },
+
+  crashLocations: {
+    id: 'crashLocations',
+    name: 'Crash Locations (KSI)',
+    category: 'Transportation',
+    filePath: './data/ksi_crashes.geojson',
+    geometryType: 'Point',
+    analysisMethod: 'proximityCount',  // Use counting analysis
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 300,  // 300 feet buffer
+    countByField: 'Severity',  // Count by Fatal vs Suspected Serious Injury
+    properties: {
+      displayField: 'Severity',  // Show severity in tooltip
+      additionalFields: ['Fatality_C', 'Injured_Co']  // Show deaths and injuries
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#191970',        // Midnight blue (was dark red #8B0000)
+      fillColor: '#191970',
+      radius: 2.5,
+      fillOpacity: 0.9,
+      weight: 1
+    },
+    resultStyle: 'count',  // Special result style for counts
+    enabled: true
+  },
+
+  greenprintNetwork: {
+    id: 'greenprintNetwork',
+    name: 'Greenprint Bike Network',
+    category: 'Transportation',
+    filePath: './data/greenprint.geojson',
+    geometryType: 'LineString',
+    analysisMethod: 'corridor',
+    bufferDistance: 100,
+    minSharedLength: 300,
+    proximityBuffer: null,
+    properties: {
+      displayField: 'Priority_T',  // Show Regional, Intermediate, or Local
+      additionalFields: []
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#228B22',  // Default color, overridden by styleByProperty
+      weight: 2,
+      opacity: 0.8,
+      dashArray: '10, 10'  // Dashed line
+    },
+    styleByProperty: {  // Different colors for Regional, Intermediate, Local
+      field: 'Priority_T',
+      values: {
+        'Regional': { color: '#006400', weight: 3, opacity: 0.8, dashArray: '10, 10' },      // Dark green for Regional
+        'Intermediate': { color: '#228B22', weight: 3, opacity: 0.8, dashArray: '10, 10' },  // Medium green for Intermediate
+        'Local': { color: '#90EE90', weight: 2, opacity: 0.8, dashArray: '10, 10' }          // Light green for Local
+      }
+    },
+    resultStyle: 'list',
+    enabled: true
+  },
+
+  highInjuryCorridors: {
+    id: 'highInjuryCorridors',
+    name: 'High Injury Corridors',
+    category: 'Transportation',
+    filePath: './data/HIN_Corridors.geojson',
+    geometryType: 'LineString',
+    analysisMethod: 'corridor',
+    bufferDistance: 100,
+    minSharedLength: 300,
+    proximityBuffer: null,
+    properties: {
+      displayField: 'OBJECTID',
+      staticLabel: 'High Injury Corridor',  // Show static label instead of OBJECTID
+      additionalFields: []
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#FFD700',        // Gold/amber (caution color, was dark red #CC0000)
+      weight: 3,
+      opacity: 0.9
+    },
+    resultStyle: 'list',
+    enabled: true
+  },
+
   mataRoutes: {
     id: 'mataRoutes',
     name: 'MATA Routes',
@@ -96,131 +229,42 @@ const DATASETS = {
     enabled: true
   },
 
-  highInjuryCorridors: {
-    id: 'highInjuryCorridors',
-    name: 'High Injury Corridors',
+  travelTimeReliability: {
+    id: 'travelTimeReliability',
+    name: 'Travel Time Reliability',
     category: 'Transportation',
-    filePath: './data/HIN_Corridors.geojson',
+    filePath: './data/road_congestion.json',
     geometryType: 'LineString',
-    analysisMethod: 'corridor',
+    analysisMethod: 'corridorLengthByStatus',
     bufferDistance: 100,
     minSharedLength: 300,
     proximityBuffer: null,
     properties: {
-      displayField: 'OBJECTID',
-      staticLabel: 'High Injury Corridor',  // Show static label instead of OBJECTID
-      additionalFields: []
+      displayField: 'name',
+      additionalFields: ['Travel_Time_Index', 'Level_of_Travel_Time_Reliability']
     },
     specialHandling: {
       removeDirectionalSuffixes: false,
-      deduplicate: false
+      deduplicate: true
     },
     style: {
-      color: '#FFD700',        // Gold/amber (caution color, was dark red #CC0000)
+      color: '#808080',
       weight: 3,
-      opacity: 0.9
+      opacity: 0.6
     },
-    resultStyle: 'list',
-    enabled: true
-  },
-
-  greenprintNetwork: {
-    id: 'greenprintNetwork',
-    name: 'Greenprint Bike Network',
-    category: 'Transportation',
-    filePath: './data/greenprint.geojson',
-    geometryType: 'LineString',
-    analysisMethod: 'corridor',
-    bufferDistance: 100,
-    minSharedLength: 300,
-    proximityBuffer: null,
-    properties: {
-      displayField: 'Priority_T',  // Show Regional, Intermediate, or Local
-      additionalFields: []
-    },
-    specialHandling: {
-      removeDirectionalSuffixes: false,
-      deduplicate: false
-    },
-    style: {
-      color: '#228B22',  // Default color, overridden by styleByProperty
-      weight: 2,
-      opacity: 0.8,
-      dashArray: '10, 10'  // Dashed line
-    },
-    styleByProperty: {  // Different colors for Regional, Intermediate, Local
-      field: 'Priority_T',
+    styleByProperty: {
+      field: 'Reliable_Segment_',
       values: {
-        'Regional': { color: '#006400', weight: 3, opacity: 0.8, dashArray: '10, 10' },      // Dark green for Regional
-        'Intermediate': { color: '#228B22', weight: 3, opacity: 0.8, dashArray: '10, 10' },  // Medium green for Intermediate
-        'Local': { color: '#90EE90', weight: 2, opacity: 0.8, dashArray: '10, 10' }          // Light green for Local
+        'True': { color: '#808080', weight: 3, opacity: 0.6 },
+        'False': { color: '#FFD700', weight: 4, opacity: 0.9 }
       }
     },
-    resultStyle: 'list',
+    resultStyle: 'lengthByStatus',
+    hideInPdfRendering: true,
     enabled: true
   },
 
-  truckRoutes: {
-    id: 'truckRoutes',
-    name: 'Freight Routes',
-    category: 'Economic Development',
-    filePath: './data/freight_routes.json',
-    geometryType: 'LineString',
-    analysisMethod: 'corridor',
-    bufferDistance: 100,
-    minSharedLength: 300,
-    proximityBuffer: null,
-    properties: {
-      displayField: 'Type',  // Show Regional or Local
-      additionalFields: []
-    },
-    specialHandling: {
-      removeDirectionalSuffixes: false,
-      deduplicate: false
-    },
-    style: {
-      color: '#CC6600',  // Default color, overridden by styleByProperty
-      weight: 2,
-      opacity: 0.7
-    },
-    styleByProperty: {  // Different colors for Regional vs Local
-      field: 'Type',
-      values: {
-        'Regional': { color: '#2F4F4F', weight: 3, opacity: 0.8 },  // Dark slate gray (was red #CC0000)
-        'Local': { color: '#DEB887', weight: 2, opacity: 0.7 }      // Burlywood/tan (was orange #FF9900)
-      }
-    },
-    resultStyle: 'list',
-    enabled: true
-  },
-
-  opportunityZones: {
-    id: 'opportunityZones',
-    name: 'Opportunity Zones',
-    category: 'Economic Development',
-    filePath: './data/opportunity-zones.json',
-    geometryType: 'Polygon',
-    analysisMethod: 'intersection',
-    bufferDistance: null,
-    minSharedLength: null,
-    proximityBuffer: null,
-    properties: {
-      displayField: 'CENSUSTRAC',
-      additionalFields: []
-    },
-    specialHandling: {
-      removeDirectionalSuffixes: false,
-      deduplicate: false
-    },
-    style: {
-      color: '#FF8C00',
-      weight: 2,
-      fillColor: '#FFD700',
-      fillOpacity: 0.3
-    },
-    resultStyle: 'list',
-    enabled: true
-  },
+  // ========== ECONOMIC DEVELOPMENT (6 datasets - alphabetical) ==========
 
   aliceZctas: {
     id: 'aliceZctas',
@@ -291,18 +335,18 @@ const DATASETS = {
     enabled: true
   },
 
-  parks: {
-    id: 'parks',
-    name: 'Parks',
-    category: 'Environmental/Cultural',
-    filePath: './data/parks.json',
-    geometryType: 'Polygon',
-    analysisMethod: 'proximity',
-    bufferDistance: null,
-    minSharedLength: null,
-    proximityBuffer: 200,
+  truckRoutes: {
+    id: 'truckRoutes',
+    name: 'Freight Routes',
+    category: 'Economic Development',
+    filePath: './data/freight_routes.json',
+    geometryType: 'LineString',
+    analysisMethod: 'corridor',
+    bufferDistance: 100,
+    minSharedLength: 300,
+    proximityBuffer: null,
     properties: {
-      displayField: 'NAME',
+      displayField: 'Type',  // Show Regional or Local
       additionalFields: []
     },
     specialHandling: {
@@ -310,99 +354,18 @@ const DATASETS = {
       deduplicate: false
     },
     style: {
-      color: '#228B22',
+      color: '#CD853F',  // Default color, overridden by styleByProperty
       weight: 2,
-      fillColor: '#90EE90',
-      fillOpacity: 0.3
+      opacity: 0.7
+    },
+    styleByProperty: {  // Different colors for Regional vs Local (warm tones to complement teal zones)
+      field: 'Type',
+      values: {
+        'Regional': { color: '#8B4513', weight: 3, opacity: 0.8 },  // Saddle brown (warm, darker complement)
+        'Local': { color: '#DEB887', weight: 2, opacity: 0.7 }      // Burlywood (warm, lighter complement)
+      }
     },
     resultStyle: 'list',
-    enabled: true
-  },
-
-  historicPolygons: {
-    id: 'historicPolygons',
-    name: 'NHRP Polygons',
-    category: 'Environmental/Cultural',
-    filePath: './data/historic_polygons.geojson',
-    geometryType: 'Polygon',
-    analysisMethod: 'proximity',
-    bufferDistance: null,
-    minSharedLength: null,
-    proximityBuffer: 200,
-    properties: {
-      displayField: 'RESNAME',
-      additionalFields: []
-    },
-    specialHandling: {
-      removeDirectionalSuffixes: false,
-      deduplicate: false
-    },
-    style: {
-      color: '#8B4513',
-      weight: 2,
-      fillColor: '#DEB887',
-      fillOpacity: 0.3
-    },
-    resultStyle: 'list',
-    enabled: true
-  },
-
-  bridges: {
-    id: 'bridges',
-    name: 'Bridges',
-    category: 'Transportation',
-    filePath: './data/bridges.json',
-    geometryType: 'Point',
-    analysisMethod: 'proximity',
-    bufferDistance: null,
-    minSharedLength: null,
-    proximityBuffer: 300,
-    properties: {
-      displayField: 'STRUCTURE_',
-      additionalFields: ['Condition']
-    },
-    specialHandling: {
-      removeDirectionalSuffixes: false,
-      deduplicate: false
-    },
-    style: {
-      color: '#8B4513',        // Saddle brown (was crimson #DC143C)
-      fillColor: '#8B4513',
-      radius: 3,
-      fillOpacity: 0.8,
-      weight: 1
-    },
-    resultStyle: 'table',
-    enabled: true
-  },
-
-  crashLocations: {
-    id: 'crashLocations',
-    name: 'Crash Locations (KSI)',
-    category: 'Transportation',
-    filePath: './data/ksi_crashes.geojson',
-    geometryType: 'Point',
-    analysisMethod: 'proximityCount',  // Use counting analysis
-    bufferDistance: null,
-    minSharedLength: null,
-    proximityBuffer: 300,  // 300 feet buffer
-    countByField: 'Severity',  // Count by Fatal vs Suspected Serious Injury
-    properties: {
-      displayField: 'Severity',  // Show severity in tooltip
-      additionalFields: ['Fatality_C', 'Injured_Co']  // Show deaths and injuries
-    },
-    specialHandling: {
-      removeDirectionalSuffixes: false,
-      deduplicate: false
-    },
-    style: {
-      color: '#191970',        // Midnight blue (was dark red #8B0000)
-      fillColor: '#191970',
-      radius: 4,
-      fillOpacity: 0.9,
-      weight: 1
-    },
-    resultStyle: 'count',  // Special result style for counts
     enabled: true
   },
 
@@ -430,6 +393,34 @@ const DATASETS = {
       radius: 4,
       fillOpacity: 0.8,
       weight: 1
+    },
+    resultStyle: 'list',
+    enabled: true
+  },
+
+  opportunityZones: {
+    id: 'opportunityZones',
+    name: 'Opportunity Zones',
+    category: 'Economic Development',
+    filePath: './data/opportunity-zones.json',
+    geometryType: 'Polygon',
+    analysisMethod: 'intersection',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: null,
+    properties: {
+      displayField: 'CENSUSTRAC',
+      additionalFields: []
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#FF8C00',
+      weight: 2,
+      fillColor: '#FFD700',
+      fillOpacity: 0.3
     },
     resultStyle: 'list',
     enabled: true
@@ -464,95 +455,7 @@ const DATASETS = {
     enabled: true
   },
 
-  historicPoints: {
-    id: 'historicPoints',
-    name: 'NHRP Points',
-    category: 'Environmental/Cultural',
-    filePath: './data/historic_points.geojson',
-    geometryType: 'Point',
-    analysisMethod: 'proximity',
-    bufferDistance: null,
-    minSharedLength: null,
-    proximityBuffer: 200,
-    properties: {
-      displayField: 'RESNAME',
-      additionalFields: []
-    },
-    specialHandling: {
-      removeDirectionalSuffixes: false,
-      deduplicate: false
-    },
-    style: {
-      color: '#8B4513',
-      fillColor: '#8B4513',
-      radius: 3,
-      fillOpacity: 0.8,
-      weight: 1
-    },
-    resultStyle: 'list',
-    enabled: true
-  },
-
-  epaSuperFundSites: {
-    id: 'epaSuperFundSites',
-    name: 'EPA Superfund Sites',
-    category: 'Environmental/Cultural',
-    filePath: './data/epa_superfund_sites.geojson',
-    geometryType: 'Point',
-    analysisMethod: 'proximity',
-    bufferDistance: null,
-    minSharedLength: null,
-    proximityBuffer: 200,
-    properties: {
-      displayField: 'PRIMARY_NAME',  // Use correct field name
-      additionalFields: []
-    },
-    specialHandling: {
-      removeDirectionalSuffixes: false,
-      deduplicate: false
-    },
-    style: {
-      color: '#FF4500',
-      fillColor: '#FF4500',
-      radius: 4,
-      fillOpacity: 0.8,
-      weight: 1
-    },
-    resultStyle: 'list',
-    enabled: true
-  },
-
-  // ========== ARCGIS FEATURE SERVICE DATASETS ==========
-
-  wetlands: {
-    id: 'wetlands',
-    name: 'Wetlands',
-    lazyLoad: true,
-    category: 'Environmental/Cultural',
-    featureServiceUrl: 'https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0',
-    geometryType: 'Polygon',
-    analysisMethod: 'binaryProximity',
-    bufferDistance: null,
-    minSharedLength: null,
-    proximityBuffer: 200,
-    properties: {
-      displayField: 'WETLAND_TY',
-      additionalFields: ['ACRES']
-    },
-    specialHandling: {
-      removeDirectionalSuffixes: false,
-      deduplicate: false
-    },
-    style: {
-      color: '#556B2F',          // Olive green border
-      weight: 2,
-      fillColor: '#6B8E23',      // Olive drab fill
-      fillOpacity: 0.4
-    },
-    resultStyle: 'binary',
-    binaryLabel: 'Within Wetlands',
-    enabled: true
-  },
+  // ========== ENVIRONMENTAL/CULTURAL (7 datasets - alphabetical) ==========
 
   criticalWetlands: {
     id: 'criticalWetlands',
@@ -589,6 +492,35 @@ const DATASETS = {
     enabled: true
   },
 
+  epaSuperFundSites: {
+    id: 'epaSuperFundSites',
+    name: 'EPA Superfund Sites',
+    category: 'Environmental/Cultural',
+    filePath: './data/epa_superfund_sites.geojson',
+    geometryType: 'Point',
+    analysisMethod: 'proximity',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 200,
+    properties: {
+      displayField: 'PRIMARY_NAME',  // Use correct field name
+      additionalFields: []
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#FF4500',
+      fillColor: '#FF4500',
+      radius: 4,
+      fillOpacity: 0.8,
+      weight: 1
+    },
+    resultStyle: 'list',
+    enabled: true
+  },
+
   floodZones: {
     id: 'floodZones',
     name: 'Flood Zones',
@@ -620,38 +552,118 @@ const DATASETS = {
     enabled: true
   },
 
-  travelTimeReliability: {
-    id: 'travelTimeReliability',
-    name: 'Travel Time Reliability',
-    category: 'Transportation',
-    filePath: './data/road_congestion.json',
-    geometryType: 'LineString',
-    analysisMethod: 'corridorLengthByStatus',
-    bufferDistance: 100,
-    minSharedLength: 300,
-    proximityBuffer: null,
+  historicPoints: {
+    id: 'historicPoints',
+    name: 'NHRP Points',
+    category: 'Environmental/Cultural',
+    filePath: './data/historic_points.geojson',
+    geometryType: 'Point',
+    analysisMethod: 'proximity',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 200,
     properties: {
-      displayField: 'name',
-      additionalFields: ['Travel_Time_Index', 'Level_of_Travel_Time_Reliability']
+      displayField: 'RESNAME',
+      additionalFields: []
     },
     specialHandling: {
       removeDirectionalSuffixes: false,
-      deduplicate: true
+      deduplicate: false
     },
     style: {
-      color: '#808080',
-      weight: 3,
-      opacity: 0.6
+      color: '#8B4513',
+      fillColor: '#8B4513',
+      radius: 3,
+      fillOpacity: 0.8,
+      weight: 1
     },
-    styleByProperty: {
-      field: 'Reliable_Segment_',
-      values: {
-        'True': { color: '#808080', weight: 3, opacity: 0.6 },
-        'False': { color: '#FFD700', weight: 4, opacity: 0.9 }
-      }
+    resultStyle: 'list',
+    enabled: true
+  },
+
+  historicPolygons: {
+    id: 'historicPolygons',
+    name: 'NHRP Polygons',
+    category: 'Environmental/Cultural',
+    filePath: './data/historic_polygons.geojson',
+    geometryType: 'Polygon',
+    analysisMethod: 'proximity',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 200,
+    properties: {
+      displayField: 'RESNAME',
+      additionalFields: []
     },
-    resultStyle: 'lengthByStatus',
-    hideInPdfRendering: true,
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#8B4513',
+      weight: 2,
+      fillColor: '#DEB887',
+      fillOpacity: 0.3
+    },
+    resultStyle: 'list',
+    enabled: true
+  },
+
+  parks: {
+    id: 'parks',
+    name: 'Parks',
+    category: 'Environmental/Cultural',
+    filePath: './data/parks.json',
+    geometryType: 'Polygon',
+    analysisMethod: 'proximity',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 200,
+    properties: {
+      displayField: 'NAME',
+      additionalFields: []
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#228B22',
+      weight: 2,
+      fillColor: '#90EE90',
+      fillOpacity: 0.3
+    },
+    resultStyle: 'list',
+    enabled: true
+  },
+
+  wetlands: {
+    id: 'wetlands',
+    name: 'Wetlands',
+    lazyLoad: true,
+    category: 'Environmental/Cultural',
+    featureServiceUrl: 'https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0',
+    geometryType: 'Polygon',
+    analysisMethod: 'binaryProximity',
+    bufferDistance: null,
+    minSharedLength: null,
+    proximityBuffer: 200,
+    properties: {
+      displayField: 'WETLAND_TY',
+      additionalFields: ['ACRES']
+    },
+    specialHandling: {
+      removeDirectionalSuffixes: false,
+      deduplicate: false
+    },
+    style: {
+      color: '#556B2F',          // Olive green border
+      weight: 2,
+      fillColor: '#6B8E23',      // Olive drab fill
+      fillOpacity: 0.4
+    },
+    resultStyle: 'binary',
+    binaryLabel: 'Within Wetlands',
     enabled: true
   }
 };

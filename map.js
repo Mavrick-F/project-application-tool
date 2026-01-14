@@ -73,7 +73,16 @@ function addReferenceLayers() {
         // ========== POINT LAYERS ==========
         layer = L.geoJSON(geoJsonData[datasetKey], {
           pointToLayer: (feature, latlng) => {
-            return L.circleMarker(latlng, config.style);
+            // Get style with conditional styling support
+            let featureStyle = config.style;
+            if (config.styleByProperty) {
+              const propertyValue = feature.properties[config.styleByProperty.field];
+              const propertyStyle = config.styleByProperty.values[propertyValue];
+              if (propertyStyle) {
+                featureStyle = { ...config.style, ...propertyStyle };
+              }
+            }
+            return L.circleMarker(latlng, featureStyle);
           },
           onEachFeature: (feature, leafletLayer) => {
             // Use staticLabel if defined, otherwise use field value
@@ -96,14 +105,24 @@ function addReferenceLayers() {
               className: 'leaflet-tooltip'
             });
 
+            // Get current feature style for hover effects
+            let currentStyle = config.style;
+            if (config.styleByProperty) {
+              const propertyValue = feature.properties[config.styleByProperty.field];
+              const propertyStyle = config.styleByProperty.values[propertyValue];
+              if (propertyStyle) {
+                currentStyle = { ...config.style, ...propertyStyle };
+              }
+            }
+
             // Hover effects
-            const hoverStyle = { ...config.style, radius: (config.style.radius || 3) + 2 };
+            const hoverStyle = { ...currentStyle, radius: (currentStyle.radius || 3) + 2 };
             leafletLayer.on('mouseover', function() {
               this.setStyle(hoverStyle);
             });
 
             leafletLayer.on('mouseout', function() {
-              this.setStyle(config.style);
+              this.setStyle(currentStyle);
             });
           }
         });

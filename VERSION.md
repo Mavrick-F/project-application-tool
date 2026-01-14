@@ -1,5 +1,29 @@
 # Version History
 
+## v0.9.2 (2026-01-14) - Travel Time Reliability & Visual Polish
+
+### Travel Time Reliability Improvements
+- **Changed from mileage to percentages**: Displays % Reliable/Unreliable instead of absolute miles for dual carriageway accuracy
+- **Added Mean LOTTR metric**: Shows average Level_of_Travel_Time_Reliability across all captured segments
+- **UI/PDF consistency**: Percentages and Mean LOTTR display in both sidebar results and PDF reports
+- Fixes misleading results on dual carriageways and complex road networks
+
+### Visual & Layout Improvements
+- **Layers alphabetically organized**: All 20 datasets now ordered A-Z within their three categories
+  - Transportation: Bridges, Crash Locations, Greenprint, High Injury, MATA, STRAHNET, Travel Time Reliability
+  - Economic Development: ALICE ZCTAs, Freight Clusters, Freight Routes, Major Employers, Opportunity Zones, Tourist Destinations
+  - Environmental/Cultural: Critical Wetlands, EPA Superfund, Flood Zones, Historic Points, Historic Polygons, Parks, Wetlands
+- **Crash location dots smaller**: Reduced from radius 4 to 2.5 for less visual clutter
+- **Bridge styling enhanced**:
+  - Increased size (radius 4.5 for better visibility)
+  - Conditional coloring by condition (Good=Green, Fair=Gold, Poor=Bright Red)
+  - Condition-based colors now display on interactive map layer (not just PDF)
+- **Freight routes repositioned**: Moved adjacent to Freight Zones with complementary warm tones (brown/tan) that contrast teal zones
+
+### Configuration Changes
+- Point layer styling now supports `styleByProperty` for conditional marker colors
+- Enhanced `createPointMarker()` in map.js to apply feature-specific styling
+
 ## v0.9.1 (2026-01-12) - Feature Services Integration & Categorization
 - **Integrated ArcGIS Feature Services**: Wetlands, Critical Wetlands, and Flood Zones now load via lazy-loading from ArcGIS Online
 - **Lazy-loading architecture**: Feature services query on project draw (not at startup) with 200ft bounding box filter for fast performance

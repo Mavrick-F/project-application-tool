@@ -1,6 +1,6 @@
 # Memphis MPO Project Application Tool
 
-![Version](https://img.shields.io/badge/version-0.9.1-blue) ![Status](https://img.shields.io/badge/status-feature%20complete-brightgreen)
+![Version](https://img.shields.io/badge/version-0.9.2-blue) ![Status](https://img.shields.io/badge/status-feature%20complete-brightgreen)
 
 A web-based mapping tool for analyzing transportation project proposals against regional planning datasets. Built for the Memphis Metropolitan Planning Organization's Regional Transportation Plan (RTP) 2055.
 
@@ -10,7 +10,7 @@ A web-based mapping tool for analyzing transportation project proposals against 
 
 Users draw project alignments or mark specific locations on an interactive map. The tool automatically identifies intersecting or nearby transportation infrastructure and planning features, then generates a PDF report summarizing the findings.
 
-**Current Status:** v0.9.1 - Feature complete with all 19 core datasets integrated. Ready for v1.0 release.
+**Current Status:** v0.9.2 - Feature complete with all 20 core datasets integrated and alphabetically organized. Ready for v1.0 release.
 
 ## Features
 
@@ -31,34 +31,33 @@ Users draw project alignments or mark specific locations on an interactive map. 
 - Bridge inventory table with NBI IDs and conditions
 - Project length, metadata, and timestamp
 
-## Integrated Datasets (19 total)
+## Integrated Datasets (20 total)
 
-**Transportation (8):**
+**Transportation (7):**
+- Bridges - Bridge inventory with condition-based colors (Green/Yellow/Red)
+- Crash Locations (KSI) - Fatal and Suspected Serious Injury crashes (counting by severity)
+- Greenprint Bike Network - Regional/Intermediate/Local routes (dashed, color-coded)
+- High Injury Corridors - Safety priority corridors
 - MATA Routes - Transit network
 - STRAHNET Routes - Strategic Highway Network
-- Freight Routes - Regional/local freight routes (color-coded)
-- Crash Locations (KSI) - Fatal and Suspected Serious Injury crashes (counting by severity)
-- High Injury Corridors - Safety priority corridors
-- Greenprint Bike Network - Regional/Intermediate/Local routes (dashed, color-coded)
-- Travel Time Reliability - Road segments with reliability status (length summation)
-- Bridges - Bridge inventory with conditions
+- Travel Time Reliability - Road segments with reliability percentages and mean LOTTR
 
-**Economic Development (5):**
-- Opportunity Zones - Census tract designations
+**Economic Development (6):**
 - ALICE ZCTAs - Economic distress indicators (≥45% threshold, shows % below ALICE)
-- Freight Zones - Designated freight activity areas
+- Freight Clusters - Designated freight activity zones (teal)
+- Freight Routes - Regional/local freight routes (warm tones: brown/tan)
 - Major Employers - Significant employment centers
+- Opportunity Zones - Census tract designations
 - Tourist Destinations - Regional attractions
 
-**Historic & Cultural (2):**
-- NHRP Polygons - Historic district boundaries
-- NHRP Points - Individual historic sites
-
-**Environment & Recreation (5):**
-- Parks - Public park boundaries
-- Wetlands - Wetland areas, with forested wetlands captured as a second "Critical Wetlands" feature
-- Flood Zones 100-year flood-plains
+**Environmental/Cultural (7):**
+- Critical Wetlands - Freshwater forested/shrub wetlands (filtered from all wetlands)
 - EPA Superfund Sites - Environmental cleanup locations
+- Flood Zones - 100-year flood plains (dashed border)
+- Historic Points (NHRP) - Individual historic sites
+- Historic Polygons (NHRP) - Historic district boundaries
+- Parks - Public park boundaries
+- Wetlands - All wetland areas (olive green)
 
 
 ## Usage

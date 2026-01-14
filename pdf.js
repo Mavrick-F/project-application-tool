@@ -402,11 +402,16 @@ async function generatePDF() {
         yPosition += 0.1;  // Add spacing between datasets
 
       } else if (config.resultStyle === 'lengthByStatus') {
-        // Length by status format (for travel time reliability - show miles by status)
+        // Length by status format (for travel time reliability - show percentages and mean LOTTR)
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'bold');
-        pdf.text(`  Total: ${results.total.toFixed(1)} miles`, margin, yPosition);
-        yPosition += 0.18;
+
+        // Show mean LOTTR if available
+        if (results.meanLOTTR !== null && results.meanLOTTR !== undefined) {
+          pdf.text(`  Mean LOTTR: ${results.meanLOTTR.toFixed(2)}`, margin, yPosition);
+          yPosition += 0.18;
+        }
+
         pdf.setFont('helvetica', 'normal');
 
         if (results.breakdown && Object.keys(results.breakdown).length > 0) {
@@ -417,10 +422,10 @@ async function generatePDF() {
             return 0;
           });
 
-          sortedBreakdown.forEach(([status, miles]) => {
+          sortedBreakdown.forEach(([status, percentage]) => {
             checkPageBreak(0.2);
             const statusLabel = status === 'True' ? 'Reliable' : 'Unreliable';
-            pdf.text(`    • ${statusLabel}: ${miles.toFixed(1)} miles`, margin, yPosition);
+            pdf.text(`    • ${statusLabel}: ${percentage.toFixed(1)}%`, margin, yPosition);
             yPosition += 0.16;
           });
         }

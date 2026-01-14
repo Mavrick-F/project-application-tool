@@ -827,7 +827,10 @@ function setupEventListeners() {
 function createResultCard(datasetConfig, results) {
   // Handle count results differently (object with total and breakdown)
   const isCountResult = datasetConfig.resultStyle === 'count' && typeof results === 'object' && 'total' in results;
-  const count = isCountResult ? results.total : results.length;
+  const isLengthByStatusResult = datasetConfig.resultStyle === 'lengthByStatus' && typeof results === 'object' && 'total' in results;
+
+  // For lengthByStatus, use features.length as count; for count results use total; otherwise use array length
+  const count = isLengthByStatusResult ? (results.features ? results.features.length : 0) : (isCountResult ? results.total : results.length);
   const hasResults = count > 0;
 
   let cardHtml = `<div class="results-card" data-dataset="${datasetConfig.id}">`;
@@ -835,6 +838,34 @@ function createResultCard(datasetConfig, results) {
 
   if (!hasResults) {
     cardHtml += `<p class="empty-state">No ${datasetConfig.name.toLowerCase()} found</p>`;
+  } else if (datasetConfig.resultStyle === 'lengthByStatus') {
+    // Length by status format (for travel time reliability - show percentages and mean LOTTR)
+    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
+
+    // Show mean LOTTR if available
+    if (results.meanLOTTR !== null && results.meanLOTTR !== undefined) {
+      cardHtml += `<p style="margin: 0 0 10px 0; font-weight: bold; font-size: 14px;">Mean LOTTR: ${results.meanLOTTR.toFixed(2)}</p>`;
+    }
+
+    if (results.breakdown && Object.keys(results.breakdown).length > 0) {
+      cardHtml += `<ul class="results-list" style="margin: 0; padding-left: 20px;">`;
+
+      // Sort breakdown by status (True first, then False)
+      const sortedBreakdown = Object.entries(results.breakdown).sort((a, b) => {
+        if (a[0] === 'True' && b[0] !== 'True') return -1;
+        if (a[0] !== 'True' && b[0] === 'True') return 1;
+        return 0;
+      });
+
+      sortedBreakdown.forEach(([status, percentage]) => {
+        const statusLabel = status === 'True' ? 'Reliable' : 'Unreliable';
+        cardHtml += `<li><strong>${statusLabel}:</strong> ${percentage.toFixed(1)}%</li>`;
+      });
+
+      cardHtml += `</ul>`;
+    }
+
+    cardHtml += `</div>`;
   } else if (datasetConfig.resultStyle === 'count') {
     // Count format (for datasets that count features by category)
     cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;

@@ -636,16 +636,19 @@ function analyzeProximityWithCounting(drawnGeometry, datasetConfig, geoJsonData)
  * Analyze corridor with length summation by reliability status
  * Sums up the total length of segments that fall within the corridor buffer,
  * grouped by reliability status (reliable vs unreliable)
+ * Calculates percentages and mean LOTTR for all captured segments
  * Used specifically for Travel Time Reliability dataset
  * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
  * @param {Object} datasetConfig - Configuration object from DATASETS
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
- * @returns {Object} Object with lengths by reliability status and matched features
+ * @returns {Object} Object with percentages by reliability status, mean LOTTR, and matched features
  */
 function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData) {
   const lengthsByStatus = {};  // Track lengths by Reliable_Segment_ value
   const matchedFeatures = [];  // Store matched features for map rendering
   let totalLength = 0;
+  let lottrSum = 0;  // Sum of LOTTR values for calculating mean
+  let lottrCount = 0;  // Count of features with LOTTR values
 
   // Extract actual geometry from GeoJSON Feature if needed
   const geometry = drawnGeometry.type === 'Feature'
@@ -666,6 +669,13 @@ function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData
           lengthsByStatus[status] = (lengthsByStatus[status] || 0) + length;
           totalLength += length;
 
+          // Collect LOTTR values for mean calculation
+          const lottr = parseFloat(feature.properties['Level_of_Travel_Time_Reliability']);
+          if (!isNaN(lottr)) {
+            lottrSum += lottr;
+            lottrCount++;
+          }
+
           matchedFeatures.push({
             type: 'Feature',
             geometry: feature.geometry,
@@ -677,9 +687,21 @@ function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData
       }
     });
 
+    // Calculate percentages
+    const percentageBreakdown = {};
+    if (totalLength > 0) {
+      Object.keys(lengthsByStatus).forEach(status => {
+        percentageBreakdown[status] = (lengthsByStatus[status] / totalLength) * 100;
+      });
+    }
+
+    // Calculate mean LOTTR
+    const meanLOTTR = lottrCount > 0 ? lottrSum / lottrCount : null;
+
     return {
       total: totalLength,
-      breakdown: lengthsByStatus,
+      breakdown: percentageBreakdown,
+      meanLOTTR: meanLOTTR,
       features: matchedFeatures
     };
   }
@@ -742,6 +764,13 @@ function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData
         lengthsByStatus[status] = (lengthsByStatus[status] || 0) + lengthInMiles;
         totalLength += lengthInMiles;
 
+        // Collect LOTTR values for mean calculation
+        const lottr = parseFloat(feature.properties['Level_of_Travel_Time_Reliability']);
+        if (!isNaN(lottr)) {
+          lottrSum += lottr;
+          lottrCount++;
+        }
+
         matchedFeatures.push({
           type: 'Feature',
           geometry: feature.geometry,
@@ -754,9 +783,21 @@ function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData
     }
   });
 
+  // Calculate percentages
+  const percentageBreakdown = {};
+  if (totalLength > 0) {
+    Object.keys(lengthsByStatus).forEach(status => {
+      percentageBreakdown[status] = (lengthsByStatus[status] / totalLength) * 100;
+    });
+  }
+
+  // Calculate mean LOTTR
+  const meanLOTTR = lottrCount > 0 ? lottrSum / lottrCount : null;
+
   return {
     total: totalLength,
-    breakdown: lengthsByStatus,
+    breakdown: percentageBreakdown,
+    meanLOTTR: meanLOTTR,
     features: matchedFeatures
   };
 }
