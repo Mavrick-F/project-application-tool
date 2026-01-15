@@ -881,6 +881,7 @@ function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
   // Step 1: Create combined buffer of all dataset features (prevents double-counting)
   let combinedBuffer = null;
   const validFeatures = [];
+  const featureBufferCache = new Map();  // Cache buffers to avoid re-computation
 
   geoJsonData.features.forEach(feature => {
     if (!hasValidGeometry(feature)) return;
@@ -888,6 +889,9 @@ function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
     try {
       // Buffer this feature by configured distance (typically 100ft)
       const featureBuffer = turf.buffer(feature, datasetConfig.bufferDistance, { units: 'feet' });
+
+      // Cache the buffer for later reuse
+      featureBufferCache.set(feature, featureBuffer);
 
       // Union with existing buffer
       if (combinedBuffer === null) {
@@ -945,31 +949,21 @@ function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
   const percentage = Math.min(100, Math.round((coveredLength / totalProjectLength) * 100));
 
   // Collect features that actually contribute to coverage (for map display)
+  // Use cached buffers for fast intersection check (no re-buffering, no per-segment measuring)
   const matchedFeatures = [];
 
   validFeatures.forEach(feature => {
     try {
-      const featureBuffer = turf.buffer(feature, datasetConfig.bufferDistance, { units: 'feet' });
+      // Reuse cached buffer instead of re-computing
+      const featureBuffer = featureBufferCache.get(feature);
 
-      // Check if project has meaningful overlap with this feature
+      // Simple intersection check - if project intersects buffer, include the feature
       if (turf.booleanIntersects(geometry, featureBuffer)) {
-        let featureOverlapLength = 0;
-
-        for (let i = 0; i < projectCoords.length - 1; i++) {
-          const segment = turf.lineString([projectCoords[i], projectCoords[i + 1]]);
-          if (turf.booleanIntersects(segment, featureBuffer)) {
-            featureOverlapLength += measureSegmentInsideBuffer(segment, featureBuffer);
-          }
-        }
-
-        // Only include if this feature contributes meaningful overlap
-        if (featureOverlapLength >= datasetConfig.minSharedLength) {
-          matchedFeatures.push({
-            type: 'Feature',
-            geometry: feature.geometry,
-            properties: { ...feature.properties }
-          });
-        }
+        matchedFeatures.push({
+          type: 'Feature',
+          geometry: feature.geometry,
+          properties: { ...feature.properties }
+        });
       }
     } catch (error) {
       console.warn('Error checking feature overlap:', error);
