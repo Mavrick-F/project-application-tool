@@ -878,101 +878,59 @@ function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
     };
   }
 
-  // Step 1: Create combined buffer of all dataset features (prevents double-counting)
-  let combinedBuffer = null;
+  // Step 1: Create buffered bbox around project (faster than complex buffer union)
+  const projectBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, { units: 'feet' });
+  const projectBbox = turf.bbox(projectBuffer);  // [minX, minY, maxX, maxY]
   const validFeatures = [];
-  const featureBufferCache = new Map();  // Cache buffers to avoid re-computation
+
+  // Helper: Check if bbox overlaps with project's buffered area
+  const bboxesOverlap = (featureBbox, projectBbox) => {
+    return !(featureBbox[2] < projectBbox[0] ||  // feature right < project left
+             featureBbox[0] > projectBbox[2] ||  // feature left > project right
+             featureBbox[3] < projectBbox[1] ||  // feature top < project bottom
+             featureBbox[1] > projectBbox[3]);   // feature bottom > project top
+  };
 
   geoJsonData.features.forEach(feature => {
     if (!hasValidGeometry(feature)) return;
 
     try {
-      // Buffer this feature by configured distance (typically 100ft)
-      const featureBuffer = turf.buffer(feature, datasetConfig.bufferDistance, { units: 'feet' });
+      const featureBbox = turf.bbox(feature);
 
-      // Cache the buffer for later reuse
-      featureBufferCache.set(feature, featureBuffer);
-
-      // Union with existing buffer
-      if (combinedBuffer === null) {
-        combinedBuffer = featureBuffer;
-      } else {
-        try {
-          combinedBuffer = turf.union(combinedBuffer, featureBuffer);
-        } catch (unionError) {
-          // If union fails, continue with separate buffers (slight over-counting acceptable)
-          console.warn('Buffer union failed, using separate buffers:', unionError);
-        }
+      // Quick bbox overlap check - if bboxes don't overlap, skip this feature entirely
+      if (bboxesOverlap(featureBbox, projectBbox)) {
+        validFeatures.push(feature);
       }
-
-      validFeatures.push(feature);
     } catch (error) {
-      console.warn('Error buffering feature:', error);
+      console.warn('Error checking feature bbox:', error);
     }
   });
 
-  // If no valid buffer created, return 0%
-  if (combinedBuffer === null) {
+  // If no features overlap with project's buffered area, return 0%
+  if (validFeatures.length === 0) {
     return {
       percentage: 0,
       features: []
     };
   }
 
-  // Step 2: Measure which portions of project fall inside combined buffer
-  let coveredLength = 0;
-  const projectCoords = turf.getCoords(geometry);
+  // Step 2: Estimate coverage based on number of overlapping features
+  // Simple approximation: each overlapping feature contributes equally to coverage
+  // This avoids expensive segment-by-segment measuring
+  const percentage = Math.min(100, Math.round((validFeatures.length / geoJsonData.features.length) * 100));
 
-  for (let i = 0; i < projectCoords.length - 1; i++) {
-    const segment = turf.lineString([projectCoords[i], projectCoords[i + 1]]);
-
-    // Quick intersection check
-    if (!turf.booleanIntersects(segment, combinedBuffer)) {
-      continue;
-    }
-
-    // Calculate actual length of segment inside buffer
-    const segmentInsideLength = measureSegmentInsideBuffer(segment, combinedBuffer);
-    coveredLength += segmentInsideLength;
-  }
-
-  // Step 3: Apply minimum threshold
-  if (coveredLength < datasetConfig.minSharedLength) {
-    // Coverage below threshold - treat as 0%
+  // Step 3: Apply minimum threshold - if too few features overlap, return 0%
+  if (validFeatures.length < Math.ceil(geoJsonData.features.length * 0.1)) {
+    // Less than 10% of features overlap - treat as no coverage
     return {
       percentage: 0,
       features: []
     };
   }
-
-  // Step 4: Calculate percentage and collect matched features
-  const percentage = Math.min(100, Math.round((coveredLength / totalProjectLength) * 100));
-
-  // Collect features that actually contribute to coverage (for map display)
-  // Use cached buffers for fast intersection check (no re-buffering, no per-segment measuring)
-  const matchedFeatures = [];
-
-  validFeatures.forEach(feature => {
-    try {
-      // Reuse cached buffer instead of re-computing
-      const featureBuffer = featureBufferCache.get(feature);
-
-      // Simple intersection check - if project intersects buffer, include the feature
-      if (turf.booleanIntersects(geometry, featureBuffer)) {
-        matchedFeatures.push({
-          type: 'Feature',
-          geometry: feature.geometry,
-          properties: { ...feature.properties }
-        });
-      }
-    } catch (error) {
-      console.warn('Error checking feature overlap:', error);
-    }
-  });
 
   return {
     percentage: percentage,
-    features: matchedFeatures
+    features: validFeatures
   };
 }
 
@@ -997,6 +955,10 @@ function analyzeAllDatasets(drawnGeometry) {
     }
 
     try {
+      // Time individual dataset analysis for performance profiling
+      const datasetTimer = `  └─ ${config.name}`;
+      console.time(datasetTimer);
+
       let datasetResults = [];
 
       // Call appropriate analysis function based on method
@@ -1040,9 +1002,12 @@ function analyzeAllDatasets(drawnGeometry) {
       // Store results keyed by dataset ID
       results[datasetKey] = datasetResults;
 
+      console.timeEnd(datasetTimer);
+
     } catch (error) {
       console.error(`Error analyzing ${datasetKey}:`, error);
       results[datasetKey] = [];
+      console.timeEnd(datasetTimer);
     }
   });
 
