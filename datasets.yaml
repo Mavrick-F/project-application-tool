@@ -298,7 +298,7 @@ travelTimeReliability:
 
 aliceZctas:
   id: aliceZctas
-  name: ALICE ZCTAs  # Asset Limited, Income Constrained, Employed households by ZIP Code
+  name: ALICE ZIP Codes  # Asset Limited, Income Constrained, Employed households by ZIP Code
   category: Economic Development
   filePath: ./data/alice_zctas.geojson
   geometryType: Polygon  # Area features (closed shapes)
@@ -401,7 +401,7 @@ truckRoutes:
     values:
       Regional:
         color: '#20B2AA'  # Light sea green (darker for major routes)
-        weight: 3
+        weight: 4
         opacity: 0.8
       Local:
         color: '#00FFFF'  # Aqua (lighter for local routes)

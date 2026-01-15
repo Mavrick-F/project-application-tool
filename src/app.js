@@ -9,6 +9,7 @@
 // APP GLOBAL VARIABLES
 // ============================================
 const geoJsonData = {};  // Raw GeoJSON data for all datasets
+const featureServiceCache = new Map();  // Cache for Feature Service query responses
 
 // ============================================
 // APPLICATION INITIALIZATION
@@ -223,6 +224,18 @@ async function queryFeatureService(serviceUrl, options = {}) {
 
     // Execute query
     const fullQueryUrl = `${queryUrl}/query?${params.toString()}`;
+
+    // Check cache first to avoid redundant queries
+    if (featureServiceCache.has(fullQueryUrl)) {
+      console.log('Using cached Feature Service response:', fullQueryUrl);
+      const cachedGeojson = featureServiceCache.get(fullQueryUrl);
+      return {
+        success: true,
+        data: cachedGeojson,
+        error: null
+      };
+    }
+
     console.log('Querying Feature Service:', fullQueryUrl);
 
     const response = await fetch(fullQueryUrl);
@@ -241,6 +254,9 @@ async function queryFeatureService(serviceUrl, options = {}) {
     const geojson = convertArcGIStoGeoJSON(arcgisJson);
 
     console.log(`Query successful: ${geojson.features.length} features returned`);
+
+    // Cache the response for future queries
+    featureServiceCache.set(fullQueryUrl, geojson);
 
     return {
       success: true,
