@@ -169,7 +169,7 @@ highInjuryCorridors:
   category: Transportation
   filePath: ./data/HIN_Corridors.geojson
   geometryType: LineString
-  analysisMethod: projectCoverage
+  analysisMethod: corridor
 
   bufferDistance: 100
   minSharedLength: 300
@@ -189,7 +189,7 @@ highInjuryCorridors:
     weight: 3
     opacity: 0.9
 
-  resultStyle: projectCoverage
+  resultStyle: list
   enabled: true
 
 mataRoutes:

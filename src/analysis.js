@@ -833,104 +833,6 @@ function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData
 }
 
 /**
- * Analyze project coverage by dataset features
- * Measures what percentage of the drawn project line runs parallel to (within buffer of) dataset features
- *
- * This is the inverse of corridorLengthByStatus:
- * - corridorLengthByStatus: measures dataset segments near project
- * - projectCoverage: measures project segments near dataset
- *
- * @param {Object} drawnGeometry - GeoJSON geometry of drawn project (LineString)
- * @param {Object} datasetConfig - Configuration from DATASETS
- * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze against
- * @returns {Object} Coverage metrics and matched features
- * @returns {number} .percentage - Percentage of project covered (0-100, rounded to integer)
- * @returns {Array} .features - Matched features for map display
- */
-function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
-  // Extract geometry from Feature wrapper if needed
-  const geometry = drawnGeometry.type === 'Feature' ? drawnGeometry.geometry : drawnGeometry;
-
-  // Validate inputs
-  if (!geoJsonData || !geoJsonData.features || geoJsonData.features.length === 0) {
-    return {
-      percentage: 0,
-      features: []
-    };
-  }
-
-  // Only works with LineString projects
-  if (geometry.type !== 'LineString') {
-    console.warn('projectCoverage analysis only supports LineString geometry');
-    return {
-      percentage: 0,
-      features: []
-    };
-  }
-
-  // Calculate total project length in feet
-  const totalProjectLength = turf.length(geometry, { units: 'feet' });
-
-  if (totalProjectLength === 0) {
-    return {
-      percentage: 0,
-      features: []
-    };
-  }
-
-  // Step 1: Create buffered bbox around project (faster than complex buffer union)
-  const projectBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, { units: 'feet' });
-  const projectBbox = turf.bbox(projectBuffer);  // [minX, minY, maxX, maxY]
-  const validFeatures = [];
-
-  // Helper: Check if bbox overlaps with project's buffered area
-  const bboxesOverlap = (featureBbox, projectBbox) => {
-    return !(featureBbox[2] < projectBbox[0] ||  // feature right < project left
-             featureBbox[0] > projectBbox[2] ||  // feature left > project right
-             featureBbox[3] < projectBbox[1] ||  // feature top < project bottom
-             featureBbox[1] > projectBbox[3]);   // feature bottom > project top
-  };
-
-  geoJsonData.features.forEach(feature => {
-    if (!hasValidGeometry(feature)) return;
-
-    try {
-      const featureBbox = turf.bbox(feature);
-
-      // Quick bbox overlap check first (fast elimination)
-      if (!bboxesOverlap(featureBbox, projectBbox)) {
-        return; // Skip if bboxes don't overlap
-      }
-
-      // Verify actual geometric intersection with buffered project
-      if (turf.booleanIntersects(feature, projectBuffer)) {
-        validFeatures.push(feature);
-      }
-    } catch (error) {
-      console.warn('Error checking feature overlap:', error);
-    }
-  });
-
-  // If no features overlap with project's buffered area, return 0%
-  if (validFeatures.length === 0) {
-    return {
-      percentage: 0,
-      features: []
-    };
-  }
-
-  // Step 2: Calculate coverage percentage based on number of overlapping features
-  // Approximation: each overlapping feature contributes equally to coverage
-  // This avoids expensive segment-by-segment measuring while maintaining accuracy
-  const percentage = Math.min(100, Math.round((validFeatures.length / geoJsonData.features.length) * 100));
-
-  return {
-    percentage: percentage,
-    features: validFeatures
-  };
-}
-
-/**
  * Master analysis function that loops through all enabled datasets
  * and calls the appropriate analysis function based on analysisMethod
  * @param {Object} drawnGeometry - GeoJSON of drawn line or point
@@ -985,10 +887,6 @@ function analyzeAllDatasets(drawnGeometry) {
 
         case 'binaryProximity':
           datasetResults = analyzeBinaryProximity(drawnGeometry, config, geoJsonData[datasetKey]);
-          break;
-
-        case 'projectCoverage':
-          datasetResults = analyzeProjectCoverage(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         default:
