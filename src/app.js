@@ -888,6 +888,11 @@ function createResultCard(datasetConfig, results) {
     }
 
     cardHtml += `</div>`;
+  } else if (datasetConfig.resultStyle === 'projectCoverage') {
+    // Project coverage format (for High Injury Corridors - show HIC count and rounded percentage)
+    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
+    cardHtml += `<p style="margin: 0; font-weight: bold; font-size: 14px;">Project Coverage: ${results.percentage}%</p>`;
+    cardHtml += `</div>`;
   } else if (datasetConfig.resultStyle === 'count') {
     // Count format (for datasets that count features by category)
     cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
@@ -1014,6 +1019,8 @@ function displayResults(results) {
       isEmpty = !datasetResults.detected;
     } else if (config.resultStyle === 'lengthByStatus' && typeof datasetResults === 'object' && 'total' in datasetResults) {
       isEmpty = datasetResults.total === 0;
+    } else if (config.resultStyle === 'projectCoverage' && typeof datasetResults === 'object' && 'percentage' in datasetResults) {
+      isEmpty = datasetResults.percentage === 0;
     } else if (typeof datasetResults === 'object' && 'total' in datasetResults) {
       isEmpty = datasetResults.total === 0;
     } else if (Array.isArray(datasetResults)) {
