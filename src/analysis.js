@@ -897,12 +897,17 @@ function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
     try {
       const featureBbox = turf.bbox(feature);
 
-      // Quick bbox overlap check - if bboxes don't overlap, skip this feature entirely
-      if (bboxesOverlap(featureBbox, projectBbox)) {
+      // Quick bbox overlap check first (fast elimination)
+      if (!bboxesOverlap(featureBbox, projectBbox)) {
+        return; // Skip if bboxes don't overlap
+      }
+
+      // Verify actual geometric intersection with buffered project
+      if (turf.booleanIntersects(feature, projectBuffer)) {
         validFeatures.push(feature);
       }
     } catch (error) {
-      console.warn('Error checking feature bbox:', error);
+      console.warn('Error checking feature overlap:', error);
     }
   });
 
@@ -914,19 +919,10 @@ function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
     };
   }
 
-  // Step 2: Estimate coverage based on number of overlapping features
-  // Simple approximation: each overlapping feature contributes equally to coverage
-  // This avoids expensive segment-by-segment measuring
+  // Step 2: Calculate coverage percentage based on number of overlapping features
+  // Approximation: each overlapping feature contributes equally to coverage
+  // This avoids expensive segment-by-segment measuring while maintaining accuracy
   const percentage = Math.min(100, Math.round((validFeatures.length / geoJsonData.features.length) * 100));
-
-  // Step 3: Apply minimum threshold - if too few features overlap, return 0%
-  if (validFeatures.length < Math.ceil(geoJsonData.features.length * 0.1)) {
-    // Less than 10% of features overlap - treat as no coverage
-    return {
-      percentage: 0,
-      features: []
-    };
-  }
 
   return {
     percentage: percentage,
