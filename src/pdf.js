@@ -338,6 +338,8 @@ async function generatePDF() {
         isEmpty = !results.detected;
       } else if (config.resultStyle === 'lengthByStatus' && typeof results === 'object' && 'total' in results) {
         isEmpty = results.total === 0;
+      } else if (config.resultStyle === 'projectCoverage' && typeof results === 'object' && 'percentage' in results) {
+        isEmpty = results.percentage === 0;
       } else if (typeof results === 'object' && 'total' in results) {
         isEmpty = results.total === 0;
       } else {
@@ -429,6 +431,15 @@ async function generatePDF() {
             yPosition += 0.16;
           });
         }
+        yPosition += 0.2;  // Add spacing between datasets
+
+      } else if (config.resultStyle === 'projectCoverage') {
+        // Project coverage format (for High Injury Corridors - show rounded percentage only)
+        checkPageBreak(0.3);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`  Project Coverage: ${results.percentage}%`, margin, yPosition);
+        yPosition += 0.18;
+        pdf.setFont('helvetica', 'normal');
         yPosition += 0.2;  // Add spacing between datasets
 
       } else if (config.resultStyle === 'count') {

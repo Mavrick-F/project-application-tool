@@ -169,7 +169,7 @@ highInjuryCorridors:
   category: Transportation
   filePath: ./data/HIN_Corridors.geojson
   geometryType: LineString
-  analysisMethod: corridor
+  analysisMethod: projectCoverage
 
   bufferDistance: 100
   minSharedLength: 300
@@ -185,11 +185,11 @@ highInjuryCorridors:
     deduplicate: false
 
   style:
-    color: '#FFD700'  # Gold/amber caution color
+    color: '#7F00FF'  # Violet
     weight: 3
     opacity: 0.9
 
-  resultStyle: list
+  resultStyle: projectCoverage
   enabled: true
 
 mataRoutes:
@@ -343,7 +343,7 @@ aliceZctas:
 
 freightClusters:
   id: freightClusters
-  name: Freight Zones
+  name: Freight Clusters
   category: Economic Development
   filePath: ./data/freight_clusters.geojson
   geometryType: Polygon
@@ -391,7 +391,7 @@ truckRoutes:
     deduplicate: false
 
   style:
-    color: '#CD853F'  # Peru (default, overridden by styleByProperty)
+    color: '#20B2AA'  # Light sea green (default, overridden by styleByProperty)
     weight: 2
     opacity: 0.7
 
@@ -400,11 +400,11 @@ truckRoutes:
     field: Type
     values:
       Regional:
-        color: '#8B4513'  # Saddle brown (darker for major routes)
+        color: '#20B2AA'  # Light sea green (darker for major routes)
         weight: 3
         opacity: 0.8
       Local:
-        color: '#DEB887'  # Burlywood (lighter for local routes)
+        color: '#00FFFF'  # Aqua (lighter for local routes)
         weight: 2
         opacity: 0.7
 

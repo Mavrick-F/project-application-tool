@@ -833,6 +833,156 @@ function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData
 }
 
 /**
+ * Analyze project coverage by dataset features
+ * Measures what percentage of the drawn project line runs parallel to (within buffer of) dataset features
+ *
+ * This is the inverse of corridorLengthByStatus:
+ * - corridorLengthByStatus: measures dataset segments near project
+ * - projectCoverage: measures project segments near dataset
+ *
+ * @param {Object} drawnGeometry - GeoJSON geometry of drawn project (LineString)
+ * @param {Object} datasetConfig - Configuration from DATASETS
+ * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze against
+ * @returns {Object} Coverage metrics and matched features
+ * @returns {number} .percentage - Percentage of project covered (0-100, rounded to integer)
+ * @returns {Array} .features - Matched features for map display
+ */
+function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
+  // Extract geometry from Feature wrapper if needed
+  const geometry = drawnGeometry.type === 'Feature' ? drawnGeometry.geometry : drawnGeometry;
+
+  // Validate inputs
+  if (!geoJsonData || !geoJsonData.features || geoJsonData.features.length === 0) {
+    return {
+      percentage: 0,
+      features: []
+    };
+  }
+
+  // Only works with LineString projects
+  if (geometry.type !== 'LineString') {
+    console.warn('projectCoverage analysis only supports LineString geometry');
+    return {
+      percentage: 0,
+      features: []
+    };
+  }
+
+  // Calculate total project length in feet
+  const totalProjectLength = turf.length(geometry, { units: 'feet' });
+
+  if (totalProjectLength === 0) {
+    return {
+      percentage: 0,
+      features: []
+    };
+  }
+
+  // Step 1: Create combined buffer of all dataset features (prevents double-counting)
+  let combinedBuffer = null;
+  const validFeatures = [];
+
+  geoJsonData.features.forEach(feature => {
+    if (!hasValidGeometry(feature)) return;
+
+    try {
+      // Buffer this feature by configured distance (typically 100ft)
+      const featureBuffer = turf.buffer(feature, datasetConfig.bufferDistance, { units: 'feet' });
+
+      // Union with existing buffer
+      if (combinedBuffer === null) {
+        combinedBuffer = featureBuffer;
+      } else {
+        try {
+          combinedBuffer = turf.union(combinedBuffer, featureBuffer);
+        } catch (unionError) {
+          // If union fails, continue with separate buffers (slight over-counting acceptable)
+          console.warn('Buffer union failed, using separate buffers:', unionError);
+        }
+      }
+
+      validFeatures.push(feature);
+    } catch (error) {
+      console.warn('Error buffering feature:', error);
+    }
+  });
+
+  // If no valid buffer created, return 0%
+  if (combinedBuffer === null) {
+    return {
+      percentage: 0,
+      features: []
+    };
+  }
+
+  // Step 2: Measure which portions of project fall inside combined buffer
+  let coveredLength = 0;
+  const projectCoords = turf.getCoords(geometry);
+
+  for (let i = 0; i < projectCoords.length - 1; i++) {
+    const segment = turf.lineString([projectCoords[i], projectCoords[i + 1]]);
+
+    // Quick intersection check
+    if (!turf.booleanIntersects(segment, combinedBuffer)) {
+      continue;
+    }
+
+    // Calculate actual length of segment inside buffer
+    const segmentInsideLength = measureSegmentInsideBuffer(segment, combinedBuffer);
+    coveredLength += segmentInsideLength;
+  }
+
+  // Step 3: Apply minimum threshold
+  if (coveredLength < datasetConfig.minSharedLength) {
+    // Coverage below threshold - treat as 0%
+    return {
+      percentage: 0,
+      features: []
+    };
+  }
+
+  // Step 4: Calculate percentage and collect matched features
+  const percentage = Math.min(100, Math.round((coveredLength / totalProjectLength) * 100));
+
+  // Collect features that actually contribute to coverage (for map display)
+  const matchedFeatures = [];
+
+  validFeatures.forEach(feature => {
+    try {
+      const featureBuffer = turf.buffer(feature, datasetConfig.bufferDistance, { units: 'feet' });
+
+      // Check if project has meaningful overlap with this feature
+      if (turf.booleanIntersects(geometry, featureBuffer)) {
+        let featureOverlapLength = 0;
+
+        for (let i = 0; i < projectCoords.length - 1; i++) {
+          const segment = turf.lineString([projectCoords[i], projectCoords[i + 1]]);
+          if (turf.booleanIntersects(segment, featureBuffer)) {
+            featureOverlapLength += measureSegmentInsideBuffer(segment, featureBuffer);
+          }
+        }
+
+        // Only include if this feature contributes meaningful overlap
+        if (featureOverlapLength >= datasetConfig.minSharedLength) {
+          matchedFeatures.push({
+            type: 'Feature',
+            geometry: feature.geometry,
+            properties: { ...feature.properties }
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('Error checking feature overlap:', error);
+    }
+  });
+
+  return {
+    percentage: percentage,
+    features: matchedFeatures
+  };
+}
+
+/**
  * Master analysis function that loops through all enabled datasets
  * and calls the appropriate analysis function based on analysisMethod
  * @param {Object} drawnGeometry - GeoJSON of drawn line or point
@@ -883,6 +1033,10 @@ function analyzeAllDatasets(drawnGeometry) {
 
         case 'binaryProximity':
           datasetResults = analyzeBinaryProximity(drawnGeometry, config, geoJsonData[datasetKey]);
+          break;
+
+        case 'projectCoverage':
+          datasetResults = analyzeProjectCoverage(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         default:
