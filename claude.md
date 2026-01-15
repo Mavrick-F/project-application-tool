@@ -78,9 +78,9 @@ New datasets = just edit `datasets.yaml` in the root directory. The file is self
 ## Useful Commands
 ```bash
 # Local dev server
-python -m http.server 8000
+python -m http.server 8080
 
-# Access at http://localhost:8000
+# Access at http://localhost:8080
 ```
 
 ## Quick Reference

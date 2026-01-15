@@ -225,44 +225,47 @@ async function queryFeatureService(serviceUrl, options = {}) {
     // Execute query
     const fullQueryUrl = `${queryUrl}/query?${params.toString()}`;
 
-    // Check cache first to avoid redundant queries
+    // Check cache first (caches promises to handle parallel requests)
     if (featureServiceCache.has(fullQueryUrl)) {
       console.log('Using cached Feature Service response:', fullQueryUrl);
-      const cachedGeojson = featureServiceCache.get(fullQueryUrl);
+      const cachedPromise = featureServiceCache.get(fullQueryUrl);
+      const cachedResult = await cachedPromise;
+      return cachedResult;
+    }
+
+    // Create and cache the promise immediately (before await) to handle parallel requests
+    const queryPromise = (async () => {
+      console.log('Querying Feature Service:', fullQueryUrl);
+
+      const response = await fetch(fullQueryUrl);
+      if (!response.ok) {
+        throw new Error(`Query failed: ${response.status} ${response.statusText}`);
+      }
+
+      const arcgisJson = await response.json();
+
+      // Check for error in response
+      if (arcgisJson.error) {
+        throw new Error(`Query error: ${arcgisJson.error.message || JSON.stringify(arcgisJson.error)}`);
+      }
+
+      // Convert ArcGIS JSON to GeoJSON
+      const geojson = convertArcGIStoGeoJSON(arcgisJson);
+
+      console.log(`Query successful: ${geojson.features.length} features returned`);
+
       return {
         success: true,
-        data: cachedGeojson,
+        data: geojson,
         error: null
       };
-    }
+    })();
 
-    console.log('Querying Feature Service:', fullQueryUrl);
+    // Cache the promise immediately (not the result)
+    featureServiceCache.set(fullQueryUrl, queryPromise);
 
-    const response = await fetch(fullQueryUrl);
-    if (!response.ok) {
-      throw new Error(`Query failed: ${response.status} ${response.statusText}`);
-    }
-
-    const arcgisJson = await response.json();
-
-    // Check for error in response
-    if (arcgisJson.error) {
-      throw new Error(`Query error: ${arcgisJson.error.message || JSON.stringify(arcgisJson.error)}`);
-    }
-
-    // Convert ArcGIS JSON to GeoJSON
-    const geojson = convertArcGIStoGeoJSON(arcgisJson);
-
-    console.log(`Query successful: ${geojson.features.length} features returned`);
-
-    // Cache the response for future queries
-    featureServiceCache.set(fullQueryUrl, geojson);
-
-    return {
-      success: true,
-      data: geojson,
-      error: null
-    };
+    // Await and return the result
+    return await queryPromise;
 
   } catch (error) {
     console.error('Feature Service query error:', error);
@@ -904,11 +907,6 @@ function createResultCard(datasetConfig, results) {
     }
 
     cardHtml += `</div>`;
-  } else if (datasetConfig.resultStyle === 'projectCoverage') {
-    // Project coverage format (for High Injury Corridors - show HIC count and rounded percentage)
-    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
-    cardHtml += `<p style="margin: 0; font-weight: bold; font-size: 14px;">Project Coverage: ${results.percentage}%</p>`;
-    cardHtml += `</div>`;
   } else if (datasetConfig.resultStyle === 'count') {
     // Count format (for datasets that count features by category)
     cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
@@ -1035,8 +1033,6 @@ function displayResults(results) {
       isEmpty = !datasetResults.detected;
     } else if (config.resultStyle === 'lengthByStatus' && typeof datasetResults === 'object' && 'total' in datasetResults) {
       isEmpty = datasetResults.total === 0;
-    } else if (config.resultStyle === 'projectCoverage' && typeof datasetResults === 'object' && 'percentage' in datasetResults) {
-      isEmpty = datasetResults.percentage === 0;
     } else if (typeof datasetResults === 'object' && 'total' in datasetResults) {
       isEmpty = datasetResults.total === 0;
     } else if (Array.isArray(datasetResults)) {
