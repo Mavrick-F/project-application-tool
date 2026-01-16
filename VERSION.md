@@ -1,5 +1,24 @@
 # Version History
 
+## v0.9.4 (2026-01-16) - Header Redesign & Security Hardening
+
+### UI/Design Improvements
+- **Completely redesigned header**: Replaced bold blue gradient with clean white/light gray background for better aesthetic cohesion
+- **New landscape logo**: Integrated landscape version of RTP 2055 logo (replaces vertical square format)
+- **Larger header elements**: Scaled all header components ~33% bigger (logo height 48px → 64px, title font 20px → 27px, header height 70px → 95px)
+- **Typography refinements**: Split title into "2055 RTP" (bolder, purple accent) and "Application Mapping Tool" (lighter weight)
+- **Accent line detail**: Added subtle purple/teal gradient line at header top that echoes logo colors
+- **Cleaner spacing**: Reduced padding and gap for tight, professional appearance
+
+### Security Fixes
+- **XSS Prevention**: Sanitized GeoJSON property rendering to prevent cross-site scripting attacks (replaced innerHTML with textContent in property display)
+- **Dependency Security**: Added SRI (Subresource Integrity) integrity hashes to all CDN script dependencies for supply chain security
+
+### Features
+- **Measurement tool**: Implemented user-accessible distance measurement tool for on-map calculations
+- **projectCoverage analysis**: Added analysis method for High Injury Corridors project coverage detection
+- **Tutorial redesign**: Rewrote tutorial popup with clearer, more effective onboarding messaging
+
 ## v0.9.3 (2026-01-14) - YAML Configuration & Code Organization
 
 ### Configuration System Overhaul

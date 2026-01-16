@@ -451,6 +451,15 @@ async function generatePDF() {
         }
         yPosition += 0.2;  // Add spacing between datasets
 
+      } else if (config.resultStyle === 'percentage') {
+        // Percentage format (for project coverage analysis like HICs)
+        checkPageBreak(0.3);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`  ${results.percentage}% of project`, margin, yPosition);
+        yPosition += 0.2;
+        pdf.setFont('helvetica', 'normal');
+        yPosition += 0.1;  // Add spacing between datasets
+
       } else if (config.resultStyle === 'table' && config.properties.additionalFields.length > 0) {
         // Table format
         pdf.setFont('helvetica', 'bold');

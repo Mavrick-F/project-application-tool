@@ -18,34 +18,99 @@ let drawnLayer = null;            // Currently drawn polyline layer
 // Layer groups for reference data (dynamically populated from DATASETS)
 const featureLayers = {};
 
+// Measurement tool variables
+let measureControl;           // Leaflet control instance
+let measurementDrawer;        // L.Draw.Polyline handler for measurements
+let measurementItems;         // FeatureGroup for measurement layers
+let isMeasuring = false;      // Track measurement tool state
+
+// ============================================
+// SHARED UTILITY FUNCTIONS
+// ============================================
+
+/**
+ * Format distance with dynamic units (feet for short distances, miles for long)
+ * Uses 528 feet (0.1 miles) as threshold for switching to miles
+ * @param {number} feet - Distance in feet
+ * @returns {string} Formatted distance string (e.g., "1,234 ft" or "2.5 mi")
+ */
+function formatDistance(feet) {
+  const THRESHOLD = 528; // 0.1 miles (528 ft exactly)
+
+  if (feet < THRESHOLD) {
+    // Short distances: display in feet with comma separators
+    return `${Math.round(feet).toLocaleString('en-US')} ft`;
+  } else {
+    // Long distances: display in miles rounded to 1 decimal place (starting at 528 ft = 0.1 mi)
+    const miles = feet / 5280;
+    return `${miles.toFixed(1)} mi`;
+  }
+}
+
+/**
+ * Override Leaflet.draw's distance formatter to use our custom formatDistance
+ * This ensures both measurement tool and project drawing tool show distances identically
+ */
+function patchLeafletDrawFormatter() {
+  if (L.GeometryUtil && L.GeometryUtil.readableDistance) {
+    L.GeometryUtil.readableDistance = function(distance, isMetric, isFeet, isNauticalMile, precision) {
+      // Convert meters to feet (Leaflet.draw internally uses meters)
+      const distanceInFeet = distance * 3.28084;
+
+      // Use our unified formatDistance function
+      return formatDistance(distanceInFeet);
+    };
+  }
+}
+
 // ============================================
 // MAP INITIALIZATION
 // ============================================
 
 /**
  * Initialize the Leaflet map with basemap and controls
+ * @returns {boolean} True if map was initialized successfully, false otherwise
  */
 function initializeMap() {
-  // Create map instance
-  // Using canvas renderer instead of SVG to fix html2canvas offset issues in PDF export
-  map = L.map('map', {
-    zoomControl: true,
-    attributionControl: true,
-    renderer: L.canvas()
-  });
+  try {
+    // Check if Leaflet is available
+    if (typeof L === 'undefined') {
+      console.error('Leaflet library is not loaded');
+      return false;
+    }
 
-  // Add CartoDB Voyager basemap (streets style, similar to Google Maps)
-  const basemap = L.tileLayer(CONFIG.basemapUrl, {
-    attribution: CONFIG.basemapAttribution,
-    maxZoom: 19
-  }).addTo(map);
+    // Create map instance
+    // Using canvas renderer instead of SVG to fix html2canvas offset issues in PDF export
+    map = L.map('map', {
+      zoomControl: true,
+      attributionControl: true,
+      renderer: L.canvas()
+    });
 
-  // Add scale control (bottom left)
-  L.control.scale({
-    imperial: true,
-    metric: false,
-    position: 'bottomleft'
-  }).addTo(map);
+    // Verify map was created
+    if (!map) {
+      console.error('Failed to create map instance');
+      return false;
+    }
+
+    // Add CartoDB Voyager basemap (streets style, similar to Google Maps)
+    const basemap = L.tileLayer(CONFIG.basemapUrl, {
+      attribution: CONFIG.basemapAttribution,
+      maxZoom: 19
+    }).addTo(map);
+
+    // Add scale control (bottom left)
+    L.control.scale({
+      imperial: true,
+      metric: false,
+      position: 'bottomleft'
+    }).addTo(map);
+
+    return true;
+  } catch (error) {
+    console.error('Error initializing map:', error);
+    return false;
+  }
 }
 
 /**
@@ -326,6 +391,9 @@ function fitMapToBounds() {
  * Only allows polyline drawing, one feature at a time
  */
 function setupDrawingControls() {
+  // Patch Leaflet.draw's distance formatter to use our unified formatting
+  patchLeafletDrawFormatter();
+
   // Create a feature group to store drawn items
   drawnItems = new L.FeatureGroup();
   map.addLayer(drawnItems);
@@ -350,18 +418,160 @@ function setupDrawingControls() {
 
   // Event handler: When drawing is created
   map.on(L.Draw.Event.CREATED, function(event) {
+    // Route to appropriate handler based on tool state
+    if (isMeasuring) {
+      onMeasurementCreated(event);
+      return; // Don't process as project drawing
+    }
     onDrawCreated(event, drawnItems);
   });
 
   // Event handler: When drawing starts
   map.on(L.Draw.Event.DRAWSTART, function() {
-    updateDrawButtonStates(true);
+    if (isMeasuring) {
+      onMeasurementDrawStart();
+    } else {
+      updateDrawButtonStates(true);
+    }
   });
 
   // Event handler: When drawing stops
   map.on(L.Draw.Event.DRAWSTOP, function() {
     updateDrawButtonStates(false);
   });
+
+  // Initialize measurement tool
+  setupMeasurementTool();
+}
+
+// ============================================
+// MEASUREMENT TOOL
+// ============================================
+
+/**
+ * Custom Leaflet control for distance measurement
+ * Positioned in top-left corner near zoom buttons
+ */
+L.Control.Measure = L.Control.extend({
+  options: { position: 'topleft' },
+
+  onAdd: function(map) {
+    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-measure');
+    container.innerHTML = `
+      <a href="#" title="Measure Distance" role="button" aria-label="Measure Distance">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M3 11h18M3 9v4M7 10v2M11 9v4M15 10v2M19 9v4"/>
+        </svg>
+      </a>
+    `;
+
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.on(container, 'click', this._toggleMeasure, this);
+    return container;
+  },
+
+  _toggleMeasure: function(e) {
+    L.DomEvent.preventDefault(e);
+    toggleMeasurementTool();
+  }
+});
+
+L.control.measure = function(opts) {
+  return new L.Control.Measure(opts);
+};
+
+/**
+ * Initialize the measurement tool control and drawer
+ * Creates separate feature group and drawer for measurements
+ */
+function setupMeasurementTool() {
+  // Create feature group for measurements
+  measurementItems = new L.FeatureGroup();
+  map.addLayer(measurementItems);
+
+  // Create measurement drawer with distinctive orange dashed style
+  measurementDrawer = new L.Draw.Polyline(map, {
+    shapeOptions: {
+      color: '#FF8C00',      // Dark orange
+      weight: 4,
+      opacity: 0.8,
+      dashArray: '8, 8'
+    },
+    showLength: true,
+    metric: false,
+    feet: true,
+    repeatMode: false
+  });
+
+  // Add control to map
+  measureControl = L.control.measure({ position: 'topleft' });
+  measureControl.addTo(map);
+}
+
+/**
+ * Toggle measurement tool on/off
+ * Manages state and clears previous measurements
+ */
+function toggleMeasurementTool() {
+  const controlElement = document.querySelector('.leaflet-control-measure a');
+
+  if (isMeasuring) {
+    // Deactivate measurement tool
+    measurementDrawer.disable();
+    controlElement.classList.remove('active');
+    isMeasuring = false;
+  } else {
+    // Disable project drawing tools if active
+    if (polylineDrawer && polylineDrawer._enabled) polylineDrawer.disable();
+    if (markerDrawer && markerDrawer._enabled) markerDrawer.disable();
+
+    // Clear previous measurements and activate
+    measurementItems.clearLayers();
+    measurementDrawer.enable();
+    controlElement.classList.add('active');
+    isMeasuring = true;
+  }
+}
+
+/**
+ * Handle measurement creation - add total distance label
+ * @param {Object} event - Leaflet draw event
+ */
+function onMeasurementCreated(event) {
+  if (!isMeasuring || event.layerType !== 'polyline') return;
+
+  const layer = event.layer;
+
+  // Calculate total distance with Turf.js
+  const coords = layer.getLatLngs().map(ll => [ll.lng, ll.lat]);
+  const linestring = turf.lineString(coords);
+  const totalFeet = turf.length(linestring, { units: 'feet' });
+
+  // Format distance with shared formatting function
+  const formattedDistance = formatDistance(totalFeet);
+
+  // Add permanent label at final vertex
+  const finalPoint = layer.getLatLngs()[layer.getLatLngs().length - 1];
+  const label = L.tooltip({
+    permanent: true,
+    direction: 'top',
+    className: 'measurement-total-label',
+    offset: [0, -10]
+  })
+  .setContent(`Total: ${formattedDistance}`)
+  .setLatLng(finalPoint);
+
+  measurementItems.addLayer(layer);
+  measurementItems.addLayer(label);
+}
+
+/**
+ * Handle measurement draw start - clear previous measurements
+ */
+function onMeasurementDrawStart() {
+  if (isMeasuring) {
+    measurementItems.clearLayers(); // Clear previous when starting new
+  }
 }
 
 /**

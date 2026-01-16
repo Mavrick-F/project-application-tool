@@ -3,7 +3,7 @@
 ## What This Is
 Web-based spatial analysis tool for Memphis MPO's RTP 2055. Users draw project alignments or mark point locations, tool automatically analyzes against regional datasets, generates PDF report.
 
-**Current Status:** Entering v0.9.X polish phase  
+**Current Status:** v0.9.4 - Polish & security hardening phase
 **Deployment:** GitHub Pages for development, MPO server for production
 
 ## Hard-Won Lessons
@@ -33,7 +33,6 @@ Web-based spatial analysis tool for Memphis MPO's RTP 2055. Users draw project a
 
 ## IT Constraints
 - **AGOL publishing has bureacratic delays** - Use Feature Services only for large datasets
-- **Port 8000 restriction** - Can't access this port
 - **No admin access** - Can't install dev tools requiring elevation
 
 **What this means:**
@@ -41,14 +40,20 @@ Web-based spatial analysis tool for Memphis MPO's RTP 2055. Users draw project a
 - No user authentication/sessions
 - No data persistence across sessions
 
-## Current Development Phase: Polish & QOL for v1.0
+## Current Development Phase: Polish & Security for v1.0
 
-**Focus areas for v1.0:**
-- UX improvements (loading states, error messages, confirmation dialogs)
-- Empty state messages that explain what's missing
-- Final dataset integrations
-- Documentation polish
-- Potentially replacing the two MultiLineString datasets to clear lingering bugs
+**Completed in v0.9.4:**
+- ✅ Header redesign with improved typography
+- ✅ Security hardening (XSS prevention, SRI integrity hashes)
+- ✅ User measurement tool
+- ✅ Tutorial redesign
+
+**Remaining for v1.0:**
+- Loading states and error messages
+- Confirmation dialogs for destructive actions
+- Empty state messaging
+- Final documentation polish
+- Edge case testing
 
 ## Configuration-Driven System (v0.6.0+)
 
@@ -62,12 +67,13 @@ New datasets = just edit `datasets.yaml` in the root directory. The file is self
 4. Save - no code changes needed, just refresh the browser
 
 **Key config properties:**
-- `analysisMethod`: 'corridor' | 'intersection' | 'proximity' | 'proximityCount' | 'binaryProximity' | 'corridorLengthByStatus'
-- `geometryType`: 'Point' | 'LineString' | 'MultiLineString' | 'Polygon'
+- `analysisMethod`: See Analysis Types section below
+- `geometryType`: 'Point' | 'LineString' | 'Polygon'
 - `styleByProperty`: Conditional styling (e.g., color-code freight routes by Regional/Local)
 - `staticLabel`: Override field value with constant text (e.g., "STRAHNET" for all features)
 - `filterByThreshold`: Filter features by field value with optional translucent display
 - `lazyLoad`: Load large Feature Service datasets only when analysis runs
+- `featureServiceUrl`: ArcGIS Feature Service endpoint (alternative to filePath)
 
 ## Things to Avoid
 - Don't add build tooling - breaks deployment workflow
@@ -77,24 +83,130 @@ New datasets = just edit `datasets.yaml` in the root directory. The file is self
 
 ## Useful Commands
 ```bash
-# Local dev server
-python -m http.server 8080
+# Local dev server (port 3000)
+python -m http.server 3000
 
-# Access at http://localhost:8080
+# Access at http://localhost:3000
+
+# Run tests (if present in tests/ folder)
+# Tests are HTML files - open in browser or use a test runner
 ```
 
 ## Quick Reference
 
-**Analysis Types:**
-1. **Corridor matching** - 100ft buffer, 300ft min shared length (transit routes, freight, bike paths)
-2. **Intersection** - Boolean intersection (opportunity zones, wetlands, historic districts)
-3. **Proximity** - Point-in-buffer (bridges, crashes, employers)
+**Analysis Types (7 total):**
+
+1. **corridor** - Line-to-line matching
+   - 100ft buffer, 300ft minimum parallel overlap
+   - Use case: Transit routes, freight corridors, bike paths
+   - Returns: Features with shared length calculated
+
+2. **intersection** - Line-to-polygon or polygon-to-polygon
+   - Boolean intersection detection (yes/no)
+   - Use case: Opportunity zones, wetlands, flood zones
+   - Returns: Features that intersect with project
+
+3. **proximity** - Line/Point-to-point
+   - Returns nearby points within configurable buffer
+   - Use case: Bridge inventory, crash locations, employers
+   - Returns: Count of nearby features
+
+4. **proximityCount** - Proximity with categorical aggregation
+   - Groups nearby points by a property field
+   - Use case: Crashes grouped by severity, employers by type
+   - Returns: Counts broken down by category
+
+5. **binaryProximity** - Proximity with yes/no result
+   - Simple boolean (any points within buffer?)
+   - Use case: Environmental features
+   - Returns: Yes/No result
+
+6. **corridorLengthByStatus** - Line corridor with categorical breakdown
+   - Sums segment lengths grouped by a status field
+   - Use case: Travel time reliability (reliable vs unreliable miles)
+   - Returns: Total miles + breakdown by category
+
+7. **projectCoverage** - Project coverage analysis
+   - Detects if project overlaps with specific datasets
+   - Use case: High Injury Corridors coverage
+   - Returns: Yes/No + percentage of project within coverage
 
 **File Structure:**
 - `datasets.yaml` - Dataset configuration (self-documenting with inline comments)
 - `src/datasets.js` - CONFIG object and YAML loader
 - `src/map.js` - Leaflet map, layers, drawing controls
-- `src/analysis.js` - Generic analysis functions for all methods
+- `src/analysis.js` - Generic analysis functions for all 7 methods
 - `src/pdf.js` - PDF generation with html2canvas
 - `src/app.js` - Init, event handlers, UI management
-- `data/*.json` - GeoJSON datasets (12+ files)
+- `data/*.json` - GeoJSON datasets (20 total)
+- `tests/` - Test files (HTML/JS test suites)
+
+## Documenting Changes
+
+When making changes, follow this workflow:
+
+1. **Make code changes** to src/ or data/ files
+2. **Test thoroughly** - Use browser dev tools or write tests in `tests/` folder
+3. **Update VERSION.md** with detailed changelog entry:
+   - Add new version section at top with date
+   - Organize changes by category (UI, Features, Fixes, Security, etc.)
+   - Include specific file names and line number references where relevant
+4. **Update version numbers:**
+   - Change badge in README.md: `v=X.X.X`
+   - Change page title in index.html
+   - Update cache-busting query strings: `?v=X.X.X` on all script tags
+5. **Commit with clear message** following the style of recent commits
+6. **Document known limitations** in CLAUDE.md if applicable
+
+**VERSION.md Format Example:**
+```markdown
+## v0.9.5 (2026-01-XX) - Brief Title
+
+### Category Name
+- **Bold item**: Description of change and why it matters
+- Related implementation details or affected files
+```
+
+## Testing Guidelines
+
+**Where:** Save test files in `tests/` folder
+**Format:** HTML files with embedded JavaScript (can run directly in browser) or use assertion libraries
+
+**What to test:**
+- Spatial analysis edge cases (zero-length features, self-intersecting polygons, tiny buffers)
+- Rendering (correct colors, visibility, layer order)
+- PDF generation (maps capture correctly, all features present)
+- Configuration loading (YAML parsing, missing fields)
+- Security (XSS prevention, sanitization)
+
+**Example test file structure:**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Analysis Function Tests</title>
+</head>
+<body>
+  <h1>Corridor Matching Tests</h1>
+  <div id="results"></div>
+
+  <script>
+    // Load dependencies
+    const tests = [];
+
+    // Test 1: Basic corridor match
+    tests.push({
+      name: "Corridor match with 300ft overlap",
+      pass: /* assertion here */
+    });
+
+    // Run all tests
+    tests.forEach(t => {
+      console.log(`${t.pass ? '✓' : '✗'} ${t.name}`);
+    });
+  </script>
+</body>
+</html>
+```
+
+**Encourage:** Write tests BEFORE or alongside code changes. Tests save debugging time and document expected behavior.

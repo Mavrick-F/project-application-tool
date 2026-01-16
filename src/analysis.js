@@ -833,6 +833,111 @@ function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData
 }
 
 /**
+ * Analyze project coverage percentage for corridor datasets
+ * Uses two-phase approach: filter first with simple intersection, then measure coverage
+ * This is significantly faster than trying to union all features upfront
+ * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+ * @param {Object} datasetConfig - Configuration object from DATASETS
+ * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+ * @returns {Object} Object with percentage coverage and matched features
+ */
+function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
+  // Extract actual geometry from GeoJSON Feature if needed
+  const geometry = drawnGeometry.type === 'Feature'
+    ? drawnGeometry.geometry
+    : drawnGeometry;
+
+  // Phase 1: Find ALL features that intersect the project buffer (no minSharedLength filter)
+  // This is critical - we need to include all segments, even short ones, for accurate coverage
+  const matchedFeatures = [];
+
+  const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
+    units: 'feet'
+  });
+
+  geoJsonData.features.forEach(feature => {
+    try {
+      if (!hasValidGeometry(feature)) return;
+
+      // Simple intersection check - include ALL intersecting features
+      if (turf.booleanIntersects(corridorBuffer, feature)) {
+        matchedFeatures.push({
+          type: 'Feature',
+          geometry: feature.geometry,
+          properties: { ...feature.properties }
+        });
+      }
+    } catch (error) {
+      console.warn('Error checking feature intersection:', error);
+    }
+  });
+
+  if (matchedFeatures.length === 0) {
+    return { percentage: 0, features: [] };
+  }
+
+  console.log(`  └─ Found ${matchedFeatures.length} intersecting segments, calculating coverage...`);
+
+  // Phase 2: Use point sampling for accurate coverage measurement
+  // Sample points along the project and check what % are within buffer distance of ANY HIC
+  try {
+    const projectLength = turf.length(geometry, { units: 'feet' });
+
+    // Sample every 10 feet along the project line
+    const sampleInterval = 10; // feet
+    const numSamples = Math.max(Math.ceil(projectLength / sampleInterval), 10);
+
+    let samplesNearHIC = 0;
+
+    for (let i = 0; i <= numSamples; i++) {
+      const distance = (i / numSamples) * projectLength;
+      const samplePoint = turf.along(geometry, distance / 5280, { units: 'miles' }); // Convert feet to miles for turf.along
+
+      // Check if this point is within buffer distance of ANY matched HIC
+      let isNearHIC = false;
+
+      for (const hicFeature of matchedFeatures) {
+        try {
+          const distanceToHIC = turf.pointToLineDistance(
+            samplePoint,
+            hicFeature,
+            { units: 'feet' }
+          );
+
+          if (distanceToHIC <= datasetConfig.bufferDistance) {
+            isNearHIC = true;
+            break;
+          }
+        } catch (err) {
+          // Skip this HIC if there's an error
+          continue;
+        }
+      }
+
+      if (isNearHIC) {
+        samplesNearHIC++;
+      }
+    }
+
+    const percentage = (samplesNearHIC / (numSamples + 1)) * 100;
+
+    console.log(`  └─ Sampled ${numSamples + 1} points, ${samplesNearHIC} near HICs (${percentage.toFixed(1)}%)`);
+
+    return {
+      percentage: Math.round(percentage),
+      features: matchedFeatures
+    };
+
+  } catch (error) {
+    console.error('Error calculating project coverage:', error);
+    return {
+      percentage: 0,
+      features: matchedFeatures
+    };
+  }
+}
+
+/**
  * Master analysis function that loops through all enabled datasets
  * and calls the appropriate analysis function based on analysisMethod
  * @param {Object} drawnGeometry - GeoJSON of drawn line or point
@@ -867,6 +972,10 @@ function analyzeAllDatasets(drawnGeometry) {
 
         case 'corridorLengthByStatus':
           datasetResults = analyzeCorridorLengthByStatus(drawnGeometry, config, geoJsonData[datasetKey]);
+          break;
+
+        case 'projectCoverage':
+          datasetResults = analyzeProjectCoverage(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         case 'intersection':
