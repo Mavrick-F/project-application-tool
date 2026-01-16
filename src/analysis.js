@@ -146,7 +146,7 @@ function measureSegmentInsideBuffer(segment, buffer) {
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
  * @returns {Array} Array of matching feature names/IDs
  */
-function analyzeCorridorMatch(drawnGeometry, datasetConfig, geoJsonData) {
+function analyzeListParallelFeatures(drawnGeometry, datasetConfig, geoJsonData) {
   const matchingFeatures = new Map(); // Changed from Set to Map for deduplication with geometry
 
   // Extract actual geometry from GeoJSON Feature if needed
@@ -308,7 +308,7 @@ function analyzeCorridorMatch(drawnGeometry, datasetConfig, geoJsonData) {
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
  * @returns {Array} Array of intersecting feature names/IDs
  */
-function analyzeIntersection(drawnGeometry, datasetConfig, geoJsonData) {
+function analyzeListIntersectingFeatures(drawnGeometry, datasetConfig, geoJsonData) {
   const intersectingFeatures = [];
 
   // Extract actual geometry from GeoJSON Feature if needed
@@ -371,7 +371,7 @@ function analyzeIntersection(drawnGeometry, datasetConfig, geoJsonData) {
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
  * @returns {Array} Array of nearby features with their properties
  */
-function analyzeProximity(drawnGeometry, datasetConfig, geoJsonData) {
+function analyzeListNearbyFeatures(drawnGeometry, datasetConfig, geoJsonData) {
   const nearbyFeatures = [];
 
   try {
@@ -528,7 +528,7 @@ function analyzeProximityWithAcreage(drawnGeometry, datasetConfig, geoJsonData) 
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
  * @returns {Object} Object with detected boolean and matched features
  */
-function analyzeBinaryProximity(drawnGeometry, datasetConfig, geoJsonData) {
+function analyzeHasNearbyFeatures(drawnGeometry, datasetConfig, geoJsonData) {
   const matchedFeatures = [];
 
   try {
@@ -589,6 +589,174 @@ function analyzeBinaryProximity(drawnGeometry, datasetConfig, geoJsonData) {
 }
 
 /**
+ * Measure intersected area for Polygon datasets
+ * Calculates the area (in acres) of polygon features that intersect with the project buffer
+ * Uses Martinez polygon clipping for accurate area calculation
+ * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+ * @param {Object} datasetConfig - Configuration object from DATASETS
+ * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+ * @returns {Object} Object with totalAcres and array of features with calculated acreage
+ */
+function analyzeMeasureIntersectedArea(drawnGeometry, datasetConfig, geoJsonData) {
+  const intersectedFeatures = [];
+  let totalAcres = 0;
+
+  try {
+    // Extract actual geometry from GeoJSON Feature if needed
+    const geometry = drawnGeometry.type === 'Feature'
+      ? drawnGeometry.geometry
+      : drawnGeometry;
+
+    // Create buffer around the drawn geometry
+    const bufferDistance = datasetConfig.bufferDistance || datasetConfig.proximityBuffer || 200;
+    const buffered = turf.buffer(geometry, bufferDistance, {
+      units: 'feet'
+    });
+
+    // Get buffer coordinates for Martinez (must be a Polygon or MultiPolygon)
+    let bufferCoords;
+    if (buffered.geometry.type === 'Polygon') {
+      bufferCoords = buffered.geometry.coordinates;
+    } else if (buffered.geometry.type === 'MultiPolygon') {
+      // For MultiPolygon buffers, use the first polygon
+      bufferCoords = buffered.geometry.coordinates[0];
+    } else {
+      console.warn('Unexpected buffer geometry type:', buffered.geometry.type);
+      return { totalAcres: 0, features: [] };
+    }
+
+    // Check each feature against the buffer
+    for (const feature of geoJsonData.features) {
+      try {
+        // Skip features with invalid geometry
+        if (!hasValidGeometry(feature)) {
+          continue;
+        }
+
+        // Apply analysis filter if configured (e.g., filter by wetland type)
+        if (datasetConfig.analysisFilter) {
+          const filterField = datasetConfig.analysisFilter.field;
+          const filterValue = datasetConfig.analysisFilter.value;
+          const filterOperator = datasetConfig.analysisFilter.operator;
+          const featureValue = feature.properties[filterField];
+
+          let matchesFilter = false;
+          if (filterOperator === '=') {
+            matchesFilter = featureValue === filterValue;
+          } else if (filterOperator === '!=') {
+            matchesFilter = featureValue !== filterValue;
+          }
+
+          if (!matchesFilter) {
+            continue; // Skip features that don't match the filter
+          }
+        }
+
+        // Check if feature intersects buffer
+        const intersects = turf.booleanIntersects(feature, buffered);
+
+        if (intersects) {
+          // Get feature coordinates for Martinez
+          let featureCoords;
+          if (feature.geometry.type === 'Polygon') {
+            featureCoords = feature.geometry.coordinates;
+          } else if (feature.geometry.type === 'MultiPolygon') {
+            // Handle MultiPolygon by processing each polygon separately
+            let multiPolygonTotalAcres = 0;
+
+            for (const polygonCoords of feature.geometry.coordinates) {
+              try {
+                // Use Martinez to get intersection
+                const intersection = martinez.intersection(bufferCoords, polygonCoords);
+
+                if (intersection && intersection.length > 0) {
+                  // Convert Martinez output to Turf polygon
+                  const intersectedPolygon = turf.polygon(intersection[0]);
+
+                  // Calculate area in square meters
+                  const areaSquareMeters = turf.area(intersectedPolygon);
+
+                  // Convert to acres (1 acre = 4046.86 square meters)
+                  const acres = areaSquareMeters / 4046.86;
+
+                  multiPolygonTotalAcres += acres;
+                }
+              } catch (martinezError) {
+                console.warn('Martinez clipping failed for MultiPolygon part:', martinezError);
+              }
+            }
+
+            if (multiPolygonTotalAcres > 0) {
+              const displayValue = feature.properties[datasetConfig.properties.displayField] || 'Unknown';
+
+              intersectedFeatures.push({
+                type: 'Feature',
+                geometry: feature.geometry, // Keep original geometry for display
+                properties: {
+                  [datasetConfig.properties.displayField]: displayValue,
+                  calculatedAcres: multiPolygonTotalAcres
+                }
+              });
+
+              totalAcres += multiPolygonTotalAcres;
+            }
+
+            continue; // Skip to next feature
+          } else {
+            console.warn('Unexpected feature geometry type:', feature.geometry.type);
+            continue;
+          }
+
+          // Use Martinez to get intersection geometry for single Polygon
+          try {
+            const intersection = martinez.intersection(bufferCoords, featureCoords);
+
+            if (intersection && intersection.length > 0) {
+              // Convert Martinez output to Turf polygon
+              const intersectedPolygon = turf.polygon(intersection[0]);
+
+              // Calculate area in square meters
+              const areaSquareMeters = turf.area(intersectedPolygon);
+
+              // Convert to acres (1 acre = 4046.86 square meters)
+              const acres = areaSquareMeters / 4046.86;
+
+              // Only include if area is non-zero (threshold: 0.001 acres)
+              if (acres > 0.001) {
+                const displayValue = feature.properties[datasetConfig.properties.displayField] || 'Unknown';
+
+                intersectedFeatures.push({
+                  type: 'Feature',
+                  geometry: feature.geometry, // Keep original full geometry for display
+                  properties: {
+                    [datasetConfig.properties.displayField]: displayValue,
+                    calculatedAcres: acres
+                  }
+                });
+
+                totalAcres += acres;
+              }
+            }
+          } catch (martinezError) {
+            console.warn('Martinez clipping failed for feature, skipping:', martinezError);
+          }
+        }
+      } catch (error) {
+        console.warn('Error processing feature in measureIntersectedArea:', error);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error in measureIntersectedArea analysis:', error);
+  }
+
+  return {
+    totalAcres: totalAcres,
+    features: intersectedFeatures
+  };
+}
+
+/**
  * Analyze proximity with counting for Point datasets
  * Counts features within buffer and groups by a specified property
  * Generic function that can be used for any point dataset requiring counts
@@ -597,7 +765,7 @@ function analyzeBinaryProximity(drawnGeometry, datasetConfig, geoJsonData) {
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
  * @returns {Object} Object with counts grouped by category
  */
-function analyzeProximityWithCounting(drawnGeometry, datasetConfig, geoJsonData) {
+function analyzeCountByCategory(drawnGeometry, datasetConfig, geoJsonData) {
   const counts = {};
   let totalCount = 0;
   const matchedFeatures = []; // Store matched features for PDF rendering
@@ -669,7 +837,7 @@ function analyzeProximityWithCounting(drawnGeometry, datasetConfig, geoJsonData)
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
  * @returns {Object} Object with percentages by reliability status, mean LOTTR, and matched features
  */
-function analyzeCorridorLengthByStatus(drawnGeometry, datasetConfig, geoJsonData) {
+function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonData) {
   const lengthsByStatus = {};  // Track lengths by Reliable_Segment_ value
   const matchedFeatures = [];  // Store matched features for map rendering
   let totalLength = 0;
@@ -966,36 +1134,40 @@ function analyzeAllDatasets(drawnGeometry) {
 
       // Call appropriate analysis function based on method
       switch (config.analysisMethod) {
-        case 'corridor':
-          datasetResults = analyzeCorridorMatch(drawnGeometry, config, geoJsonData[datasetKey]);
+        case 'listParallelFeatures':
+          datasetResults = analyzeListParallelFeatures(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
-        case 'corridorLengthByStatus':
-          datasetResults = analyzeCorridorLengthByStatus(drawnGeometry, config, geoJsonData[datasetKey]);
+        case 'measureProjectByCategory':
+          datasetResults = analyzeMeasureProjectByCategory(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         case 'projectCoverage':
           datasetResults = analyzeProjectCoverage(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
-        case 'intersection':
-          datasetResults = analyzeIntersection(drawnGeometry, config, geoJsonData[datasetKey]);
+        case 'listIntersectingFeatures':
+          datasetResults = analyzeListIntersectingFeatures(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
-        case 'proximity':
-          datasetResults = analyzeProximity(drawnGeometry, config, geoJsonData[datasetKey]);
+        case 'listNearbyFeatures':
+          datasetResults = analyzeListNearbyFeatures(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
-        case 'proximityCount':
-          datasetResults = analyzeProximityWithCounting(drawnGeometry, config, geoJsonData[datasetKey]);
+        case 'countByCategory':
+          datasetResults = analyzeCountByCategory(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         case 'proximityAcreage':
           datasetResults = analyzeProximityWithAcreage(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
-        case 'binaryProximity':
-          datasetResults = analyzeBinaryProximity(drawnGeometry, config, geoJsonData[datasetKey]);
+        case 'hasNearbyFeatures':
+          datasetResults = analyzeHasNearbyFeatures(drawnGeometry, config, geoJsonData[datasetKey]);
+          break;
+
+        case 'measureIntersectedArea':
+          datasetResults = analyzeMeasureIntersectedArea(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         default:

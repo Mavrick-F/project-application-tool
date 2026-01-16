@@ -94,34 +94,34 @@ python -m http.server 3000
 
 ## Quick Reference
 
-**Analysis Types (7 total):**
+**Analysis Types (8 total):**
 
-1. **corridor** - Line-to-line matching
+1. **listParallelFeatures** - Line-to-line matching
    - 100ft buffer, 300ft minimum parallel overlap
    - Use case: Transit routes, freight corridors, bike paths
    - Returns: Features with shared length calculated
 
-2. **intersection** - Line-to-polygon or polygon-to-polygon
+2. **listIntersectingFeatures** - Line-to-polygon or polygon-to-polygon
    - Boolean intersection detection (yes/no)
    - Use case: Opportunity zones, wetlands, flood zones
    - Returns: Features that intersect with project
 
-3. **proximity** - Line/Point-to-point
+3. **listNearbyFeatures** - Line/Point-to-point
    - Returns nearby points within configurable buffer
    - Use case: Bridge inventory, crash locations, employers
    - Returns: Count of nearby features
 
-4. **proximityCount** - Proximity with categorical aggregation
+4. **countByCategory** - Proximity with categorical aggregation
    - Groups nearby points by a property field
    - Use case: Crashes grouped by severity, employers by type
    - Returns: Counts broken down by category
 
-5. **binaryProximity** - Proximity with yes/no result
+5. **hasNearbyFeatures** - Proximity with yes/no result
    - Simple boolean (any points within buffer?)
    - Use case: Environmental features
    - Returns: Yes/No result
 
-6. **corridorLengthByStatus** - Line corridor with categorical breakdown
+6. **measureProjectByCategory** - Line corridor with categorical breakdown
    - Sums segment lengths grouped by a status field
    - Use case: Travel time reliability (reliable vs unreliable miles)
    - Returns: Total miles + breakdown by category
@@ -131,11 +131,17 @@ python -m http.server 3000
    - Use case: High Injury Corridors coverage
    - Returns: Yes/No + percentage of project within coverage
 
+8. **measureIntersectedArea** - Area calculation with polygon clipping
+   - Clips polygons to project buffer, calculates intersected area in acres
+   - Requires Martinez polygon clipping library (loaded via CDN in index.html)
+   - Use case: Wetlands impact, floodplain encroachment, park disruption
+   - Returns: Total acres + breakdown by feature with individual acreage
+
 **File Structure:**
 - `datasets.yaml` - Dataset configuration (self-documenting with inline comments)
 - `src/datasets.js` - CONFIG object and YAML loader
 - `src/map.js` - Leaflet map, layers, drawing controls
-- `src/analysis.js` - Generic analysis functions for all 7 methods
+- `src/analysis.js` - Generic analysis functions for all 8 methods
 - `src/pdf.js` - PDF generation with html2canvas
 - `src/app.js` - Init, event handlers, UI management
 - `data/*.json` - GeoJSON datasets (20 total)

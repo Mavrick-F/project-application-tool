@@ -928,8 +928,8 @@ function escapeHtml(text) {
  */
 function createResultCard(datasetConfig, results) {
   // Feature service datasets (wetlands, flood zones) have display issues in sidebar
-  // Show simplified message instead
-  if (datasetConfig.lazyLoad) {
+  // Show simplified message instead (except for acreage results which we want to display)
+  if (datasetConfig.lazyLoad && datasetConfig.resultStyle !== 'acreage') {
     let cardHtml = `<div class="results-card" data-dataset="${escapeHtml(datasetConfig.id)}">`;
     cardHtml += `<div class="section-heading">${escapeHtml(datasetConfig.name)}</div>`;
     cardHtml += `<p style="padding: 10px; background-color: #F5F5F5; border-left: 4px solid #0066CC; margin-top: 10px; font-size: 14px;">
@@ -943,10 +943,12 @@ function createResultCard(datasetConfig, results) {
   const isCountResult = datasetConfig.resultStyle === 'count' && typeof results === 'object' && 'total' in results;
   const isLengthByStatusResult = datasetConfig.resultStyle === 'lengthByStatus' && typeof results === 'object' && 'total' in results;
   const isPercentageResult = datasetConfig.resultStyle === 'percentage' && typeof results === 'object' && 'percentage' in results;
+  const isAcreageResult = datasetConfig.resultStyle === 'acreage' && typeof results === 'object' && 'totalAcres' in results;
 
-  // For lengthByStatus, use features.length as count; for count results use total; for percentage results use features.length; otherwise use array length
+  // For lengthByStatus, use features.length as count; for count results use total; for percentage/acreage results use features.length; otherwise use array length
   const count = isLengthByStatusResult ? (results.features ? results.features.length : 0) :
                 isPercentageResult ? (results.features ? results.features.length : 0) :
+                isAcreageResult ? (results.features ? results.features.length : 0) :
                 (isCountResult ? results.total : results.length);
   const hasResults = count > 0;
 
@@ -1006,6 +1008,15 @@ function createResultCard(datasetConfig, results) {
       cardHtml += `</ul>`;
     }
 
+    cardHtml += `</div>`;
+  } else if (datasetConfig.resultStyle === 'acreage') {
+    // Acreage format (for area impact analysis - show only total)
+    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
+    const acreageLabel = datasetConfig.id === 'criticalWetlands'
+      ? `Total: ${results.totalAcres.toFixed(2)} acres of Freshwater Forested/Shrub Wetlands`
+      : `Total: ${results.totalAcres.toFixed(2)} acres`;
+    cardHtml += `<p style="margin: 0; font-weight: bold; font-size: 14px;">
+      ${acreageLabel}</p>`;
     cardHtml += `</div>`;
   } else if (datasetConfig.resultStyle === 'table') {
     // Table format (for datasets with additional fields like bridges)
@@ -1114,6 +1125,8 @@ function displayResults(results) {
       isEmpty = !datasetResults.detected;
     } else if (config.resultStyle === 'percentage' && typeof datasetResults === 'object' && 'percentage' in datasetResults) {
       isEmpty = datasetResults.percentage === 0;
+    } else if (config.resultStyle === 'acreage' && typeof datasetResults === 'object' && 'totalAcres' in datasetResults) {
+      isEmpty = datasetResults.totalAcres === 0;
     } else if (config.resultStyle === 'lengthByStatus' && typeof datasetResults === 'object' && 'total' in datasetResults) {
       isEmpty = datasetResults.total === 0;
     } else if (typeof datasetResults === 'object' && 'total' in datasetResults) {

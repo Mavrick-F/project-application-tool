@@ -393,10 +393,13 @@ async function generatePDF() {
         yPosition += 0.1;  // Add spacing between datasets
 
       } else if (config.resultStyle === 'acreage') {
-        // Acreage format (for wetlands - show total acreage)
+        // Acreage format (for wetlands/flood zones - show total acreage only)
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'bold');
-        pdf.text(`  Total Acreage: ${results.sum.toFixed(2)} acres`, margin, yPosition);
+        const acreageLabel = config.id === 'criticalWetlands'
+          ? `  Total: ${results.totalAcres.toFixed(2)} acres of Freshwater Forested/Shrub Wetlands`
+          : `  Total: ${results.totalAcres.toFixed(2)} acres`;
+        pdf.text(acreageLabel, margin, yPosition);
         yPosition += 0.2;
         pdf.setFont('helvetica', 'normal');
         yPosition += 0.1;  // Add spacing between datasets
