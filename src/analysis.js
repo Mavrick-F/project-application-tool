@@ -29,6 +29,30 @@ function hasValidGeometry(feature) {
 }
 
 /**
+ * Calculate the median value of an array
+ * Returns null if array is empty
+ * @param {Array<number>} values - Array of numeric values
+ * @returns {number|null} Median value or null if array is empty
+ */
+function calculateMedian(values) {
+  if (!values || values.length === 0) return null;
+
+  // Sort values in ascending order
+  const sorted = [...values].sort((a, b) => a - b);
+
+  // Find middle value
+  const mid = Math.floor(sorted.length / 2);
+
+  // If odd number of values, return middle value
+  // If even number of values, return average of two middle values
+  if (sorted.length % 2 === 1) {
+    return sorted[mid];
+  } else {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+}
+
+/**
  * Clean corridor names by removing directional suffixes
  * @param {string} name - Original corridor name
  * @returns {string} Cleaned name
@@ -830,19 +854,18 @@ function analyzeCountByCategory(drawnGeometry, datasetConfig, geoJsonData) {
  * Analyze corridor with length summation by reliability status
  * Sums up the total length of segments that fall within the corridor buffer,
  * grouped by reliability status (reliable vs unreliable)
- * Calculates percentages and mean LOTTR for all captured segments
+ * Calculates percentages and median LOTTR for all captured segments
  * Used specifically for Travel Time Reliability dataset
  * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
  * @param {Object} datasetConfig - Configuration object from DATASETS
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
- * @returns {Object} Object with percentages by reliability status, mean LOTTR, and matched features
+ * @returns {Object} Object with percentages by reliability status, median LOTTR, and matched features
  */
 function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonData) {
   const lengthsByStatus = {};  // Track lengths by Reliable_Segment_ value
   const matchedFeatures = [];  // Store matched features for map rendering
   let totalLength = 0;
-  let lottrSum = 0;  // Sum of LOTTR values for calculating mean
-  let lottrCount = 0;  // Count of features with LOTTR values
+  let lottrValues = [];  // Array of LOTTR values for calculating median
 
   // Extract actual geometry from GeoJSON Feature if needed
   const geometry = drawnGeometry.type === 'Feature'
@@ -865,11 +888,10 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
           lengthsByStatus[status] = (lengthsByStatus[status] || 0) + length;
           totalLength += length;
 
-          // Collect LOTTR values for mean calculation
+          // Collect LOTTR values for median calculation
           const lottr = parseFloat(feature.properties['Level_of_Travel_Time_Reliability']);
           if (!isNaN(lottr)) {
-            lottrSum += lottr;
-            lottrCount++;
+            lottrValues.push(lottr);
           }
 
           matchedFeatures.push({
@@ -891,13 +913,13 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
       });
     }
 
-    // Calculate mean LOTTR
-    const meanLOTTR = lottrCount > 0 ? lottrSum / lottrCount : null;
+    // Calculate median LOTTR
+    const medianLOTTR = calculateMedian(lottrValues);
 
     return {
       total: totalLength,
       breakdown: percentageBreakdown,
-      meanLOTTR: meanLOTTR,
+      medianLOTTR: medianLOTTR,
       features: matchedFeatures
     };
   }
@@ -962,11 +984,10 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
         lengthsByStatus[status] = (lengthsByStatus[status] || 0) + lengthInMiles;
         totalLength += lengthInMiles;
 
-        // Collect LOTTR values for mean calculation
+        // Collect LOTTR values for median calculation
         const lottr = parseFloat(feature.properties['Level_of_Travel_Time_Reliability']);
         if (!isNaN(lottr)) {
-          lottrSum += lottr;
-          lottrCount++;
+          lottrValues.push(lottr);
         }
 
         matchedFeatures.push({
@@ -989,13 +1010,13 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
     });
   }
 
-  // Calculate mean LOTTR
-  const meanLOTTR = lottrCount > 0 ? lottrSum / lottrCount : null;
+  // Calculate median LOTTR
+  const medianLOTTR = calculateMedian(lottrValues);
 
   return {
     total: totalLength,
     breakdown: percentageBreakdown,
-    meanLOTTR: meanLOTTR,
+    medianLOTTR: medianLOTTR,
     features: matchedFeatures
   };
 }

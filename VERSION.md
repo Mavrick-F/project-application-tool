@@ -1,5 +1,23 @@
 # Version History
 
+## v0.9.5 (2026-01-16) - Travel Time Reliability Refinements
+
+### Analysis Method Updates
+- **Changed LOTTR calculation from mean to median**: More robust statistical measure for typical LOTTR values across project corridor
+- **Added `calculateMedian()` helper function**: Correctly handles both odd and even numbers of values (averages two middle values for even counts)
+- **Updated all result displays**: Sidebar and PDF now show "Median LOTTR" instead of "Mean LOTTR"
+
+### UI/Styling Consistency
+- **Removed inconsistent bolding from results**: All individual result items now display in regular font weight
+- **Unified styling**: Sidebar and PDF reports now have consistent, non-bold result formatting
+- **Headers remain bold**: Section headers (like "Travel Time Reliability: 5") continue to use bold weight for visual hierarchy
+- Improves visual consistency and reduces visual noise in result displays
+
+### Technical Implementation
+- Modified `analyzeMeasureProjectByCategory()` in analysis.js to collect LOTTR values in array instead of summing
+- Updated property names from `meanLOTTR` to `medianLOTTR` across all result handling code
+- Changes made in: src/analysis.js, src/pdf.js, src/app.js
+
 ## v0.9.4 (2026-01-16) - Header Redesign & Security Hardening
 
 ### UI/Design Improvements

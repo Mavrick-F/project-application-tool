@@ -958,12 +958,12 @@ function createResultCard(datasetConfig, results) {
   if (!hasResults) {
     cardHtml += `<p class="empty-state">No ${escapeHtml(datasetConfig.name.toLowerCase())} found</p>`;
   } else if (datasetConfig.resultStyle === 'lengthByStatus') {
-    // Length by status format (for travel time reliability - show percentages and mean LOTTR)
+    // Length by status format (for travel time reliability - show percentages and median LOTTR)
     cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
 
-    // Show mean LOTTR if available
-    if (results.meanLOTTR !== null && results.meanLOTTR !== undefined) {
-      cardHtml += `<p style="margin: 0 0 10px 0; font-weight: bold; font-size: 14px;">Mean LOTTR: ${escapeHtml(results.meanLOTTR.toFixed(2))}</p>`;
+    // Show median LOTTR if available
+    if (results.medianLOTTR !== null && results.medianLOTTR !== undefined) {
+      cardHtml += `<p style="margin: 0 0 10px 0; font-size: 14px;">Median LOTTR: ${escapeHtml(results.medianLOTTR.toFixed(2))}</p>`;
     }
 
     if (results.breakdown && Object.keys(results.breakdown).length > 0) {
@@ -978,7 +978,7 @@ function createResultCard(datasetConfig, results) {
 
       sortedBreakdown.forEach(([status, percentage]) => {
         const statusLabel = status === 'True' ? 'Reliable' : 'Unreliable';
-        cardHtml += `<li><strong>${escapeHtml(statusLabel)}:</strong> ${escapeHtml(percentage.toFixed(1))}%</li>`;
+        cardHtml += `<li>${escapeHtml(statusLabel)}: ${escapeHtml(percentage.toFixed(1))}%</li>`;
       });
 
       cardHtml += `</ul>`;
@@ -988,12 +988,12 @@ function createResultCard(datasetConfig, results) {
   } else if (datasetConfig.resultStyle === 'percentage') {
     // Percentage format (for project coverage analysis like HICs)
     cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
-    cardHtml += `<p style="margin: 0; font-weight: bold; font-size: 14px;">${escapeHtml(results.percentage)}% of project</p>`;
+    cardHtml += `<p style="margin: 0; font-size: 14px;">${escapeHtml(results.percentage)}% of project</p>`;
     cardHtml += `</div>`;
   } else if (datasetConfig.resultStyle === 'count') {
     // Count format (for datasets that count features by category)
     cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
-    cardHtml += `<p style="margin: 0 0 10px 0; font-weight: bold; font-size: 14px;">Total: ${escapeHtml(results.total)}</p>`;
+    cardHtml += `<p style="margin: 0 0 10px 0; font-size: 14px;">Total: ${escapeHtml(results.total)}</p>`;
 
     if (results.breakdown && Object.keys(results.breakdown).length > 0) {
       cardHtml += `<ul class="results-list" style="margin: 0; padding-left: 20px;">`;
@@ -1002,7 +1002,7 @@ function createResultCard(datasetConfig, results) {
       const sortedBreakdown = Object.entries(results.breakdown).sort((a, b) => b[1] - a[1]);
 
       sortedBreakdown.forEach(([category, categoryCount]) => {
-        cardHtml += `<li><strong>${escapeHtml(category)}:</strong> ${escapeHtml(categoryCount)}</li>`;
+        cardHtml += `<li>${escapeHtml(category)}: ${escapeHtml(categoryCount)}</li>`;
       });
 
       cardHtml += `</ul>`;
@@ -1015,7 +1015,7 @@ function createResultCard(datasetConfig, results) {
     const acreageLabel = datasetConfig.id === 'criticalWetlands'
       ? `Total: ${results.totalAcres.toFixed(2)} acres of Freshwater Forested/Shrub Wetlands`
       : `Total: ${results.totalAcres.toFixed(2)} acres`;
-    cardHtml += `<p style="margin: 0; font-weight: bold; font-size: 14px;">
+    cardHtml += `<p style="margin: 0; font-size: 14px;">
       ${acreageLabel}</p>`;
     cardHtml += `</div>`;
   } else if (datasetConfig.resultStyle === 'table') {
