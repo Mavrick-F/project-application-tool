@@ -9,8 +9,6 @@
 
 ### UI/Styling Consistency
 - **Removed inconsistent bolding from results**: All individual result items now display in regular font weight
-- **Unified styling**: Sidebar and PDF reports now have consistent, non-bold result formatting
-- **Headers remain bold**: Section headers (like "Travel Time Reliability: 5") continue to use bold weight for visual hierarchy
 - Improves visual consistency and reduces visual noise in result displays
 
 ### Technical Implementation
@@ -331,4 +329,5 @@ All 17 required datasets now integrated:
   - Support for static labels via `staticLabel`
 - **Integrated 12 datasets** across all geometry types
 - **Prepared for ArcGIS Feature Service integration** (architecture in place)
+
 
