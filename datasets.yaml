@@ -169,7 +169,7 @@ highInjuryCorridors:
   category: Transportation
   filePath: ./data/HIN_Corridors.geojson
   geometryType: LineString
-  analysisMethod: corridor
+  analysisMethod: projectCoverage
 
   bufferDistance: 100
   minSharedLength: 300
@@ -189,7 +189,7 @@ highInjuryCorridors:
     weight: 3
     opacity: 0.9
 
-  resultStyle: list
+  resultStyle: percentage
   enabled: true
 
 mataRoutes:
@@ -532,8 +532,8 @@ criticalWetlands:
 
   style:
     color: '#32CD32'  # Lime green
-    weight: 0.5  # Very thin border
-    fillColor: '#32CD32'
+    weight: 2
+    fillColor: '#32CD32' # Lime green
     fillOpacity: 1.0  # Fully opaque/solid
 
   resultStyle: binary  # Shows "Yes" or "No" result
@@ -584,7 +584,7 @@ floodZones:
   proximityBuffer: 200
 
   properties:
-    displayField: FLD_ZONE  # Flood zone designation (100-year, 500-year, etc.)
+    displayField: FLD_ZONE  # Flood zone designation
     additionalFields: []
 
   specialHandling:
@@ -713,7 +713,7 @@ wetlands:
     deduplicate: false
 
   style:
-    color: '#556B2F'  # Dark olive green
+    color: '#6B8E23'  # Olive drab
     weight: 2
     fillColor: '#6B8E23'  # Olive drab
     fillOpacity: 0.4

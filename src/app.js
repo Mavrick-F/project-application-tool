@@ -26,18 +26,43 @@ async function init() {
     // Wait for datasets configuration to load from YAML
     await datasetsLoaded;
 
-    // Validate that datasets loaded successfully
+    // Validate that DATASETS loaded successfully
+    if (!DATASETS || typeof DATASETS !== 'object') {
+      throw new Error('DATASETS configuration object is not available.');
+    }
+
     if (Object.keys(DATASETS).length === 0) {
       throw new Error('No datasets loaded from YAML configuration. Check console for errors.');
     }
 
+    console.log(`✓ Configuration loaded: ${Object.keys(DATASETS).length} datasets configured`);
+
     showLoading(true, 'Loading map data...');
 
-    // Load all GeoJSON files
-    await loadGeoJsonData();
+    // Load all GeoJSON files and track failures
+    const loadResults = await loadGeoJsonData();
+
+    // Check for failed datasets
+    if (loadResults && loadResults.failed && loadResults.failed.length > 0) {
+      console.warn(`⚠ ${loadResults.failed.length} dataset(s) failed to load:`, loadResults.failed);
+      // Continue with partial data - non-critical datasets can fail gracefully
+    }
+
+    if (loadResults && loadResults.loaded === 0) {
+      throw new Error('No datasets could be loaded. Check network connection and data files.');
+    }
+
+    console.log(`✓ Data loaded: ${loadResults?.loaded || 0} dataset(s) loaded successfully`);
 
     // Initialize the Leaflet map
-    initializeMap();
+    const mapInitialized = initializeMap();
+
+    // Validate map initialization
+    if (!mapInitialized || !window.map) {
+      throw new Error('Map initialization failed. Leaflet library may not have loaded correctly.');
+    }
+
+    console.log('✓ Map initialized successfully');
 
     // Add reference layers to map
     addReferenceLayers();
@@ -54,12 +79,16 @@ async function init() {
     // Hide loading overlay
     showLoading(false);
 
+    console.log('✓ Application initialized successfully');
+
     // Show tutorial popup if first visit
     showTutorialIfFirstVisit();
 
   } catch (error) {
     console.error('Initialization error:', error);
-    showError('Failed to initialize the application. Please refresh the page.');
+    showLoading(false);
+    showError(`Failed to initialize the application: ${error.message}\n\nPlease refresh the page and try again.`);
+    throw error; // Re-throw to stop execution
   }
 }
 
@@ -362,9 +391,12 @@ function convertArcGISGeometry(arcgisGeom, geometryType) {
 /**
  * Dynamically load all enabled GeoJSON datasets from the DATASETS configuration
  * Fetches all dataset files and feature services in parallel for better performance
- * @returns {Promise} Resolves when all data is loaded
+ * @returns {Promise<Object>} Object with {loaded: number, failed: Array<string>}
  */
 async function loadGeoJsonData() {
+  const failedDatasets = [];
+  let loadedCount = 0;
+
   try {
     // Build array of fetch promises for all enabled datasets
     const fetchPromises = [];
@@ -456,21 +488,36 @@ async function loadGeoJsonData() {
 
         geoJsonData[datasetKey] = data;
         loadedCounts[datasetKey] = data.features ? data.features.length : 0;
+        loadedCount++;
       } else {
         geoJsonData[datasetKey] = null;
         loadedCounts[datasetKey] = 'failed';
+        failedDatasets.push(config.name);
       }
     });
 
-    console.log('Data loaded successfully:', loadedCounts);
+    console.log('Data loaded:', loadedCounts);
 
     // Validate coordinate systems for all loaded datasets
     Object.keys(DATASETS).forEach(datasetKey => {
       const config = DATASETS[datasetKey];
       if (config.enabled && geoJsonData[datasetKey]) {
-        validateProjection(geoJsonData[datasetKey], config.name);
+        try {
+          validateProjection(geoJsonData[datasetKey], config.name);
+        } catch (projError) {
+          // Projection validation failed - treat as load failure
+          console.error(`Projection validation failed for ${config.name}:`, projError);
+          geoJsonData[datasetKey] = null;
+          failedDatasets.push(config.name);
+          loadedCount--;
+        }
       }
     });
+
+    return {
+      loaded: loadedCount,
+      failed: failedDatasets
+    };
 
   } catch (error) {
     console.error('Error loading GeoJSON data:', error);
@@ -757,6 +804,11 @@ function onDrawLineButtonClicked() {
     markerDrawer.disable();
   }
 
+  // Disable measurement tool if active
+  if (isMeasuring) {
+    toggleMeasurementTool();
+  }
+
   // Toggle polyline drawing
   if (polylineDrawer._enabled) {
     polylineDrawer.disable();
@@ -773,6 +825,11 @@ function onDrawPointButtonClicked() {
   // Disable polyline drawing if active
   if (polylineDrawer._enabled) {
     polylineDrawer.disable();
+  }
+
+  // Disable measurement tool if active
+  if (isMeasuring) {
+    toggleMeasurementTool();
   }
 
   // Toggle marker drawing
@@ -848,6 +905,22 @@ function setupEventListeners() {
 // ============================================
 
 /**
+ * Escape HTML special characters to prevent XSS attacks
+ * @param {string} text - Text to escape
+ * @returns {string} Escaped text safe for HTML insertion
+ */
+function escapeHtml(text) {
+  if (text === null || text === undefined) {
+    return '';
+  }
+
+  const str = String(text);
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/**
  * Create HTML for a single results card
  * @param {Object} datasetConfig - Configuration from DATASETS
  * @param {Array} results - Analysis results for this dataset
@@ -857,10 +930,10 @@ function createResultCard(datasetConfig, results) {
   // Feature service datasets (wetlands, flood zones) have display issues in sidebar
   // Show simplified message instead
   if (datasetConfig.lazyLoad) {
-    let cardHtml = `<div class="results-card" data-dataset="${datasetConfig.id}">`;
-    cardHtml += `<div class="section-heading">${datasetConfig.name}</div>`;
+    let cardHtml = `<div class="results-card" data-dataset="${escapeHtml(datasetConfig.id)}">`;
+    cardHtml += `<div class="section-heading">${escapeHtml(datasetConfig.name)}</div>`;
     cardHtml += `<p style="padding: 10px; background-color: #F5F5F5; border-left: 4px solid #0066CC; margin-top: 10px; font-size: 14px;">
-      <strong>See Full PDF Report</strong> for detailed results from ArcGIS Feature Services
+      See full PDF Report for results
     </p>`;
     cardHtml += `</div>`;
     return cardHtml;
@@ -869,23 +942,26 @@ function createResultCard(datasetConfig, results) {
   // Handle count results differently (object with total and breakdown)
   const isCountResult = datasetConfig.resultStyle === 'count' && typeof results === 'object' && 'total' in results;
   const isLengthByStatusResult = datasetConfig.resultStyle === 'lengthByStatus' && typeof results === 'object' && 'total' in results;
+  const isPercentageResult = datasetConfig.resultStyle === 'percentage' && typeof results === 'object' && 'percentage' in results;
 
-  // For lengthByStatus, use features.length as count; for count results use total; otherwise use array length
-  const count = isLengthByStatusResult ? (results.features ? results.features.length : 0) : (isCountResult ? results.total : results.length);
+  // For lengthByStatus, use features.length as count; for count results use total; for percentage results use features.length; otherwise use array length
+  const count = isLengthByStatusResult ? (results.features ? results.features.length : 0) :
+                isPercentageResult ? (results.features ? results.features.length : 0) :
+                (isCountResult ? results.total : results.length);
   const hasResults = count > 0;
 
-  let cardHtml = `<div class="results-card" data-dataset="${datasetConfig.id}">`;
-  cardHtml += `<div class="section-heading">${datasetConfig.name} <span class="result-count">${count}</span></div>`;
+  let cardHtml = `<div class="results-card" data-dataset="${escapeHtml(datasetConfig.id)}">`;
+  cardHtml += `<div class="section-heading">${escapeHtml(datasetConfig.name)} <span class="result-count">${escapeHtml(count)}</span></div>`;
 
   if (!hasResults) {
-    cardHtml += `<p class="empty-state">No ${datasetConfig.name.toLowerCase()} found</p>`;
+    cardHtml += `<p class="empty-state">No ${escapeHtml(datasetConfig.name.toLowerCase())} found</p>`;
   } else if (datasetConfig.resultStyle === 'lengthByStatus') {
     // Length by status format (for travel time reliability - show percentages and mean LOTTR)
     cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
 
     // Show mean LOTTR if available
     if (results.meanLOTTR !== null && results.meanLOTTR !== undefined) {
-      cardHtml += `<p style="margin: 0 0 10px 0; font-weight: bold; font-size: 14px;">Mean LOTTR: ${results.meanLOTTR.toFixed(2)}</p>`;
+      cardHtml += `<p style="margin: 0 0 10px 0; font-weight: bold; font-size: 14px;">Mean LOTTR: ${escapeHtml(results.meanLOTTR.toFixed(2))}</p>`;
     }
 
     if (results.breakdown && Object.keys(results.breakdown).length > 0) {
@@ -900,17 +976,22 @@ function createResultCard(datasetConfig, results) {
 
       sortedBreakdown.forEach(([status, percentage]) => {
         const statusLabel = status === 'True' ? 'Reliable' : 'Unreliable';
-        cardHtml += `<li><strong>${statusLabel}:</strong> ${percentage.toFixed(1)}%</li>`;
+        cardHtml += `<li><strong>${escapeHtml(statusLabel)}:</strong> ${escapeHtml(percentage.toFixed(1))}%</li>`;
       });
 
       cardHtml += `</ul>`;
     }
 
     cardHtml += `</div>`;
+  } else if (datasetConfig.resultStyle === 'percentage') {
+    // Percentage format (for project coverage analysis like HICs)
+    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
+    cardHtml += `<p style="margin: 0; font-weight: bold; font-size: 14px;">${escapeHtml(results.percentage)}% of project</p>`;
+    cardHtml += `</div>`;
   } else if (datasetConfig.resultStyle === 'count') {
     // Count format (for datasets that count features by category)
     cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
-    cardHtml += `<p style="margin: 0 0 10px 0; font-weight: bold; font-size: 14px;">Total: ${results.total}</p>`;
+    cardHtml += `<p style="margin: 0 0 10px 0; font-weight: bold; font-size: 14px;">Total: ${escapeHtml(results.total)}</p>`;
 
     if (results.breakdown && Object.keys(results.breakdown).length > 0) {
       cardHtml += `<ul class="results-list" style="margin: 0; padding-left: 20px;">`;
@@ -919,7 +1000,7 @@ function createResultCard(datasetConfig, results) {
       const sortedBreakdown = Object.entries(results.breakdown).sort((a, b) => b[1] - a[1]);
 
       sortedBreakdown.forEach(([category, categoryCount]) => {
-        cardHtml += `<li><strong>${category}:</strong> ${categoryCount}</li>`;
+        cardHtml += `<li><strong>${escapeHtml(category)}:</strong> ${escapeHtml(categoryCount)}</li>`;
       });
 
       cardHtml += `</ul>`;
@@ -930,10 +1011,10 @@ function createResultCard(datasetConfig, results) {
     // Table format (for datasets with additional fields like bridges)
     cardHtml += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">`;
     cardHtml += `<thead><tr>`;
-    cardHtml += `<th style="background-color: #E6F2FF; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #CCCCCC; font-size: 12px;">${datasetConfig.properties.displayField}</th>`;
+    cardHtml += `<th style="background-color: #E6F2FF; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #CCCCCC; font-size: 12px;">${escapeHtml(datasetConfig.properties.displayField)}</th>`;
 
     datasetConfig.properties.additionalFields.forEach(field => {
-      cardHtml += `<th style="background-color: #E6F2FF; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #CCCCCC; font-size: 12px;">${field}</th>`;
+      cardHtml += `<th style="background-color: #E6F2FF; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #CCCCCC; font-size: 12px;">${escapeHtml(field)}</th>`;
     });
 
     cardHtml += `</tr></thead><tbody>`;
@@ -944,10 +1025,10 @@ function createResultCard(datasetConfig, results) {
 
       // Access properties from Feature or flat object
       const props = result.properties || result;
-      cardHtml += `<td style="padding: 8px 10px; border: 1px solid #CCCCCC; font-size: 12px;">${props[datasetConfig.properties.displayField]}</td>`;
+      cardHtml += `<td style="padding: 8px 10px; border: 1px solid #CCCCCC; font-size: 12px;">${escapeHtml(props[datasetConfig.properties.displayField])}</td>`;
 
       datasetConfig.properties.additionalFields.forEach(field => {
-        cardHtml += `<td style="padding: 8px 10px; border: 1px solid #CCCCCC; font-size: 12px;">${props[field]}</td>`;
+        cardHtml += `<td style="padding: 8px 10px; border: 1px solid #CCCCCC; font-size: 12px;">${escapeHtml(props[field])}</td>`;
       });
 
       cardHtml += `</tr>`;
@@ -985,7 +1066,7 @@ function createResultCard(datasetConfig, results) {
         displayText = String(result);
       }
 
-      cardHtml += `<li>${displayText}</li>`;
+      cardHtml += `<li>${escapeHtml(displayText)}</li>`;
     });
 
     cardHtml += `</ul>`;
@@ -1031,6 +1112,8 @@ function displayResults(results) {
 
     if (config.resultStyle === 'binary' && typeof datasetResults === 'object' && 'detected' in datasetResults) {
       isEmpty = !datasetResults.detected;
+    } else if (config.resultStyle === 'percentage' && typeof datasetResults === 'object' && 'percentage' in datasetResults) {
+      isEmpty = datasetResults.percentage === 0;
     } else if (config.resultStyle === 'lengthByStatus' && typeof datasetResults === 'object' && 'total' in datasetResults) {
       isEmpty = datasetResults.total === 0;
     } else if (typeof datasetResults === 'object' && 'total' in datasetResults) {
@@ -1061,7 +1144,7 @@ function displayResults(results) {
     // Add category header
     resultsContainer.innerHTML += `
       <div style="font-weight: bold; font-size: 16px; color: #333; margin-top: 20px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #0066CC;">
-        ${category}
+        ${escapeHtml(category)}
       </div>
     `;
 

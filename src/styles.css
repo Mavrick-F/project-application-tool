@@ -30,23 +30,74 @@ body {
 header {
   display: flex;
   align-items: center;
-  padding: 15px 20px;
-  background-color: #1565C0;
-  color: white;
-  min-height: 80px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  gap: 27px;
+  padding: 18px 32px;
+  background: linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%);
+  color: #2c3e50;
+  min-height: 95px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  position: relative;
+  border-bottom: 1px solid #e1e4e8;
+}
+
+/* Subtle accent line at top */
+header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(to right, #5b6b8f 0%, #4fb3a8 50%, #5b6b8f 100%);
+  opacity: 0.85;
 }
 
 header img {
-  height: 60px;
-  max-width: 200px;
-  margin-right: 20px;
+  height: 64px;
+  max-width: 600px;
+  margin: 0;
   object-fit: contain;
+  position: relative;
+  z-index: 1;
+  transition: opacity 0.2s ease;
+}
+
+header img:hover {
+  opacity: 0.9;
+}
+
+/* Vertical separator */
+header::after {
+  content: '';
+  width: 1px;
+  height: 53px;
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    rgba(44, 62, 80, 0.15) 20%,
+    rgba(44, 62, 80, 0.15) 80%,
+    transparent 100%);
+  position: relative;
+  z-index: 1;
 }
 
 header h1 {
-  font-size: 20px;
-  font-weight: bold;
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  position: relative;
+  z-index: 1;
+  color: #2c3e50;
+}
+
+header h1 .header-year {
+  font-weight: 700;
+  color: #5b6b8f;
+  letter-spacing: 0.5px;
+}
+
+header h1 .header-app {
+  font-weight: 500;
+  color: #4a5568;
 }
 
 /* Main container with sidebar and map */
@@ -390,6 +441,60 @@ header h1 {
   border-top: none;
   font-size: 11px;
   padding: 2px 5px;
+}
+
+/* ============================================
+   MEASUREMENT TOOL
+   ============================================ */
+
+/* Measurement Tool Control */
+.leaflet-control-measure {
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+  margin-top: 10px; /* Space below zoom control */
+}
+
+.leaflet-control-measure a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  text-decoration: none;
+  color: #333;
+  background-color: white;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.leaflet-control-measure a:hover {
+  background-color: #f4f4f4;
+}
+
+.leaflet-control-measure a.active {
+  background-color: #1565C0;
+  color: white;
+}
+
+.leaflet-control-measure a.active:hover {
+  background-color: #0D47A1;
+}
+
+/* Measurement tooltip styling */
+.measurement-total-label {
+  background-color: rgba(255, 140, 0, 0.9);
+  color: white;
+  border: 2px solid white;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.measurement-total-label::before {
+  border-top-color: rgba(255, 140, 0, 0.9);
 }
 
 /* ============================================
