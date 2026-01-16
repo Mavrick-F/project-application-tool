@@ -42,19 +42,6 @@ Web-based spatial analysis tool for Memphis MPO's RTP 2055. Users draw project a
 
 ## Current Development Phase: Polish & Security for v1.0
 
-**Completed in v0.9.4:**
-- ✅ Header redesign with improved typography
-- ✅ Security hardening (XSS prevention, SRI integrity hashes)
-- ✅ User measurement tool
-- ✅ Tutorial redesign
-
-**Remaining for v1.0:**
-- Loading states and error messages
-- Confirmation dialogs for destructive actions
-- Empty state messaging
-- Final documentation polish
-- Edge case testing
-
 ## Configuration-Driven System (v0.6.0+)
 
 **v0.9.3+: YAML Configuration**
@@ -93,49 +80,6 @@ python -m http.server 3000
 ```
 
 ## Quick Reference
-
-**Analysis Types (8 total):**
-
-1. **listParallelFeatures** - Line-to-line matching
-   - 100ft buffer, 300ft minimum parallel overlap
-   - Use case: Transit routes, freight corridors, bike paths
-   - Returns: Features with shared length calculated
-
-2. **listIntersectingFeatures** - Line-to-polygon or polygon-to-polygon
-   - Boolean intersection detection (yes/no)
-   - Use case: Opportunity zones, wetlands, flood zones
-   - Returns: Features that intersect with project
-
-3. **listNearbyFeatures** - Line/Point-to-point
-   - Returns nearby points within configurable buffer
-   - Use case: Bridge inventory, crash locations, employers
-   - Returns: Count of nearby features
-
-4. **countByCategory** - Proximity with categorical aggregation
-   - Groups nearby points by a property field
-   - Use case: Crashes grouped by severity, employers by type
-   - Returns: Counts broken down by category
-
-5. **hasNearbyFeatures** - Proximity with yes/no result
-   - Simple boolean (any points within buffer?)
-   - Use case: Environmental features
-   - Returns: Yes/No result
-
-6. **measureProjectByCategory** - Line corridor with categorical breakdown
-   - Sums segment lengths grouped by a status field
-   - Use case: Travel time reliability (reliable vs unreliable miles)
-   - Returns: Total miles + breakdown by category
-
-7. **projectCoverage** - Project coverage analysis
-   - Detects if project overlaps with specific datasets
-   - Use case: High Injury Corridors coverage
-   - Returns: Yes/No + percentage of project within coverage
-
-8. **measureIntersectedArea** - Area calculation with polygon clipping
-   - Clips polygons to project buffer, calculates intersected area in acres
-   - Requires Martinez polygon clipping library (loaded via CDN in index.html)
-   - Use case: Wetlands impact, floodplain encroachment, park disruption
-   - Returns: Total acres + breakdown by feature with individual acreage
 
 **File Structure:**
 - `datasets.yaml` - Dataset configuration (self-documenting with inline comments)
@@ -216,3 +160,4 @@ When making changes, follow this workflow:
 ```
 
 **Encourage:** Write tests BEFORE or alongside code changes. Tests save debugging time and document expected behavior.
+
