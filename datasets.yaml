@@ -10,12 +10,14 @@
 #   - Polygon: Closed shapes defining areas (zones, wetlands, districts)
 #
 # ANALYSIS METHODS:
-#   - corridor: For lines running parallel to project (requires bufferDistance & minSharedLength)
-#   - intersection: For areas that overlap with project (polygons, geometric overlap)
-#   - proximity: For features near project (requires proximityBuffer distance)
-#   - proximityCount: Like proximity but counts features by a field (e.g., crash severity)
-#   - binaryProximity: Returns yes/no if ANY feature is within buffer (for large datasets)
-#   - corridorLengthByStatus: Calculates total length broken down by status field
+#   - listParallelFeatures: For lines running parallel to project (requires bufferDistance & minSharedLength)
+#   - listIntersectingFeatures: For areas that overlap with project (polygons, geometric overlap)
+#   - listNearbyFeatures: For features near project (requires proximityBuffer distance)
+#   - countByCategory: Like listNearbyFeatures but counts features by a field (e.g., crash severity)
+#   - hasNearbyFeatures: Returns yes/no if ANY feature is within buffer (for large datasets)
+#   - measureProjectByCategory: Calculates total length broken down by status field
+#   - measureIntersectedArea: Calculates acreage of intersected polygon features
+#   - projectCoverage: Calculates percentage of project within coverage areas
 #
 # COLOR CODES: Use hex format (#RRGGBB) or named colors
 #   Examples: '#FF0000' (red), '#228B22' (forest green), '#0066CC' (blue)
@@ -35,7 +37,7 @@ bridges:
   category: Transportation  # Groups datasets in sidebar (Transportation, Economic Development, Environmental/Cultural)
   filePath: ./data/bridges.json  # Relative path from project root to GeoJSON file
   geometryType: Point  # Point features (single lat/lon coordinates)
-  analysisMethod: proximity  # Find bridges within buffer distance of project
+  analysisMethod: listNearbyFeatures  # Find bridges within buffer distance of project
 
   # Buffer/distance parameters (set to null if not used by this analysis method)
   bufferDistance: null  # Not used for proximity analysis
@@ -85,7 +87,7 @@ crashLocations:
   category: Transportation
   filePath: ./data/ksi_crashes.geojson
   geometryType: Point
-  analysisMethod: proximityCount  # Counts features and groups by field value
+  analysisMethod: countByCategory  # Counts features and groups by field value
 
   bufferDistance: null
   minSharedLength: null
@@ -119,10 +121,10 @@ greenprintNetwork:
   category: Transportation
   filePath: ./data/greenprint.geojson
   geometryType: LineString  # Line features (connected coordinate sequences)
-  analysisMethod: corridor  # Find lines running parallel to project
+  analysisMethod: listParallelFeatures  # Find lines running parallel to project
 
   bufferDistance: 100  # Create 100ft buffer around project for initial intersection check
-  minSharedLength: 300  # Require 300ft of parallel overlap to count as match
+  minSharedLength: 100  # Require 300ft of parallel overlap to count as match
   proximityBuffer: null
 
   properties:
@@ -172,7 +174,7 @@ highInjuryCorridors:
   analysisMethod: projectCoverage
 
   bufferDistance: 100
-  minSharedLength: 300
+  minSharedLength: 100
   proximityBuffer: null
 
   properties:
@@ -198,10 +200,10 @@ mataRoutes:
   category: Transportation
   filePath: ./data/mata-routes.json
   geometryType: LineString
-  analysisMethod: corridor
+  analysisMethod: listParallelFeatures
 
   bufferDistance: 100
-  minSharedLength: 300
+  minSharedLength: 100
   proximityBuffer: null
 
   properties:
@@ -227,10 +229,10 @@ strahnet:
   category: Transportation
   filePath: ./data/strahnet.geojson
   geometryType: LineString
-  analysisMethod: corridor
+  analysisMethod: listParallelFeatures
 
   bufferDistance: 100
-  minSharedLength: 300
+  minSharedLength: 100
   proximityBuffer: null
 
   properties:
@@ -256,10 +258,10 @@ travelTimeReliability:
   category: Transportation
   filePath: ./data/road_congestion.json
   geometryType: LineString
-  analysisMethod: corridorLengthByStatus  # Calculate total length broken down by status
+  analysisMethod: measureProjectByCategory  # Calculate total length broken down by status
 
   bufferDistance: 100
-  minSharedLength: 300
+  minSharedLength: 100
   proximityBuffer: null
 
   properties:
@@ -302,7 +304,7 @@ aliceZctas:
   category: Economic Development
   filePath: ./data/alice_zctas.geojson
   geometryType: Polygon  # Area features (closed shapes)
-  analysisMethod: intersection  # Check if project overlaps with polygon areas
+  analysisMethod: listIntersectingFeatures  # Check if project overlaps with polygon areas
 
   bufferDistance: null
   minSharedLength: null
@@ -347,7 +349,7 @@ freightClusters:
   category: Economic Development
   filePath: ./data/freight_clusters.geojson
   geometryType: Polygon
-  analysisMethod: intersection
+  analysisMethod: listIntersectingFeatures
 
   bufferDistance: null
   minSharedLength: null
@@ -376,10 +378,10 @@ truckRoutes:
   category: Economic Development
   filePath: ./data/freight_routes.json
   geometryType: LineString
-  analysisMethod: corridor
+  analysisMethod: listParallelFeatures
 
   bufferDistance: 100
-  minSharedLength: 300
+  minSharedLength: 100
   proximityBuffer: null
 
   properties:
@@ -417,7 +419,7 @@ majorEmployers:
   category: Economic Development
   filePath: ./data/major_employers.geojson
   geometryType: Point
-  analysisMethod: proximity
+  analysisMethod: listNearbyFeatures
 
   bufferDistance: null
   minSharedLength: null
@@ -447,7 +449,7 @@ opportunityZones:
   category: Economic Development
   filePath: ./data/opportunity-zones.json
   geometryType: Polygon
-  analysisMethod: intersection
+  analysisMethod: listIntersectingFeatures
 
   bufferDistance: null
   minSharedLength: null
@@ -476,7 +478,7 @@ touristAttractions:
   category: Economic Development
   filePath: ./data/tourist_attractions.geojson
   geometryType: Point
-  analysisMethod: proximity
+  analysisMethod: listNearbyFeatures
 
   bufferDistance: null
   minSharedLength: null
@@ -509,9 +511,9 @@ criticalWetlands:
   lazyLoad: true  # Don't load until analysis runs (for performance with large datasets)
   featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0  # ArcGIS Feature Service URL (alternative to filePath)
   geometryType: Polygon
-  analysisMethod: binaryProximity  # Returns simple yes/no (optimized for large datasets)
+  analysisMethod: measureIntersectedArea  # Calculate acreage of intersected wetlands
 
-  bufferDistance: null
+  bufferDistance: 200
   minSharedLength: null
   proximityBuffer: 200  # 200 feet
 
@@ -536,8 +538,7 @@ criticalWetlands:
     fillColor: '#32CD32' # Lime green
     fillOpacity: 1.0  # Fully opaque/solid
 
-  resultStyle: binary  # Shows "Yes" or "No" result
-  binaryLabel: Within Critical Wetlands  # Label for yes/no result
+  resultStyle: acreage
   enabled: true
 
 epaSuperFundSites:
@@ -546,7 +547,7 @@ epaSuperFundSites:
   category: Environmental/Cultural
   filePath: ./data/epa_superfund_sites.geojson
   geometryType: Point
-  analysisMethod: proximity
+  analysisMethod: listNearbyFeatures
 
   bufferDistance: null
   minSharedLength: null
@@ -577,9 +578,9 @@ floodZones:
   lazyLoad: true
   featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MPO_Flood_Zones/FeatureServer/0
   geometryType: Polygon
-  analysisMethod: binaryProximity
+  analysisMethod: measureIntersectedArea
 
-  bufferDistance: null
+  bufferDistance: 200
   minSharedLength: null
   proximityBuffer: 200
 
@@ -598,8 +599,7 @@ floodZones:
     fillOpacity: 0.35
     dashArray: '5, 5'  # Dashed pattern (5px dash, 5px gap)
 
-  resultStyle: binary
-  binaryLabel: Within Flood Zone
+  resultStyle: acreage
   enabled: true
 
 historicPoints:
@@ -608,7 +608,7 @@ historicPoints:
   category: Environmental/Cultural
   filePath: ./data/historic_points.geojson
   geometryType: Point
-  analysisMethod: proximity
+  analysisMethod: listNearbyFeatures
 
   bufferDistance: null
   minSharedLength: null
@@ -638,7 +638,7 @@ historicPolygons:
   category: Environmental/Cultural
   filePath: ./data/historic_polygons.geojson
   geometryType: Polygon
-  analysisMethod: proximity
+  analysisMethod: listNearbyFeatures
 
   bufferDistance: null
   minSharedLength: null
@@ -667,7 +667,7 @@ parks:
   category: Environmental/Cultural
   filePath: ./data/parks.json
   geometryType: Polygon
-  analysisMethod: proximity
+  analysisMethod: listNearbyFeatures
 
   bufferDistance: null
   minSharedLength: null
@@ -697,9 +697,9 @@ wetlands:
   lazyLoad: true
   featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0
   geometryType: Polygon
-  analysisMethod: binaryProximity
+  analysisMethod: measureIntersectedArea
 
-  bufferDistance: null
+  bufferDistance: 200
   minSharedLength: null
   proximityBuffer: 200
 
@@ -718,8 +718,7 @@ wetlands:
     fillColor: '#6B8E23'  # Olive drab
     fillOpacity: 0.4
 
-  resultStyle: binary
-  binaryLabel: Within Wetlands
+  resultStyle: acreage
   enabled: true
 
 # ========== EXAMPLE: PAVEMENT CONDITION DATASET ==========
@@ -732,10 +731,10 @@ pavementCondition:
   category: Transportation
   filePath: ./data/pavement_condition.geojson  # Create this file with pavement data
   geometryType: LineString  # Road segments
-  analysisMethod: corridor  # Find roads running parallel to project
+  analysisMethod: measureProjectByCategory  # Identifies the percentage of good/fair/poor pavement
 
   bufferDistance: 100  # 100 feet buffer for initial intersection
-  minSharedLength: 300  # Require 300 feet of parallel overlap
+  minSharedLength: 100  # Require 300 feet of parallel overlap
   proximityBuffer: null
 
   properties:
@@ -772,5 +771,5 @@ pavementCondition:
         weight: 4  # Thicker line to emphasize poor condition
         opacity: 0.9
 
-  resultStyle: list  # Display matching roads as a list
+  resultStyle: percentage  # Display percentage of roads by condition
   enabled: false  # Set to true when data file is available
