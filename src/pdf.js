@@ -395,27 +395,24 @@ async function generatePDF() {
       } else if (config.resultStyle === 'acreage') {
         // Acreage format (for wetlands/flood zones - show total acreage only)
         checkPageBreak(0.3);
-        pdf.setFont('helvetica', 'bold');
+        pdf.setFont('helvetica', 'normal');
         const acreageLabel = config.id === 'criticalWetlands'
           ? `  Total: ${results.totalAcres.toFixed(2)} acres of Freshwater Forested/Shrub Wetlands`
           : `  Total: ${results.totalAcres.toFixed(2)} acres`;
         pdf.text(acreageLabel, margin, yPosition);
         yPosition += 0.2;
-        pdf.setFont('helvetica', 'normal');
         yPosition += 0.1;  // Add spacing between datasets
 
       } else if (config.resultStyle === 'lengthByStatus') {
-        // Length by status format (for travel time reliability - show percentages and mean LOTTR)
+        // Length by status format (for travel time reliability - show percentages and median LOTTR)
         checkPageBreak(0.3);
-        pdf.setFont('helvetica', 'bold');
+        pdf.setFont('helvetica', 'normal');
 
-        // Show mean LOTTR if available
-        if (results.meanLOTTR !== null && results.meanLOTTR !== undefined) {
-          pdf.text(`  Mean LOTTR: ${results.meanLOTTR.toFixed(2)}`, margin, yPosition);
+        // Show median LOTTR if available
+        if (results.medianLOTTR !== null && results.medianLOTTR !== undefined) {
+          pdf.text(`  Median LOTTR: ${results.medianLOTTR.toFixed(2)}`, margin, yPosition);
           yPosition += 0.18;
         }
-
-        pdf.setFont('helvetica', 'normal');
 
         if (results.breakdown && Object.keys(results.breakdown).length > 0) {
           // Sort breakdown by status (True first, then False)
@@ -437,10 +434,9 @@ async function generatePDF() {
       } else if (config.resultStyle === 'count') {
         // Count format
         checkPageBreak(0.3);
-        pdf.setFont('helvetica', 'bold');
+        pdf.setFont('helvetica', 'normal');
         pdf.text(`  Total: ${results.total}`, margin, yPosition);
         yPosition += 0.18;
-        pdf.setFont('helvetica', 'normal');
 
         if (results.breakdown && Object.keys(results.breakdown).length > 0) {
           // Sort breakdown by count (descending)
@@ -457,10 +453,9 @@ async function generatePDF() {
       } else if (config.resultStyle === 'percentage') {
         // Percentage format (for project coverage analysis like HICs)
         checkPageBreak(0.3);
-        pdf.setFont('helvetica', 'bold');
+        pdf.setFont('helvetica', 'normal');
         pdf.text(`  ${results.percentage}% of project`, margin, yPosition);
         yPosition += 0.2;
-        pdf.setFont('helvetica', 'normal');
         yPosition += 0.1;  // Add spacing between datasets
 
       } else if (config.resultStyle === 'table' && config.properties.additionalFields.length > 0) {
