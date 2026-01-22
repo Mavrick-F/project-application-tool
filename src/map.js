@@ -212,8 +212,17 @@ function addReferenceLayers() {
                                 feature.properties[config.properties.displayField] ||
                                 'Unknown';
 
+            // Build tooltip text with additional fields
+            let tooltipText = displayValue;
+            if (config.properties.additionalFields && config.properties.additionalFields.length > 0) {
+              config.properties.additionalFields.forEach(field => {
+                const value = feature.properties[field] || 'Unknown';
+                tooltipText += ` | ${field}: ${value}`;
+              });
+            }
+
             // Bind tooltip
-            leafletLayer.bindTooltip(displayValue, {
+            leafletLayer.bindTooltip(tooltipText, {
               sticky: true,
               className: 'leaflet-tooltip'
             });
