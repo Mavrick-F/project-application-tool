@@ -6,6 +6,17 @@
  */
 
 // ============================================
+// CONFIGURATION
+// ============================================
+
+/**
+ * Enable/disable color coding of PDF text to match map layer colors
+ * Set to true to color dataset names with their map layer colors
+ * Set to false to keep all text black
+ */
+const ENABLE_COLOR_CODED_TEXT = true;
+
+// ============================================
 // HELPER FUNCTIONS FOR FILTERED LAYER STYLING
 // ============================================
 
@@ -52,6 +63,37 @@ function createPointMarker(feature, latlng, config) {
     opacity: style.opacity || 1,
     fillOpacity: style.fillOpacity || 0.8
   });
+}
+
+/**
+ * Convert hex color to RGB array
+ * @param {string} hex - Hex color code (e.g., '#FF0000' or 'FF0000')
+ * @returns {Array} RGB array [r, g, b] with values 0-255
+ */
+function hexToRgb(hex) {
+  // Remove # if present
+  const cleanHex = hex.replace('#', '');
+
+  // Parse hex values
+  const r = parseInt(cleanHex.substring(0, 2), 16);
+  const g = parseInt(cleanHex.substring(2, 4), 16);
+  const b = parseInt(cleanHex.substring(4, 6), 16);
+
+  return [r, g, b];
+}
+
+/**
+ * Get the primary color for a dataset from its style configuration
+ * @param {Object} config - Dataset configuration from DATASETS
+ * @returns {string} Hex color code
+ */
+function getDatasetColor(config) {
+  // Prefer fillColor for point features, color for line/polygon features
+  if (config.geometryType === 'Point') {
+    return config.style.fillColor || config.style.color || '#000000';
+  } else {
+    return config.style.color || config.style.fillColor || '#000000';
+  }
 }
 
 // ============================================
@@ -362,23 +404,35 @@ async function generatePDF() {
         return;
       }
 
-      // Add category header
+      // Add category header (centered)
       checkPageBreak(0.4);
       pdf.setFontSize(13);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(0, 102, 204); // Blue color for category headers
-      pdf.text(category, margin, yPosition);
+      pdf.text(category, pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 0.25;
       pdf.setTextColor(0, 0, 0); // Reset to black
 
       // Loop through datasets in this category
       datasetsByCategory[category].forEach(({ config, results }) => {
 
-      // Add section header
+      // Add section header with optional color coding
       checkPageBreak(0.5);
       pdf.setFontSize(11);
       pdf.setFont('helvetica', 'bold');
+
+      // Apply dataset color if enabled
+      if (ENABLE_COLOR_CODED_TEXT) {
+        const hexColor = getDatasetColor(config);
+        const [r, g, b] = hexToRgb(hexColor);
+        pdf.setTextColor(r, g, b);
+      }
+
       pdf.text(`${config.name}:`, margin, yPosition);
+
+      // Reset to black for result text
+      pdf.setTextColor(0, 0, 0);
+
       yPosition += 0.2;
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
@@ -408,9 +462,9 @@ async function generatePDF() {
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'normal');
 
-        // Show median LOTTR if available
-        if (results.medianLOTTR !== null && results.medianLOTTR !== undefined) {
-          pdf.text(`  Median LOTTR: ${results.medianLOTTR.toFixed(2)}`, margin, yPosition);
+        // Show mean LOTTR if available
+        if (results.meanLOTTR !== null && results.meanLOTTR !== undefined) {
+          pdf.text(`  Mean LOTTR: ${results.meanLOTTR.toFixed(2)}`, margin, yPosition);
           yPosition += 0.18;
         }
 

@@ -607,3 +607,77 @@ svg *:focus {
 path:focus {
   outline: none !important;
 }
+
+/* ============================================
+   DATASET INFO TOOLTIP
+   ============================================ */
+/* Info icon container */
+.info-icon {
+  display: inline-block;
+  position: relative;
+  cursor: help;
+  float: right;
+  width: 18px;
+  height: 18px;
+  margin-left: 8px;
+}
+
+/* Circle with 'i' inside */
+.info-icon-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #1565C0;
+  color: white;
+  font-size: 13px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  text-transform: none;
+  transition: background-color 0.2s;
+}
+
+.info-icon:hover .info-icon-circle {
+  background-color: #0D47A1;
+}
+
+/* Tooltip box */
+.info-tooltip {
+  display: none;
+  position: absolute;
+  right: 25px;
+  top: -5px;
+  background-color: #2c3e50;
+  color: white;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  width: 280px;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  font-weight: normal;
+  text-transform: none;
+}
+
+/* Tooltip arrow pointing to the right (towards icon) */
+.info-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  right: -6px;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 6px 0 6px 6px;
+  border-color: transparent transparent transparent #2c3e50;
+}
+
+/* Show tooltip on hover */
+.info-icon:hover .info-tooltip {
+  display: block;
+}

@@ -1,5 +1,29 @@
 # Version History
 
+## v1.0 (2026-01-22) - Production Release: Enhanced UI & Analysis
+
+### PDF Generation Enhancements
+- **Color-coded dataset names**: Dataset names in PDF now match their map layer colors for visual consistency (enable/disable via `ENABLE_COLOR_CODED_TEXT` flag in pdf.js)
+- **Centered category headers**: Transportation, Economic Development, and Environmental/Cultural headers now centered in PDF
+
+### User Interface Improvements
+- **Info tooltips on all datasets**: Added description field to all 20 datasets with explanatory text about data sources, analysis implications, and regulatory requirements
+- **Info icon design**: Circle with lowercase serif "i" icon in top-right of result cards, tooltips appear on hover with light background and white text
+- **Tutorial always visible**: Tutorial popup now displays on every page load (removed first-visit localStorage check)
+
+### Analysis Method Updates
+- **STRAHNET intersection logic**: Changed from parallel matching to intersection-based detection with 100ft buffer for improved accuracy
+- **Line-to-line intersection support**: Enhanced `analyzeListIntersectingFeatures()` to support bufferDistance for line and LineString features
+- **Length-weighted mean LOTTR**: Changed Travel Time Reliability from median to length-weighted mean calculation (longer segments have more influence)
+
+### Map Tooltips
+- **Additional fields display**: LineString layers (Travel Time Reliability, MATA Routes, etc.) now show all configured additional fields in map hover tooltips, not just display field
+- **Consistent tooltip format**: Point, Line, and Polygon layers all display display field + additional fields (e.g., "Travel_Time_Index", "Level_of_Travel_Time_Reliability")
+
+### Code Quality
+- **Consistent nomenclature**: Replaced interchangeable use of "median" and "mean" with proper `meanLOTTR` terminology throughout codebase
+- **Enhanced map layer configuration**: Updated `datasets.yaml` with comprehensive `description` field for all datasets (Transportation, Economic Development, Environmental/Cultural)
+
 ## v0.9.5 (2026-01-16) - Travel Time Reliability Refinements
 
 ### Analysis Method Updates

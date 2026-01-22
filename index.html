@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Memphis MPO - Project Application Tool v0.9.5</title>
+  <title>Memphis MPO - Project Application Tool v1.0</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Leaflet CSS for map rendering -->
@@ -120,9 +120,10 @@
   <div id="tutorialPopup">
     <h2>Welcome to the Project Application Tool</h2>
     <ul>
-      <li>Draw a line for corridor projects or mark a point for specific locations</li>
+      <li>Draw a line for corridor projects or mark a point for intersection projects</li>
       <li>The tool automatically analyzes your project against regional planning datasets</li>
-      <li>Review results in real-time, then download a PDF report for your application</li>
+      <li>Review results in real-time, then download a PDF report to attach to your application</li>
+      <li>The box in the upper left can toggle layers on and off for manual inspection, but this is not required for the analysis and pdf creation</li>
     </ul>
     <button class="tutorial-close" id="tutorialCloseButton">Got it!</button>
   </div>
@@ -144,10 +145,10 @@
 
   <!-- Application Scripts (load in order) -->
   <!-- Version string for cache busting - update when releasing new version (see README.md for current version) -->
-  <script src="src/datasets.js?v=0.9.5"></script>
-  <script src="src/map.js?v=0.9.5"></script>
-  <script src="src/analysis.js?v=0.9.5"></script>
-  <script src="src/pdf.js?v=0.9.5"></script>
-  <script src="src/app.js?v=0.9.5"></script>
+  <script src="src/datasets.js?v=1.0"></script>
+  <script src="src/map.js?v=1.0"></script>
+  <script src="src/analysis.js?v=1.0"></script>
+  <script src="src/pdf.js?v=1.0"></script>
+  <script src="src/app.js?v=1.0"></script>
 </body>
 </html>

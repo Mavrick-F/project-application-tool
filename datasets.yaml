@@ -34,6 +34,7 @@
 bridges:
   id: bridges  # Unique identifier, must match the key name
   name: Bridges  # Display name shown in UI and reports
+  description: Identifies bridges within 300 feet of project. Bridge IDs and condition ratings are sourced from the National Bridge Inventory
   category: Transportation  # Groups datasets in sidebar (Transportation, Economic Development, Environmental/Cultural)
   filePath: ./data/bridges.json  # Relative path from project root to GeoJSON file
   geometryType: Point  # Point features (single lat/lon coordinates)
@@ -57,8 +58,8 @@ bridges:
 
   # Base map style (can be overridden by styleByProperty)
   style:
-    color: '#8B4513'  # Saddle brown - outline color
-    fillColor: '#8B4513'  # Fill color for points
+    color: '#999999'  # Gray - outline color
+    fillColor: '##999999'  # Fill color for points
     radius: 4.5  # Point marker size in pixels
     fillOpacity: 0.8  # Fill transparency (0.0-1.0)
     weight: 1  # Border thickness in pixels
@@ -84,6 +85,7 @@ bridges:
 crashLocations:
   id: crashLocations
   name: Crash Locations (KSI)  # KSI = Killed or Seriously Injured
+  description: Shows fatal and serious injury crashes within 200 feet. Crashes are for the years 2020-2024 and are sourced from TITAN and SAMS.
   category: Transportation
   filePath: ./data/ksi_crashes.geojson
   geometryType: Point
@@ -91,7 +93,7 @@ crashLocations:
 
   bufferDistance: null
   minSharedLength: null
-  proximityBuffer: 300  # 300 feet buffer around project
+  proximityBuffer: 200  # 200 feet buffer around project
 
   countByField: Severity  # Group count results by this field (Fatal vs Suspected Serious Injury)
 
@@ -118,13 +120,14 @@ crashLocations:
 greenprintNetwork:
   id: greenprintNetwork
   name: Greenprint Bike Network
+  description: Shows priority tiers for future bike infrastructure from the Memphis MPO's Regional Greenprint.
   category: Transportation
   filePath: ./data/greenprint.geojson
   geometryType: LineString  # Line features (connected coordinate sequences)
   analysisMethod: listParallelFeatures  # Find lines running parallel to project
 
   bufferDistance: 100  # Create 100ft buffer around project for initial intersection check
-  minSharedLength: 100  # Require 300ft of parallel overlap to count as match
+  minSharedLength: 300  # Require 300ft of parallel overlap to count as match
   proximityBuffer: null
 
   properties:
@@ -168,13 +171,14 @@ greenprintNetwork:
 highInjuryCorridors:
   id: highInjuryCorridors
   name: High Injury Corridors
+  description: Network of corridors with elevated crash rates identified in the Memphis MPO's Safety Action Plan. 
   category: Transportation
   filePath: ./data/HIN_Corridors.geojson
   geometryType: LineString
   analysisMethod: projectCoverage
 
   bufferDistance: 100
-  minSharedLength: 100
+  minSharedLength: 100 # Short, to pick up small segments of performance data
   proximityBuffer: null
 
   properties:
@@ -197,13 +201,14 @@ highInjuryCorridors:
 mataRoutes:
   id: mataRoutes
   name: MATA Routes  # Memphis Area Transit Authority
+  description: Memphis Area Transit Authority bus routes. Projects along transit corridors can improve multimodal access and may support transit-oriented development goals.
   category: Transportation
   filePath: ./data/mata-routes.json
   geometryType: LineString
   analysisMethod: listParallelFeatures
 
   bufferDistance: 100
-  minSharedLength: 100
+  minSharedLength: 300
   proximityBuffer: null
 
   properties:
@@ -226,13 +231,14 @@ mataRoutes:
 strahnet:
   id: strahnet
   name: STRAHNET Routes  # Strategic Highway Network for national defense
+  description: Strategic Highway Network designated for national defense purposes. Projects impacting these routes may require coordination with federal agencies and must maintain mobility for military freight movements.
   category: Transportation
   filePath: ./data/strahnet.geojson
   geometryType: LineString
-  analysisMethod: listParallelFeatures
+  analysisMethod: listIntersectingFeatures
 
-  bufferDistance: 100
-  minSharedLength: 100
+  bufferDistance: 100  # 100ft buffer for line intersection detection
+  minSharedLength: null
   proximityBuffer: null
 
   properties:
@@ -255,13 +261,14 @@ strahnet:
 travelTimeReliability:
   id: travelTimeReliability
   name: Travel Time Reliability
+  description: Measures congestion and travel time predictability using Level of Travel Time Reliability (LOTTR) metrics, from the NPMRDS. Unreliable segments indicate recurring congestion that projects could address through capacity or operational improvements.
   category: Transportation
   filePath: ./data/road_congestion.json
   geometryType: LineString
   analysisMethod: measureProjectByCategory  # Calculate total length broken down by status
 
   bufferDistance: 100
-  minSharedLength: 100
+  minSharedLength: 100 #Short, to pick up small segments of performance data
   proximityBuffer: null
 
   properties:
@@ -288,7 +295,7 @@ travelTimeReliability:
         weight: 3
         opacity: 0.6
       'False':
-        color: '#FFD700'  # Gold for unreliable (attention needed)
+        color: '#FFD700'  # Gold for unreliable
         weight: 4
         opacity: 0.9
 
@@ -301,6 +308,7 @@ travelTimeReliability:
 aliceZctas:
   id: aliceZctas
   name: ALICE ZIP Codes  # Asset Limited, Income Constrained, Employed households by ZIP Code
+  description: Areas with high percentages (≥ 45%) of Asset Limited, Income Constrained, Employed (ALICE) households.
   category: Economic Development
   filePath: ./data/alice_zctas.geojson
   geometryType: Polygon  # Area features (closed shapes)
@@ -346,6 +354,7 @@ aliceZctas:
 freightClusters:
   id: freightClusters
   name: Freight Clusters
+  description: Concentrations of freight-intensive businesses and logistics facilities, identified in the Memphis MPO's Mid-South Freight Study. Projects serving these areas support regional freight mobility and economic competitiveness.
   category: Economic Development
   filePath: ./data/freight_clusters.geojson
   geometryType: Polygon
@@ -375,13 +384,14 @@ freightClusters:
 truckRoutes:
   id: truckRoutes
   name: Freight Routes
+  description: Regional and local truck routes, designated by the Memphis MPO. Projects on freight routes should accommodate truck turning movements and weight limits to maintain goods movement efficiency.
   category: Economic Development
   filePath: ./data/freight_routes.json
   geometryType: LineString
   analysisMethod: listParallelFeatures
 
   bufferDistance: 100
-  minSharedLength: 100
+  minSharedLength: 300
   proximityBuffer: null
 
   properties:
@@ -416,6 +426,7 @@ truckRoutes:
 majorEmployers:
   id: majorEmployers
   name: Major Employers
+  description: Businesses with 500+ employees within a quarter mile. Transportation improvements near major employment centers can reduce commute times and support economic development.
   category: Economic Development
   filePath: ./data/major_employers.geojson
   geometryType: Point
@@ -446,6 +457,7 @@ majorEmployers:
 opportunityZones:
   id: opportunityZones
   name: Opportunity Zones  # Federal tax incentive areas
+  description: Federally designated census tracts eligible for tax incentives to spur investment. Projects in Opportunity Zones can leverage private investment and support revitalization efforts.
   category: Economic Development
   filePath: ./data/opportunity-zones.json
   geometryType: Polygon
@@ -475,6 +487,7 @@ opportunityZones:
 touristAttractions:
   id: touristAttractions
   name: Tourist Destinations
+  description: Major tourist attractions and destinations within a quarter mile. Transportation improvements near these sites support tourism economy and visitor experience.
   category: Economic Development
   filePath: ./data/tourist_attractions.geojson
   geometryType: Point
@@ -507,6 +520,7 @@ touristAttractions:
 criticalWetlands:
   id: criticalWetlands
   name: Critical Wetlands
+  description: Freshwater forested/shrub wetlands within 200 feet. These areas are federally protected and require Section 404 permits for impacts. Mitigation may be required for unavoidable wetland disturbance.
   category: Environmental/Cultural
   lazyLoad: true  # Don't load until analysis runs (for performance with large datasets)
   featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0  # ArcGIS Feature Service URL (alternative to filePath)
@@ -544,6 +558,7 @@ criticalWetlands:
 epaSuperFundSites:
   id: epaSuperFundSites
   name: EPA Superfund Sites  # Contaminated sites requiring long-term cleanup
+  description: EPA-designated contaminated sites within 200 feet. Projects near Superfund sites may require additional environmental investigation and coordination with EPA remediation efforts.
   category: Environmental/Cultural
   filePath: ./data/epa_superfund_sites.geojson
   geometryType: Point
@@ -574,6 +589,7 @@ epaSuperFundSites:
 floodZones:
   id: floodZones
   name: Flood Zones
+  description: FEMA-designated 100-year flood hazard areas within 200 feet. Projects in flood zones must comply with floodplain regulations and may require hydraulic analysis and additional permits.
   category: Environmental/Cultural
   lazyLoad: true
   featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MPO_Flood_Zones/FeatureServer/0
@@ -605,6 +621,7 @@ floodZones:
 historicPoints:
   id: historicPoints
   name: NHRP Points  # National Historic Register of Places - point features
+  description: National Register of Historic Places sites within 200 feet. Projects near historic properties require Section 106 review and coordination with State Historic Preservation Office (SHPO).
   category: Environmental/Cultural
   filePath: ./data/historic_points.geojson
   geometryType: Point
@@ -635,6 +652,7 @@ historicPoints:
 historicPolygons:
   id: historicPolygons
   name: NHRP Polygons  # National Historic Register - area features (districts)
+  description: National Register historic districts within 200 feet. Projects affecting historic districts require Section 106 review and design considerations to maintain historic character.
   category: Environmental/Cultural
   filePath: ./data/historic_polygons.geojson
   geometryType: Polygon
@@ -664,6 +682,7 @@ historicPolygons:
 parks:
   id: parks
   name: Parks
+  description: Public parks and recreation areas within 200 feet. Projects near parks should consider recreational access, pedestrian connectivity, and coordination with park management agencies.
   category: Environmental/Cultural
   filePath: ./data/parks.json
   geometryType: Polygon
@@ -693,6 +712,7 @@ parks:
 wetlands:
   id: wetlands
   name: Wetlands
+  description: All wetland types within 200 feet. Wetlands are federally protected under Section 404 of the Clean Water Act. Projects must avoid or minimize impacts and may require mitigation.
   category: Environmental/Cultural
   lazyLoad: true
   featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0
@@ -728,13 +748,14 @@ wetlands:
 pavementCondition:
   id: pavementCondition
   name: Pavement Condition
+  description: Current pavement condition ratings along your project corridor. Poor pavement conditions support the need for rehabilitation or reconstruction improvements.
   category: Transportation
   filePath: ./data/pavement_condition.geojson  # Create this file with pavement data
   geometryType: LineString  # Road segments
   analysisMethod: measureProjectByCategory  # Identifies the percentage of good/fair/poor pavement
 
   bufferDistance: 100  # 100 feet buffer for initial intersection
-  minSharedLength: 100  # Require 300 feet of parallel overlap
+  minSharedLength: 100  # Require 100 feet of parallel overlap, use ~100 feet for performance data to detect small segments, and ~300 feet for things like bus or bike routes to exclude features crossed
   proximityBuffer: null
 
   properties:

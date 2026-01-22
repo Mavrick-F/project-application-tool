@@ -93,26 +93,21 @@ async function init() {
 }
 
 /**
- * Show tutorial popup on first visit
- * Uses localStorage to track if user has seen the tutorial
+ * Show tutorial popup
+ * Always shows on every page load
  */
 function showTutorialIfFirstVisit() {
-  const hasSeenTutorial = localStorage.getItem('hasSeenTutorial');
-
-  if (!hasSeenTutorial) {
-    // Show tutorial popup
-    document.getElementById('tutorialOverlay').classList.add('visible');
-    document.getElementById('tutorialPopup').classList.add('visible');
-  }
+  // Always show tutorial popup (no localStorage check)
+  document.getElementById('tutorialOverlay').classList.add('visible');
+  document.getElementById('tutorialPopup').classList.add('visible');
 }
 
 /**
- * Close tutorial popup and mark as seen
+ * Close tutorial popup
  */
 function closeTutorial() {
   document.getElementById('tutorialOverlay').classList.remove('visible');
   document.getElementById('tutorialPopup').classList.remove('visible');
-  localStorage.setItem('hasSeenTutorial', 'true');
 }
 
 // ============================================
@@ -931,7 +926,18 @@ function createResultCard(datasetConfig, results) {
   // Show simplified message instead (except for acreage results which we want to display)
   if (datasetConfig.lazyLoad && datasetConfig.resultStyle !== 'acreage') {
     let cardHtml = `<div class="results-card" data-dataset="${escapeHtml(datasetConfig.id)}">`;
-    cardHtml += `<div class="section-heading">${escapeHtml(datasetConfig.name)}</div>`;
+    cardHtml += `<div class="section-heading">`;
+    cardHtml += `${escapeHtml(datasetConfig.name)}`;
+
+    // Add info icon with tooltip if description is available
+    if (datasetConfig.description) {
+      cardHtml += `<span class="info-icon">`;
+      cardHtml += `<span class="info-icon-circle">i</span>`;
+      cardHtml += `<span class="info-tooltip">${escapeHtml(datasetConfig.description)}</span>`;
+      cardHtml += `</span>`;
+    }
+
+    cardHtml += `</div>`;
     cardHtml += `<p style="padding: 10px; background-color: #F5F5F5; border-left: 4px solid #0066CC; margin-top: 10px; font-size: 14px;">
       See full PDF Report for results
     </p>`;
@@ -953,7 +959,19 @@ function createResultCard(datasetConfig, results) {
   const hasResults = count > 0;
 
   let cardHtml = `<div class="results-card" data-dataset="${escapeHtml(datasetConfig.id)}">`;
-  cardHtml += `<div class="section-heading">${escapeHtml(datasetConfig.name)} <span class="result-count">${escapeHtml(count)}</span></div>`;
+  cardHtml += `<div class="section-heading">`;
+  cardHtml += `${escapeHtml(datasetConfig.name)} `;
+  cardHtml += `<span class="result-count">${escapeHtml(count)}</span>`;
+
+  // Add info icon with tooltip if description is available
+  if (datasetConfig.description) {
+    cardHtml += `<span class="info-icon">`;
+    cardHtml += `<span class="info-icon-circle">i</span>`;
+    cardHtml += `<span class="info-tooltip">${escapeHtml(datasetConfig.description)}</span>`;
+    cardHtml += `</span>`;
+  }
+
+  cardHtml += `</div>`;
 
   if (!hasResults) {
     cardHtml += `<p class="empty-state">No ${escapeHtml(datasetConfig.name.toLowerCase())} found</p>`;
@@ -961,9 +979,9 @@ function createResultCard(datasetConfig, results) {
     // Length by status format (for travel time reliability - show percentages and median LOTTR)
     cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
 
-    // Show median LOTTR if available
-    if (results.medianLOTTR !== null && results.medianLOTTR !== undefined) {
-      cardHtml += `<p style="margin: 0 0 10px 0; font-size: 14px;">Median LOTTR: ${escapeHtml(results.medianLOTTR.toFixed(2))}</p>`;
+    // Show mean LOTTR if available
+    if (results.meanLOTTR !== null && results.meanLOTTR !== undefined) {
+      cardHtml += `<p style="margin: 0 0 10px 0; font-size: 14px;">Mean LOTTR: ${escapeHtml(results.meanLOTTR.toFixed(2))}</p>`;
     }
 
     if (results.breakdown && Object.keys(results.breakdown).length > 0) {

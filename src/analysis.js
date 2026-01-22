@@ -325,8 +325,9 @@ function analyzeListParallelFeatures(drawnGeometry, datasetConfig, geoJsonData) 
 }
 
 /**
- * Analyze intersection for Polygon datasets
- * Works for any Polygon dataset with intersection logic
+ * Analyze intersection for Polygon and LineString datasets
+ * Works for any Polygon or LineString dataset with intersection logic
+ * For LineString datasets, uses optional bufferDistance for tolerance
  * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
  * @param {Object} datasetConfig - Configuration object from DATASETS
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
@@ -340,6 +341,15 @@ function analyzeListIntersectingFeatures(drawnGeometry, datasetConfig, geoJsonDa
     ? drawnGeometry.geometry
     : drawnGeometry;
 
+  // Create buffer around drawn geometry if bufferDistance is specified
+  // This allows line-to-line intersection with tolerance
+  let geometryToTest = geometry;
+  if (datasetConfig.bufferDistance && datasetConfig.bufferDistance > 0) {
+    geometryToTest = turf.buffer(geometry, datasetConfig.bufferDistance, {
+      units: 'feet'
+    });
+  }
+
   geoJsonData.features.forEach(feature => {
     try {
       // Skip features with invalid geometry
@@ -349,25 +359,41 @@ function analyzeListIntersectingFeatures(drawnGeometry, datasetConfig, geoJsonDa
 
       let intersects = false;
 
-      if (geometry.type === 'LineString') {
-        // Line-to-polygon intersection
+      if (datasetConfig.bufferDistance && datasetConfig.bufferDistance > 0) {
+        // Buffer-based intersection (works for any geometry type)
+        intersects = turf.booleanIntersects(geometryToTest, feature);
+      } else if (geometry.type === 'LineString') {
+        // Line-to-polygon or line-to-line intersection (no buffer)
         intersects = turf.booleanIntersects(geometry, feature);
       } else if (geometry.type === 'Point') {
         // Point-in-polygon check
-        intersects = turf.booleanPointInPolygon(geometry, feature);
+        if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') {
+          intersects = turf.booleanPointInPolygon(geometry, feature);
+        } else {
+          // Point-to-other geometry intersection
+          intersects = turf.booleanIntersects(geometry, feature);
+        }
       }
 
       if (intersects) {
+        // Use staticLabel if defined, otherwise use field value
+        const displayValue = datasetConfig.properties.staticLabel ||
+                            feature.properties[datasetConfig.properties.displayField] ||
+                            'Unknown';
+
         // Build properties object
         const props = {
           [datasetConfig.properties.displayField]:
-            feature.properties[datasetConfig.properties.displayField] || 'Unknown'
+            feature.properties[datasetConfig.properties.displayField] || 'Unknown',
+          _displayName: displayValue
         };
 
         // Add additional fields if configured
-        datasetConfig.properties.additionalFields.forEach(field => {
-          props[field] = feature.properties[field] || 'Unknown';
-        });
+        if (datasetConfig.properties.additionalFields) {
+          datasetConfig.properties.additionalFields.forEach(field => {
+            props[field] = feature.properties[field] || 'Unknown';
+          });
+        }
 
         // Return complete GeoJSON Feature with geometry
         const featureData = {
@@ -865,7 +891,7 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
   const lengthsByStatus = {};  // Track lengths by Reliable_Segment_ value
   const matchedFeatures = [];  // Store matched features for map rendering
   let totalLength = 0;
-  let lottrValues = [];  // Array of LOTTR values for calculating median
+  let lottrWeightedSum = 0;  // Sum of (LOTTR * segment length) for weighted mean calculation
 
   // Extract actual geometry from GeoJSON Feature if needed
   const geometry = drawnGeometry.type === 'Feature'
@@ -888,10 +914,10 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
           lengthsByStatus[status] = (lengthsByStatus[status] || 0) + length;
           totalLength += length;
 
-          // Collect LOTTR values for median calculation
+          // Collect LOTTR for weighted mean calculation
           const lottr = parseFloat(feature.properties['Level_of_Travel_Time_Reliability']);
           if (!isNaN(lottr)) {
-            lottrValues.push(lottr);
+            lottrWeightedSum += lottr * length;
           }
 
           matchedFeatures.push({
@@ -913,13 +939,13 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
       });
     }
 
-    // Calculate median LOTTR
-    const medianLOTTR = calculateMedian(lottrValues);
+    // Calculate length-weighted mean LOTTR
+    const meanLOTTR = totalLength > 0 ? lottrWeightedSum / totalLength : null;
 
     return {
       total: totalLength,
       breakdown: percentageBreakdown,
-      medianLOTTR: medianLOTTR,
+      meanLOTTR: meanLOTTR,
       features: matchedFeatures
     };
   }
@@ -984,10 +1010,10 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
         lengthsByStatus[status] = (lengthsByStatus[status] || 0) + lengthInMiles;
         totalLength += lengthInMiles;
 
-        // Collect LOTTR values for median calculation
+        // Collect LOTTR for weighted mean calculation
         const lottr = parseFloat(feature.properties['Level_of_Travel_Time_Reliability']);
         if (!isNaN(lottr)) {
-          lottrValues.push(lottr);
+          lottrWeightedSum += lottr * lengthInMiles;
         }
 
         matchedFeatures.push({
@@ -1010,13 +1036,14 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
     });
   }
 
-  // Calculate median LOTTR
-  const medianLOTTR = calculateMedian(lottrValues);
+  // Calculate length-weighted mean LOTTR
+  // Segments with greater length have more influence on the final LOTTR value
+  const meanLOTTR = totalLength > 0 ? lottrWeightedSum / totalLength : null;
 
   return {
     total: totalLength,
     breakdown: percentageBreakdown,
-    medianLOTTR: medianLOTTR,
+    meanLOTTR: meanLOTTR,
     features: matchedFeatures
   };
 }
