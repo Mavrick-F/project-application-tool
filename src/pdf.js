@@ -68,11 +68,23 @@ function createPointMarker(feature, latlng, config) {
 /**
  * Convert hex color to RGB array
  * @param {string} hex - Hex color code (e.g., '#FF0000' or 'FF0000')
- * @returns {Array} RGB array [r, g, b] with values 0-255
+ * @returns {Array} RGB array [r, g, b] with values 0-255, or [0, 0, 0] if invalid
  */
 function hexToRgb(hex) {
-  // Remove # if present
-  const cleanHex = hex.replace('#', '');
+  // Validate input
+  if (!hex || typeof hex !== 'string') {
+    console.warn('Invalid color value:', hex, '- using black (#000000)');
+    return [0, 0, 0];
+  }
+
+  // Remove all # characters (handles ## cases)
+  const cleanHex = hex.replace(/#/g, '');
+
+  // Validate hex format (must be 6 characters)
+  if (cleanHex.length !== 6 || !/^[0-9A-Fa-f]{6}$/.test(cleanHex)) {
+    console.warn('Invalid hex color:', hex, '- using black (#000000)');
+    return [0, 0, 0];
+  }
 
   // Parse hex values
   const r = parseInt(cleanHex.substring(0, 2), 16);
@@ -85,15 +97,29 @@ function hexToRgb(hex) {
 /**
  * Get the primary color for a dataset from its style configuration
  * @param {Object} config - Dataset configuration from DATASETS
- * @returns {string} Hex color code
+ * @returns {string} Hex color code (validated)
  */
 function getDatasetColor(config) {
+  // Validate config
+  if (!config || !config.style) {
+    return '#000000';
+  }
+
+  let color;
+
   // Prefer fillColor for point features, color for line/polygon features
   if (config.geometryType === 'Point') {
-    return config.style.fillColor || config.style.color || '#000000';
+    color = config.style.fillColor || config.style.color || '#000000';
   } else {
-    return config.style.color || config.style.fillColor || '#000000';
+    color = config.style.color || config.style.fillColor || '#000000';
   }
+
+  // Validate the color is a string
+  if (typeof color !== 'string' || !color) {
+    return '#000000';
+  }
+
+  return color;
 }
 
 // ============================================
