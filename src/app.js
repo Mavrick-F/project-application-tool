@@ -403,8 +403,9 @@ async function loadGeoJsonData() {
       // Only load enabled datasets that are NOT lazy-loaded
       if (config.enabled && !config.lazyLoad) {
         if (config.filePath) {
-          // Regular GeoJSON file
-          fetchPromises.push(fetch(config.filePath));
+          // Regular GeoJSON file (add cache-busting query parameter for fresh loads)
+          const filePathWithVersion = config.filePath + '?v=1.0';
+          fetchPromises.push(fetch(filePathWithVersion));
           datasetKeys.push({ key: datasetKey, isFeatureService: false });
         } else if (config.featureServiceUrl) {
           // Feature service - needs to query for data

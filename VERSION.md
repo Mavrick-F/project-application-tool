@@ -20,6 +20,10 @@
 - **Additional fields display**: LineString layers (Travel Time Reliability, MATA Routes, etc.) now show all configured additional fields in map hover tooltips, not just display field
 - **Consistent tooltip format**: Point, Line, and Polygon layers all display display field + additional fields (e.g., "Travel_Time_Index", "Level_of_Travel_Time_Reliability")
 
+### Data Updates
+- **NHRP Polygons accuracy**: Updated historic polygon boundaries in `historic_polygons.geojson` for improved geographic accuracy of National Historic Register districts
+- **GeoJSON cache-busting**: Added version query parameters (`?v=1.0`) to all GeoJSON file fetches to ensure fresh data loads on updates (prevents stale browser cache issues)
+
 ### Code Quality
 - **Consistent nomenclature**: Replaced interchangeable use of "median" and "mean" with proper `meanLOTTR` terminology throughout codebase
 - **Enhanced map layer configuration**: Updated `datasets.yaml` with comprehensive `description` field for all datasets (Transportation, Economic Development, Environmental/Cultural)
