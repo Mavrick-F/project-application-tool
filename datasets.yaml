@@ -59,7 +59,7 @@ bridges:
   # Base map style (can be overridden by styleByProperty)
   style:
     color: '#999999'  # Gray - outline color
-    fillColor: '##999999'  # Fill color for points
+    fillColor: '#999999'  # Fill color for points
     radius: 4.5  # Point marker size in pixels
     fillOpacity: 0.8  # Fill transparency (0.0-1.0)
     weight: 1  # Border thickness in pixels
