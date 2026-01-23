@@ -9,7 +9,6 @@
 // APP GLOBAL VARIABLES
 // ============================================
 const geoJsonData = {};  // Raw GeoJSON data for all datasets
-const featureServiceCache = new Map();  // Cache for Feature Service query responses
 
 // ============================================
 // APPLICATION INITIALIZATION
@@ -248,48 +247,30 @@ async function queryFeatureService(serviceUrl, options = {}) {
 
     // Execute query
     const fullQueryUrl = `${queryUrl}/query?${params.toString()}`;
+    console.log('Querying Feature Service:', fullQueryUrl);
 
-    // Check cache first (caches promises to handle parallel requests)
-    if (featureServiceCache.has(fullQueryUrl)) {
-      console.log('Using cached Feature Service response:', fullQueryUrl);
-      const cachedPromise = featureServiceCache.get(fullQueryUrl);
-      const cachedResult = await cachedPromise;
-      return cachedResult;
+    const response = await fetch(fullQueryUrl);
+    if (!response.ok) {
+      throw new Error(`Query failed: ${response.status} ${response.statusText}`);
     }
 
-    // Create and cache the promise immediately (before await) to handle parallel requests
-    const queryPromise = (async () => {
-      console.log('Querying Feature Service:', fullQueryUrl);
+    const arcgisJson = await response.json();
 
-      const response = await fetch(fullQueryUrl);
-      if (!response.ok) {
-        throw new Error(`Query failed: ${response.status} ${response.statusText}`);
-      }
+    // Check for error in response
+    if (arcgisJson.error) {
+      throw new Error(`Query error: ${arcgisJson.error.message || JSON.stringify(arcgisJson.error)}`);
+    }
 
-      const arcgisJson = await response.json();
+    // Convert ArcGIS JSON to GeoJSON
+    const geojson = convertArcGIStoGeoJSON(arcgisJson);
 
-      // Check for error in response
-      if (arcgisJson.error) {
-        throw new Error(`Query error: ${arcgisJson.error.message || JSON.stringify(arcgisJson.error)}`);
-      }
+    console.log(`Query successful: ${geojson.features.length} features returned`);
 
-      // Convert ArcGIS JSON to GeoJSON
-      const geojson = convertArcGIStoGeoJSON(arcgisJson);
-
-      console.log(`Query successful: ${geojson.features.length} features returned`);
-
-      return {
-        success: true,
-        data: geojson,
-        error: null
-      };
-    })();
-
-    // Cache the promise immediately (not the result)
-    featureServiceCache.set(fullQueryUrl, queryPromise);
-
-    // Await and return the result
-    return await queryPromise;
+    return {
+      success: true,
+      data: geojson,
+      error: null
+    };
 
   } catch (error) {
     console.error('Feature Service query error:', error);
