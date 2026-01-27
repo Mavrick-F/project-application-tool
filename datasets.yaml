@@ -125,7 +125,7 @@ crashLocations:
 greenprintNetwork:
   id: greenprintNetwork
   name: Greenprint Network
-  description: Shows priority tiers for future bike infrastructure from the Memphis MPO's Regional Greenprint.
+  description: Shows priority tiers for future bike & shared-use trail infrastructure from the Memphis MPO's Regional Greenprint.
   category: Transportation
   filePath: ./data/greenprint.geojson
   geometryType: LineString  # Line features (connected coordinate sequences)
