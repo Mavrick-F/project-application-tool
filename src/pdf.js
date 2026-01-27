@@ -169,8 +169,13 @@ async function generatePDF() {
       const originalZoomSnap = map.options.zoomSnap;
       map.options.zoomSnap = 0;
 
+      // Measure the legend control so we can offset the right side
+      const legend = document.querySelector('.leaflet-control-layers');
+      const legendWidth = legend ? legend.offsetWidth + 20 : 0; // +20 for margin/gap
+
       map.fitBounds(optimalBounds, {
-        padding: [0, 0],    // No pixel padding - geographic padding is in getOptimalMapBounds
+        paddingTopLeft: [0, 0],
+        paddingBottomRight: [legendWidth, 0],  // Push map content left of the legend
         maxZoom: 18,         // Allow closer zoom since fractional zoom is enabled
         animate: false       // Critical: prevents capture during animation
       });
