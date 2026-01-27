@@ -932,11 +932,15 @@ function createResultCard(datasetConfig, results) {
   const isLengthByStatusResult = datasetConfig.resultStyle === 'lengthByStatus' && typeof results === 'object' && 'total' in results;
   const isPercentageResult = datasetConfig.resultStyle === 'percentage' && typeof results === 'object' && 'percentage' in results;
   const isAcreageResult = datasetConfig.resultStyle === 'acreage' && typeof results === 'object' && 'totalAcres' in results;
+  const isSumResult = datasetConfig.resultStyle === 'sum' && typeof results === 'object' && 'sum' in results;
+  const isNearestResult = datasetConfig.resultStyle === 'nearest' && Array.isArray(results);
 
-  // For lengthByStatus, use features.length as count; for count results use total; for percentage/acreage results use features.length; otherwise use array length
+  // For lengthByStatus, use features.length as count; for count results use total; for percentage/acreage/sum results use features.length; for nearest use array length; otherwise use array length
   const count = isLengthByStatusResult ? (results.features ? results.features.length : 0) :
                 isPercentageResult ? (results.features ? results.features.length : 0) :
                 isAcreageResult ? (results.features ? results.features.length : 0) :
+                isSumResult ? (results.features ? results.features.length : 0) :
+                isNearestResult ? results.length :
                 (isCountResult ? results.total : results.length);
   const hasResults = count > 0;
 
@@ -1018,6 +1022,26 @@ function createResultCard(datasetConfig, results) {
     cardHtml += `<p style="margin: 0; font-size: 14px;">
       ${acreageLabel}</p>`;
     cardHtml += `</div>`;
+  } else if (datasetConfig.resultStyle === 'sum') {
+    // Sum format (for summing numeric values from nearby features)
+    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
+    // Determine if we should show integer or decimal places
+    const displayValue = Number.isInteger(results.sum) ? results.sum : results.sum.toFixed(2);
+    const sumLabel = datasetConfig.sumField
+      ? `Total ${escapeHtml(datasetConfig.sumField)}: ${escapeHtml(displayValue)}`
+      : `Total: ${escapeHtml(displayValue)}`;
+    cardHtml += `<p style="margin: 0; font-size: 14px;">${sumLabel}</p>`;
+    cardHtml += `</div>`;
+  } else if (datasetConfig.resultStyle === 'nearest') {
+    // Nearest features format (for findNearestFeatures analysis)
+    cardHtml += `<ul class="results-list">`;
+    results.forEach(result => {
+      const props = result.feature.properties || result.feature;
+      const displayName = props._displayName || props[datasetConfig.properties.displayField] || 'Unknown';
+      const distanceFormatted = Math.round(result.distance).toLocaleString();
+      cardHtml += `<li>${escapeHtml(displayName)} - ${escapeHtml(distanceFormatted)} ft</li>`;
+    });
+    cardHtml += `</ul>`;
   } else if (datasetConfig.resultStyle === 'table') {
     // Table format (for datasets with additional fields like bridges)
     cardHtml += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">`;
@@ -1127,6 +1151,10 @@ function displayResults(results) {
       isEmpty = datasetResults.percentage === 0;
     } else if (config.resultStyle === 'acreage' && typeof datasetResults === 'object' && 'totalAcres' in datasetResults) {
       isEmpty = datasetResults.totalAcres === 0;
+    } else if (config.resultStyle === 'sum' && typeof datasetResults === 'object' && 'sum' in datasetResults) {
+      isEmpty = datasetResults.sum === 0;
+    } else if (config.resultStyle === 'nearest' && Array.isArray(datasetResults)) {
+      isEmpty = datasetResults.length === 0;
     } else if (config.resultStyle === 'lengthByStatus' && typeof datasetResults === 'object' && 'total' in datasetResults) {
       isEmpty = datasetResults.total === 0;
     } else if (typeof datasetResults === 'object' && 'total' in datasetResults) {

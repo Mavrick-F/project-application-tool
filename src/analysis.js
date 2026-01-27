@@ -1058,6 +1058,172 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
 }
 
 /**
+ * Sum numeric values from features within proximity buffer
+ * Generic function that sums any numeric attribute from nearby features
+ * Works for Point, LineString, and Polygon geometry types
+ * Examples: sum fatalities from crashes, sum jobs from census tracts
+ * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+ * @param {Object} datasetConfig - Configuration object from DATASETS
+ * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+ * @returns {Object} Object with total sum and matched features
+ */
+function analyzeSumNearbyValues(drawnGeometry, datasetConfig, geoJsonData) {
+  const matchedFeatures = [];
+  let totalSum = 0;
+
+  try {
+    // Extract actual geometry from GeoJSON Feature if needed
+    const geometry = drawnGeometry.type === 'Feature'
+      ? drawnGeometry.geometry
+      : drawnGeometry;
+
+    // Create buffer around the drawn geometry
+    const buffered = turf.buffer(geometry, datasetConfig.proximityBuffer, {
+      units: 'feet'
+    });
+
+    // Check each feature against the buffer
+    geoJsonData.features.forEach(feature => {
+      try {
+        if (!hasValidGeometry(feature)) return;
+
+        // Apply analysis filter if configured (e.g., filter by category)
+        if (datasetConfig.analysisFilter) {
+          const filterField = datasetConfig.analysisFilter.field;
+          const filterValue = datasetConfig.analysisFilter.value;
+          const filterOperator = datasetConfig.analysisFilter.operator;
+          const featureValue = feature.properties[filterField];
+
+          let matchesFilter = false;
+          if (filterOperator === '=') {
+            matchesFilter = featureValue === filterValue;
+          } else if (filterOperator === '!=') {
+            matchesFilter = featureValue !== filterValue;
+          }
+
+          if (!matchesFilter) {
+            return; // Skip features that don't match the filter
+          }
+        }
+
+        let isNearby = false;
+
+        // Check proximity based on geometry type
+        if (datasetConfig.geometryType === 'Point') {
+          // Point features: check if point is in buffer
+          isNearby = turf.booleanPointInPolygon(feature, buffered);
+        } else if (datasetConfig.geometryType === 'LineString') {
+          // LineString features: check if line intersects buffer
+          isNearby = turf.booleanIntersects(feature, buffered);
+        } else if (datasetConfig.geometryType === 'Polygon') {
+          // Polygon features: check if polygon intersects buffer
+          isNearby = turf.booleanIntersects(feature, buffered);
+        }
+
+        if (isNearby) {
+          // Store matched feature for rendering
+          matchedFeatures.push({
+            type: 'Feature',
+            geometry: feature.geometry,
+            properties: { ...feature.properties }
+          });
+
+          // Sum the specified field value
+          if (datasetConfig.sumField) {
+            const value = parseFloat(feature.properties[datasetConfig.sumField]) || 0;
+            totalSum += value;
+          }
+        }
+      } catch (error) {
+        console.warn('Error checking proximity for sum:', error);
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in sumNearbyValues analysis:', error);
+  }
+
+  return {
+    total: matchedFeatures.length,
+    sum: totalSum,
+    features: matchedFeatures
+  };
+}
+
+/**
+ * Find the nearest X features to the drawn project geometry
+ * @param {Object} drawnGeometry - GeoJSON geometry (LineString, Point, or Polygon)
+ * @param {Object} datasetConfig - Configuration object from DATASETS (supports optional maxDistance)
+ * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+ * @returns {Array} Array of {feature, distance} objects sorted by distance, filtered by maxDistance if specified
+ */
+function analyzeFindNearestFeatures(drawnGeometry, datasetConfig, geoJsonData) {
+  const featuresWithDistance = [];
+
+  try {
+    // Extract actual geometry from GeoJSON Feature if needed
+    const geometry = drawnGeometry.type === 'Feature'
+      ? drawnGeometry.geometry
+      : drawnGeometry;
+
+    // Get centroid of drawn geometry for distance calculations
+    const drawnCentroid = turf.centroid(geometry);
+
+    geoJsonData.features.forEach(feature => {
+      try {
+        if (!hasValidGeometry(feature)) return;
+
+        let distance = 0;
+
+        // Calculate distance based on feature geometry type
+        if (datasetConfig.geometryType === 'Point') {
+          // Distance from drawn centroid to point
+          distance = turf.distance(drawnCentroid, feature, { units: 'feet' });
+        } else if (datasetConfig.geometryType === 'LineString') {
+          // Distance from drawn centroid to nearest point on line
+          distance = turf.pointToLineDistance(drawnCentroid, feature, { units: 'feet' });
+        } else if (datasetConfig.geometryType === 'Polygon') {
+          // Distance from drawn centroid to polygon centroid
+          const featureCentroid = turf.centroid(feature);
+          distance = turf.distance(drawnCentroid, featureCentroid, { units: 'feet' });
+        }
+
+        featuresWithDistance.push({
+          feature: {
+            type: 'Feature',
+            geometry: feature.geometry,
+            properties: { ...feature.properties }
+          },
+          distance: distance
+        });
+
+      } catch (error) {
+        console.warn('Error calculating distance for feature:', error);
+      }
+    });
+
+    // Sort by distance (ascending)
+    featuresWithDistance.sort((a, b) => a.distance - b.distance);
+
+    // Filter by max distance if specified
+    let filteredFeatures = featuresWithDistance;
+    if (datasetConfig.maxDistance && datasetConfig.maxDistance > 0) {
+      filteredFeatures = featuresWithDistance.filter(f => f.distance <= datasetConfig.maxDistance);
+    }
+
+    // Take the nearest N features
+    const nearestCount = datasetConfig.nearestCount || 1;
+    const nearest = filteredFeatures.slice(0, nearestCount);
+
+    return nearest;
+
+  } catch (error) {
+    console.error('Error in findNearestFeatures analysis:', error);
+    return [];
+  }
+}
+
+/**
  * Analyze project coverage percentage for corridor datasets
  * Uses two-phase approach: filter first with simple intersection, then measure coverage
  * This is significantly faster than trying to union all features upfront
@@ -1225,6 +1391,14 @@ function analyzeAllDatasets(drawnGeometry) {
 
         case 'measureIntersectedArea':
           datasetResults = analyzeMeasureIntersectedArea(drawnGeometry, config, geoJsonData[datasetKey]);
+          break;
+
+        case 'sumNearbyValues':
+          datasetResults = analyzeSumNearbyValues(drawnGeometry, config, geoJsonData[datasetKey]);
+          break;
+
+        case 'findNearestFeatures':
+          datasetResults = analyzeFindNearestFeatures(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         default:

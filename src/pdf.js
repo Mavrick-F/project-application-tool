@@ -417,12 +417,23 @@ async function generatePDF() {
       let isEmpty = false;
       if (config.resultStyle === 'binary' && typeof results === 'object' && 'detected' in results) {
         isEmpty = !results.detected;
+      } else if (config.resultStyle === 'percentage' && typeof results === 'object' && 'percentage' in results) {
+        isEmpty = results.percentage === 0;
+      } else if (config.resultStyle === 'acreage' && typeof results === 'object' && 'totalAcres' in results) {
+        isEmpty = results.totalAcres === 0;
+      } else if (config.resultStyle === 'sum' && typeof results === 'object' && 'sum' in results) {
+        isEmpty = results.sum === 0;
+      } else if (config.resultStyle === 'nearest' && Array.isArray(results)) {
+        isEmpty = results.length === 0;
       } else if (config.resultStyle === 'lengthByStatus' && typeof results === 'object' && 'total' in results) {
         isEmpty = results.total === 0;
       } else if (typeof results === 'object' && 'total' in results) {
         isEmpty = results.total === 0;
-      } else {
+      } else if (Array.isArray(results)) {
         isEmpty = results.length === 0;
+      } else {
+        // Unknown result type - treat as empty
+        isEmpty = true;
       }
 
       if (isEmpty) {
@@ -495,6 +506,31 @@ async function generatePDF() {
         pdf.text(acreageLabel, margin, yPosition);
         yPosition += 0.2;
         yPosition += 0.1;  // Add spacing between datasets
+
+      } else if (config.resultStyle === 'sum') {
+        // Sum format (for summing numeric values from nearby features)
+        checkPageBreak(0.3);
+        pdf.setFont('helvetica', 'normal');
+        const displayValue = Number.isInteger(results.sum) ? results.sum : results.sum.toFixed(2);
+        const sumLabel = config.sumField
+          ? `  Total ${config.sumField}: ${displayValue}`
+          : `  Total: ${displayValue}`;
+        pdf.text(sumLabel, margin, yPosition);
+        yPosition += 0.2;
+        yPosition += 0.1;  // Add spacing between datasets
+
+      } else if (config.resultStyle === 'nearest') {
+        // Nearest features format (for findNearestFeatures analysis)
+        results.forEach(result => {
+          checkPageBreak(0.2);
+          pdf.setFont('helvetica', 'normal');
+          const props = result.feature.properties || result.feature;
+          const displayName = props._displayName || props[config.properties.displayField] || 'Unknown';
+          const distanceFormatted = Math.round(result.distance).toLocaleString();
+          pdf.text(`  • ${displayName} - ${distanceFormatted} ft`, margin, yPosition);
+          yPosition += 0.16;
+        });
+        yPosition += 0.2;  // Add spacing between datasets
 
       } else if (config.resultStyle === 'lengthByStatus') {
         // Length by status format (for travel time reliability - show percentages and median LOTTR)
@@ -644,7 +680,7 @@ async function generatePDF() {
 
       // Add disclaimer
       pdf.setFontSize(7);
-      pdf.text('The tool was developed to assist with the 2055 RTP application process and intended for preliminary project analysis',
+      pdf.text('For preliminary analysis in support of 2055 Regional Transportation Plan applications',
                pageWidth / 2, footerY + 0.12, { align: 'center' });
 
       if (totalPages > 1) {

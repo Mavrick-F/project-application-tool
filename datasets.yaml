@@ -18,11 +18,11 @@
 #   - measureProjectByCategory: Calculates total length broken down by status field
 #   - measureIntersectedArea: Calculates acreage of intersected polygon features
 #   - projectCoverage: Calculates percentage of project within coverage areas
+#   - sumNearbyValues: Sums a numeric attribute from features within buffer (e.g., sum jobs from census tracts)
+#   - findNearestFeatures: Finds nearest X features to project and returns distance in feet (e.g., 3 nearest hospitals, nearest bus stop within 1 mile)
 #
 # PDF RENDERING OPTIONS:
-#   - showFullLayerInPdf: Set to true to show entire layer on PDF map (not just matched features)
-#                         Use this when showing full context is important (e.g., STRAHNET network)
-#                         Default: false (only matched features are shown)
+#   - showFullLayerInPdf: Set to true to show entire layer on PDF map (not just matched features) Default: False
 #
 # COLOR CODES: Use hex format (#RRGGBB) or named colors
 #   Examples: '#FF0000' (red), '#228B22' (forest green), '#0066CC' (blue)
@@ -747,56 +747,87 @@ wetlands:
   resultStyle: acreage
   enabled: true
 
-# ========== EXAMPLE: PAVEMENT CONDITION DATASET ==========
-# This example demonstrates conditional styling for future dataset additions.
-# Copy this pattern and modify values to add similar datasets.
+# ========== EXAMPLE: SUM NEARBY VALUES ANALYSIS TYPE ==========
+# This example demonstrates the new sumNearbyValues analysis method.
+# This method is useful when you want to sum a numeric attribute from features
+# within a buffer distance instead of just counting them.
 
-pavementCondition:
-  id: pavementCondition
-  name: Pavement Condition
-  description: Current pavement condition ratings along your project corridor. Poor pavement conditions support the need for rehabilitation or reconstruction improvements.
+# EXAMPLE: Sum injuries from crashes (with category filter)
+crashInjuries:
+  id: crashInjuries
+  name: Serious Injuries (Total)
+  description: Total serious injuries from crashes within 200 feet. Demonstrates sumNearbyValues with analysisFilter to only count specific crash types.
   category: Transportation
-  filePath: ./data/pavement_condition.geojson  # Create this file with pavement data
-  geometryType: LineString  # Road segments
-  analysisMethod: measureProjectByCategory  # Identifies the percentage of good/fair/poor pavement
+  filePath: ./data/ksi_crashes.geojson
+  geometryType: Point
+  analysisMethod: sumNearbyValues
 
-  bufferDistance: 100  # 100 feet buffer for initial intersection
-  minSharedLength: 100  # Require 100 feet of parallel overlap, use ~100 feet for performance data to detect small segments, and ~300 feet for things like bus or bike routes to exclude features crossed
-  proximityBuffer: null
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: 200
+
+  sumField: Injured_Co  # Field to sum (number injured per crash)
+
+  # Filter to only include "Suspected Serious Injury" crashes
+  analysisFilter:
+    field: Severity
+    operator: '='
+    value: Suspected Serious Injury
 
   properties:
-    displayField: STREET_NAME  # Road name
+    displayField: Severity
     additionalFields:
-      - CONDITION  # Good/Fair/Poor rating
-      - LAST_SURVEY  # Date of last condition survey
+      - Injured_Co
 
   specialHandling:
     removeDirectionalSuffixes: false
     deduplicate: false
 
-  # Base style (will be overridden by conditional styling)
   style:
-    color: '#808080'  # Gray default
+    color: '#FF4500'  # Orange red
+    fillColor: '#FF4500'
+    radius: 3
+    fillOpacity: 0.9
+    weight: 1
+
+  resultStyle: sum
+  enabled: false  # Set to true when you want to use this dataset
+
+# ========== EXAMPLE: FIND NEAREST FEATURES ANALYSIS TYPE ==========
+# This example demonstrates the findNearestFeatures analysis method.
+# This method finds the N nearest features to the project and returns
+# each feature with its distance in feet. Optional maxDistance parameter
+# filters results to only include features within that distance.
+
+# EXAMPLE: Find 3 nearest transit routes within 1 mile
+nearestTransitRoutes:
+  id: nearestTransitRoutes
+  name: Nearest Transit Routes
+  description: Finds up to 3 nearest MATA transit routes within 1 mile of the project. Demonstrates findNearestFeatures with maxDistance.
+  category: Transportation
+  filePath: ./data/mata_routes.geojson
+  geometryType: LineString
+  analysisMethod: findNearestFeatures
+
+  bufferDistance: null
+  minSharedLength: null
+  proximityBuffer: null
+
+  nearestCount: 3  # Number of nearest features to find
+  maxDistance: 5280  # Optional: Only include features within 1 mile (5280 feet). If omitted, includes all features.
+
+  properties:
+    displayField: ROUTE_LONG
+    additionalFields: []
+
+  specialHandling:
+    removeDirectionalSuffixes: false
+    deduplicate: false
+
+  style:
+    color: '#0066CC'  # Blue
     weight: 3
-    opacity: 0.7
+    opacity: 0.8
 
-  # CONDITIONAL STYLING EXAMPLE
-  # Different colors for each condition rating
-  styleByProperty:
-    field: CONDITION  # Field name to check (must match GeoJSON property exactly)
-    values:  # Define styles for each possible value
-      Good:  # Roads in good condition = green
-        color: '#228B22'  # Forest green
-        weight: 3
-        opacity: 0.8
-      Fair:  # Roads in fair condition = yellow/orange
-        color: '#FFA500'  # Orange
-        weight: 3
-        opacity: 0.8
-      Poor:  # Roads in poor condition = red (needs repair)
-        color: '#DC143C'  # Crimson red
-        weight: 4  # Thicker line to emphasize poor condition
-        opacity: 0.9
-
-  resultStyle: percentage  # Display percentage of roads by condition
-  enabled: false  # Set to true when data file is available
+  resultStyle: nearest
+  enabled: false  # Set to true when you want to use this dataset
