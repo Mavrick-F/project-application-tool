@@ -119,7 +119,7 @@ crashLocations:
 
 greenprintNetwork:
   id: greenprintNetwork
-  name: Greenprint Bike Network
+  name: Greenprint Network
   description: Shows priority tiers for future bike infrastructure from the Memphis MPO's Regional Greenprint.
   category: Transportation
   filePath: ./data/greenprint.geojson
@@ -248,7 +248,7 @@ strahnet:
 
   specialHandling:
     removeDirectionalSuffixes: false
-    deduplicate: false
+    deduplicate: true  # Show STRAHNET only once instead of repeating for each segment
 
   style:
     color: '#8B6914'  # Dark goldenrod (highway brown)

@@ -334,7 +334,9 @@ function analyzeListParallelFeatures(drawnGeometry, datasetConfig, geoJsonData) 
  * @returns {Array} Array of intersecting feature names/IDs
  */
 function analyzeListIntersectingFeatures(drawnGeometry, datasetConfig, geoJsonData) {
-  const intersectingFeatures = [];
+  // Use Map for deduplication if configured, otherwise use array
+  const useDedupe = datasetConfig.specialHandling?.deduplicate;
+  const intersectingFeatures = useDedupe ? new Map() : [];
 
   // Extract actual geometry from GeoJSON Feature if needed
   const geometry = drawnGeometry.type === 'Feature'
@@ -402,15 +404,22 @@ function analyzeListIntersectingFeatures(drawnGeometry, datasetConfig, geoJsonDa
           properties: props
         };
 
-        intersectingFeatures.push(featureData);
+        if (useDedupe) {
+          // Store in Map keyed by display name for automatic deduplication
+          if (!intersectingFeatures.has(displayValue)) {
+            intersectingFeatures.set(displayValue, featureData);
+          }
+        } else {
+          intersectingFeatures.push(featureData);
+        }
       }
     } catch (error) {
       console.warn('Error checking intersection:', error);
     }
   });
 
-  // Sort by feature name
-  return intersectingFeatures.sort();
+  // Convert Map to array if using deduplication (already deduplicated by Map key)
+  return useDedupe ? Array.from(intersectingFeatures.values()) : intersectingFeatures;
 }
 
 /**
