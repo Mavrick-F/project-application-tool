@@ -1,7 +1,13 @@
 # Version History
 
-## v1.0 (2026-01-22) - Production Release
+## v1.0.1 (2026-01-27)
+- Improve PDF map zoom with fractional zoom levels
+- Fix STRAHNET deduplication to appear once in PDF
+- Add PDF footer disclaimer and reduce legend size
+- Reduce legend size
+- Add configurable showFullLayerInPdf option for datasets, enabled for STRAHNET
 
+## v1.0 (2026-01-22)
 ### User Interface
 - Added info tooltips to all 20 datasets with explanatory text about data sources, analysis implications, and regulatory requirements
 - Tutorial popup now displays on every page load

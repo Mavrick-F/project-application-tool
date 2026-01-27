@@ -164,11 +164,19 @@ async function generatePDF() {
     // Use animate: false to ensure immediate positioning
     const optimalBounds = getOptimalMapBounds();
     if (optimalBounds) {
+      // Temporarily enable fractional zoom so fitBounds uses the tightest
+      // possible zoom level instead of rounding down to the nearest integer
+      const originalZoomSnap = map.options.zoomSnap;
+      map.options.zoomSnap = 0;
+
       map.fitBounds(optimalBounds, {
-        padding: [80, 80],  // Increased padding for better centering
-        maxZoom: 16,        // Prevent zooming in too close
-        animate: false      // Critical: prevents capture during animation
+        padding: [0, 0],    // No pixel padding - geographic padding is in getOptimalMapBounds
+        maxZoom: 18,         // Allow closer zoom since fractional zoom is enabled
+        animate: false       // Critical: prevents capture during animation
       });
+
+      // Restore original zoomSnap after positioning
+      map.options.zoomSnap = originalZoomSnap;
     }
 
     // Force Leaflet to update size/position after zoom

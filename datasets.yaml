@@ -19,6 +19,11 @@
 #   - measureIntersectedArea: Calculates acreage of intersected polygon features
 #   - projectCoverage: Calculates percentage of project within coverage areas
 #
+# PDF RENDERING OPTIONS:
+#   - showFullLayerInPdf: Set to true to show entire layer on PDF map (not just matched features)
+#                         Use this when showing full context is important (e.g., STRAHNET network)
+#                         Default: false (only matched features are shown)
+#
 # COLOR CODES: Use hex format (#RRGGBB) or named colors
 #   Examples: '#FF0000' (red), '#228B22' (forest green), '#0066CC' (blue)
 #
@@ -256,6 +261,7 @@ strahnet:
     opacity: 0.8
 
   resultStyle: list
+  showFullLayerInPdf: true  # Show entire layer on PDF map (not just matched segments) for better context
   enabled: true
 
 travelTimeReliability:

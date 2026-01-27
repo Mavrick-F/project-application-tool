@@ -599,14 +599,23 @@ function getOptimalMapBounds() {
     const latDiff = Math.abs(lineBounds.getNorth() - lineBounds.getSouth());
     const lngDiff = Math.abs(lineBounds.getEast() - lineBounds.getWest());
 
-    // Expand bounds evenly around center by 5% on each side for tight zoom on project
-    const latPad = latDiff * 0.05;
-    const lngPad = lngDiff * 0.05;
+    // Ensure minimum extent so narrow lines don't produce degenerate bounds
+    // 0.003 degrees ~ 330m, prevents extreme aspect ratios for axis-aligned lines
+    const effectiveLatDiff = Math.max(latDiff, 0.003);
+    const effectiveLngDiff = Math.max(lngDiff, 0.003);
+
+    // Expand bounds evenly around center by 15% on each side for readable context
+    const latPad = effectiveLatDiff * 0.15;
+    const lngPad = effectiveLngDiff * 0.15;
+
+    // Total half-extent in each dimension
+    const latHalf = effectiveLatDiff / 2 + latPad;
+    const lngHalf = effectiveLngDiff / 2 + lngPad;
 
     // Create new bounds centered on the project center
     return L.latLngBounds([
-      [center.lat - latDiff / 2 - latPad, center.lng - lngDiff / 2 - lngPad],
-      [center.lat + latDiff / 2 + latPad, center.lng + lngDiff / 2 + lngPad]
+      [center.lat - latHalf, center.lng - lngHalf],
+      [center.lat + latHalf, center.lng + lngHalf]
     ]);
   } else if (drawnLayer.getLatLng) {
     // Point/Marker - use getLatLng
