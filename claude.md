@@ -37,29 +37,18 @@ Web-based spatial analysis tool for Memphis MPO's RTP 2055. Users draw project a
 - **Configuration over code** - Add datasets via config, not custom logic
 - **Desktop only** - Complex mapping UI, 1024px minimum (not a mobile use case)
 
-## IT Constraints
+## Project Constraints
 
-### Enterprise Environment Context
-- **Windows machine at Memphis City Hall** - Large enterprise with security policies and restrictions
-- **No admin access** - Can't install system-level tools, modify firewall, or kill system processes
-- **Port availability is unpredictable** - Enterprise software claims common dev ports
-  - Port 3000: Usually blocked by enterprise services (use 5000, 8000, or 8080 instead)
-  - Working ports: 5000, 8000, 8080, 8888, 9000 (test with `netstat -an | grep "LISTENING"`)
-- **ArcGIS Pro Python environment** - For ArcPy work, must use ArcGIS Pro's Python, not system Python
-  - Typical path: `C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe`
-  - Always specify full path when running ArcPy scripts
-
-### AGOL/Data Constraints
+### Data & Publishing
 - **AGOL publishing has bureaucratic delays** - Use Feature Services only for large datasets
 - **No backend/database** - Client-side only architecture
+- **No user authentication/sessions** - Everything is anonymous, client-side only
+- **No data persistence** - Analysis results only exist during the session
 
 **What this means:**
-- Always test ports before assuming availability
-- Can't install npm packages globally or use elevated installers
-- Python scripts need explicit ArcGIS Pro Python path
 - Large datasets require ArcGIS Feature Service integration (server does the work)
-- No user authentication/sessions
-- No data persistence across sessions
+- PDF export is the only way to save results
+- Configuration changes require page refresh
 
 ## Configuration-Driven System (v0.6.0+)
 
@@ -89,16 +78,11 @@ New datasets = just edit `datasets.yaml` in the root directory. The file is self
 
 ## Useful Commands
 ```bash
-# Local dev server (use port 5000 - port 3000 typically blocked in enterprise environment)
+# Local dev server
 python -m http.server 5000
 
-# Access at http://localhost:5000
-
-# Check port availability before starting server
-netstat -an | grep "LISTENING" | grep ":5000"
-
-# Run tests (if present in tests/ folder)
-# Tests are HTML files - open in browser or use a test runner
+# Run tests (open in browser)
+# Tests are HTML files in tests/ folder - navigate to http://localhost:5000/tests/
 ```
 
 ## Quick Reference
