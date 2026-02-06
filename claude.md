@@ -3,7 +3,7 @@
 ## What This Is
 Web-based spatial analysis tool for Memphis MPO's RTP 2055. Users draw project alignments or mark point locations, tool automatically analyzes against regional datasets, generates PDF report.
 
-**Current Status:** v0.9.4 - Polish & security hardening phase
+**Current Status:** v0.1.1 - Final polish & future-proofing phase
 **Deployment:** GitHub Pages for development, MPO server for production
 
 ## Hard-Won Lessons
@@ -16,6 +16,12 @@ Web-based spatial analysis tool for Memphis MPO's RTP 2055. Users draw project a
 ### PDF Generation
 - **Must wait for ALL layers to render** before capture (basemap tiles + GeoJSON vectors)
 - **Animation breaks capture**: Use `animate: false` on fitBounds
+- **Zoom level must account for legends/overlays**: Calculate bounds BEFORE adding legends, or they'll obscure content
+- **Color values must be valid**: Malformed hex/rgb values break PDF rendering - validate in config
+
+### CSS/UI Gotchas
+- **Text-transform inheritance**: Parent containers have `text-transform: uppercase` - icon fonts need explicit override
+- **Check parent styles first**: Display issues often caused by inherited CSS, not the element itself
 
 ### Data Requirements
 - All datasets MUST be WGS84 (EPSG:4326)
@@ -32,15 +38,28 @@ Web-based spatial analysis tool for Memphis MPO's RTP 2055. Users draw project a
 - **Desktop only** - Complex mapping UI, 1024px minimum (not a mobile use case)
 
 ## IT Constraints
-- **AGOL publishing has bureacratic delays** - Use Feature Services only for large datasets
-- **No admin access** - Can't install dev tools requiring elevation
+
+### Enterprise Environment Context
+- **Windows machine at Memphis City Hall** - Large enterprise with security policies and restrictions
+- **No admin access** - Can't install system-level tools, modify firewall, or kill system processes
+- **Port availability is unpredictable** - Enterprise software claims common dev ports
+  - Port 3000: Usually blocked by enterprise services (use 5000, 8000, or 8080 instead)
+  - Working ports: 5000, 8000, 8080, 8888, 9000 (test with `netstat -an | grep "LISTENING"`)
+- **ArcGIS Pro Python environment** - For ArcPy work, must use ArcGIS Pro's Python, not system Python
+  - Typical path: `C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe`
+  - Always specify full path when running ArcPy scripts
+
+### AGOL/Data Constraints
+- **AGOL publishing has bureaucratic delays** - Use Feature Services only for large datasets
+- **No backend/database** - Client-side only architecture
 
 **What this means:**
+- Always test ports before assuming availability
+- Can't install npm packages globally or use elevated installers
+- Python scripts need explicit ArcGIS Pro Python path
 - Large datasets require ArcGIS Feature Service integration (server does the work)
 - No user authentication/sessions
 - No data persistence across sessions
-
-## Current Development Phase: Polish & Security for v1.0
 
 ## Configuration-Driven System (v0.6.0+)
 
@@ -70,10 +89,13 @@ New datasets = just edit `datasets.yaml` in the root directory. The file is self
 
 ## Useful Commands
 ```bash
-# Local dev server (port 3000)
-python -m http.server 3000
+# Local dev server (use port 5000 - port 3000 typically blocked in enterprise environment)
+python -m http.server 5000
 
-# Access at http://localhost:3000
+# Access at http://localhost:5000
+
+# Check port availability before starting server
+netstat -an | grep "LISTENING" | grep ":5000"
 
 # Run tests (if present in tests/ folder)
 # Tests are HTML files - open in browser or use a test runner
@@ -97,27 +119,26 @@ When making changes, follow this workflow:
 
 1. **Make code changes** to src/ or data/ files
 2. **Test thoroughly** - Use browser dev tools or write tests in `tests/` folder
-3. **Update VERSION.md** with detailed changelog entry:
+3. **Update changelog.md** with concise entry:
    - Add new version section at top with date
-   - Organize changes by category (UI, Features, Fixes, Security, etc.)
-   - Include specific file names and line number references where relevant
+   - Keep entries brief (1-2 sentences per bullet)
+   - Follow existing format in changelog
 4. **Update version numbers:**
    - Change badge in README.md: `v=X.X.X`
    - Change page title in index.html
    - Update cache-busting query strings: `?v=X.X.X` on all script tags
 5. **Commit with clear message** following the style of recent commits
-6. **Document known limitations** in CLAUDE.md if applicable
 
-**VERSION.md Format Example:**
+**changelog.md format:**
 ```markdown
-## v0.9.5 (2026-01-XX) - Brief Title
-
-### Category Name
-- **Bold item**: Description of change and why it matters
-- Related implementation details or affected files
+## v1.1 (2026-01-27)
+- Brief description of change and impact
+- Implementation notes if relevant (file names, key functions)
+- Combine multiple very minor changes to one line
 ```
 
 ## Testing Guidelines
+Write tests BEFORE or alongside code changes. Tests save debugging time and document expected behavior.
 
 **Where:** Save test files in `tests/` folder
 **Format:** HTML files with embedded JavaScript (can run directly in browser) or use assertion libraries
@@ -158,6 +179,3 @@ When making changes, follow this workflow:
 </body>
 </html>
 ```
-
-**Encourage:** Write tests BEFORE or alongside code changes. Tests save debugging time and document expected behavior.
-
