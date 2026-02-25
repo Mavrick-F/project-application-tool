@@ -824,6 +824,9 @@ function analyzeCountByCategory(drawnGeometry, datasetConfig, geoJsonData) {
         if (datasetConfig.geometryType === 'Point') {
           // Point features: check if point is in buffer
           isNearby = turf.booleanPointInPolygon(feature, buffered);
+        } else if (datasetConfig.geometryType === 'Polygon' || datasetConfig.geometryType === 'LineString') {
+          // Polygon/Line features: check if they intersect the buffer
+          isNearby = turf.booleanIntersects(feature, buffered);
         }
 
         if (isNearby) {

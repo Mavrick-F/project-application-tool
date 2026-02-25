@@ -263,7 +263,7 @@ mataRoutes:
   resultStyle: list
   enabled: true
 
-# ---------- Transit Demand (Polygon — listIntersectingFeatures) ----------
+# ---------- Transit Demand (Polygon — countByCategory) ----------
 transitDemand:
   name: Transit Demand
   description: Composite transit demand scores combining population density, employment density, and socioeconomic factors. Higher scores indicate areas where conditions are especially conducive to transit ridership and may warrant prioritization for transit investment.
@@ -271,14 +271,13 @@ transitDemand:
   dataSource: Memphis MPO / Memphis Urban Area Transit Study
   filePath: ./data/transit_demand.geojson
   geometryType: Polygon
-  analysisMethod: listIntersectingFeatures
+  analysisMethod: countByCategory
+
+  proximityBuffer: 100
+  countByField: Demand
 
   properties:
     displayField: Demand
-    additionalFields:
-      - Composite_Score
-    fieldLabels:
-      Composite_Score: Composite Score
 
   style:
     color: '#90CAF9'
@@ -305,7 +304,7 @@ transitDemand:
         fillColor: '#0D47A1'
         fillOpacity: 0.6
 
-  resultStyle: list
+  resultStyle: count
   enabled: true
 
 # ---------- STRAHNET (LineString — listIntersectingFeatures) ----------
