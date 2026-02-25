@@ -9,6 +9,7 @@
 // APP GLOBAL VARIABLES
 // ============================================
 const geoJsonData = {};  // Raw GeoJSON data for all datasets
+const DEFAULT_MAX_RECORDS = 5000;
 
 // ============================================
 // APPLICATION INITIALIZATION
@@ -21,6 +22,29 @@ const geoJsonData = {};  // Raw GeoJSON data for all datasets
 async function init() {
   try {
     showLoading(true, 'Loading configuration...');
+
+    // Load application configuration first
+    await window.loadConfig();
+
+    // Update page title dynamically
+    if (window.CONFIG_APP?.branding?.pageTitle) {
+      document.title = window.CONFIG_APP.branding.pageTitle + ' v' + (window.CONFIG_APP.branding.version || '');
+    }
+
+    // Update header text dynamically
+    if (window.CONFIG_APP?.branding?.headerYear) {
+      const headerYearSpan = document.querySelector('.header-year');
+      if (headerYearSpan) {
+        headerYearSpan.textContent = window.CONFIG_APP.branding.headerYear;
+      }
+    }
+
+    // Update logo dynamically
+    const logoImg = document.getElementById('header-logo');
+    if (logoImg && window.CONFIG_APP?.branding?.logoPath) {
+      logoImg.src = window.CONFIG_APP.branding.logoPath;
+      logoImg.alt = (window.CONFIG_APP.organization?.name || 'Organization') + ' Logo';
+    }
 
     // Wait for datasets configuration to load from YAML
     await datasetsLoaded;
@@ -385,17 +409,18 @@ async function loadGeoJsonData() {
       if (config.enabled && !config.lazyLoad) {
         if (config.filePath) {
           // Regular GeoJSON file (add cache-busting query parameter for fresh loads)
-          const filePathWithVersion = config.filePath + '?v=1.0';
+          const filePathWithVersion = config.filePath + '?v=' + (window.CONFIG_APP?.branding?.version || '1.0');
           fetchPromises.push(fetch(filePathWithVersion));
           datasetKeys.push({ key: datasetKey, isFeatureService: false });
         } else if (config.featureServiceUrl) {
           // Feature service - needs to query for data
           // Note: Don't use bbox filter - feature services are stored in Web Mercator (EPSG:3857)
-          // and bbox filtering with WGS84 coords fails. These services are already scoped to Memphis area.
+          // and bbox filtering with WGS84 coords fails. These services are already scoped to the MPO's geographic area.
+          const maxRecords = config.maxRecords || DEFAULT_MAX_RECORDS;
           fetchPromises.push(queryFeatureService(config.featureServiceUrl, {
-            maxRecords: 5000
+            maxRecords: maxRecords
           }));
-          datasetKeys.push({ key: datasetKey, isFeatureService: true });
+          datasetKeys.push({ key: datasetKey, isFeatureService: true, maxRecords: maxRecords });
         }
       }
     });
@@ -411,6 +436,11 @@ async function loadGeoJsonData() {
       if (datasetInfo.isFeatureService) {
         // Feature service returns {success, data, error}
         if (response.success) {
+          // Check for potential truncation
+          if (response.data && response.data.features && datasetInfo.maxRecords &&
+              response.data.features.length >= datasetInfo.maxRecords) {
+            console.warn(`⚠ ${datasetInfo.key}: Received ${response.data.features.length} features (limit: ${datasetInfo.maxRecords}). Results may be truncated.`);
+          }
           return response.data;
         } else {
           console.warn(`Failed to query ${config.name}: ${response.error}`);
@@ -539,9 +569,10 @@ async function loadLazyDatasets(drawnGeometry) {
     // Query all feature services in parallel with spatial filter
     const queryPromises = lazyDatasets.map(datasetKey => {
       const config = DATASETS[datasetKey];
+      const maxRecords = config.maxRecords || DEFAULT_MAX_RECORDS;
       return queryFeatureService(config.featureServiceUrl, {
         bbox: webMercatorBbox,
-        maxRecords: 1000  // Reduced since we're only querying nearby features
+        maxRecords: maxRecords
       });
     });
 
@@ -551,8 +582,13 @@ async function loadLazyDatasets(drawnGeometry) {
     results.forEach((result, index) => {
       const datasetKey = lazyDatasets[index];
       const config = DATASETS[datasetKey];
+      const maxRecords = config.maxRecords || DEFAULT_MAX_RECORDS;
 
       if (result.success && result.data) {
+        // Check for potential truncation
+        if (result.data.features && result.data.features.length >= maxRecords) {
+          console.warn(`⚠ ${datasetKey}: Received ${result.data.features.length} features (limit: ${maxRecords}). Results may be truncated.`);
+        }
         geoJsonData[datasetKey] = result.data;
         console.log(`✓ ${config.name}: ${result.data.features.length} features loaded`);
       } else {
@@ -623,17 +659,19 @@ function validateProjection(data, datasetName) {
 
   const [lng, lat] = coords;
 
-  // Memphis area bounding box: lng -90.1 to -89.6, lat 34.9 to 35.3
-  // Using slightly wider bounds (-91 to -89, 34 to 36) to allow for regional datasets
+  // Get validation bounds from configuration or use defaults
+  const bounds = window.CONFIG_APP.geography.validationBounds;
+
   const isValidWGS84 = (
-    lng >= -91 && lng <= -89 &&
-    lat >= 34 && lat <= 36
+    lng >= bounds.minLng && lng <= bounds.maxLng &&
+    lat >= bounds.minLat && lat <= bounds.maxLat
   );
 
   if (!isValidWGS84) {
+    const orgName = window.CONFIG_APP?.organization?.name || 'MPO';
     console.error(`❌ PROJECTION ERROR in ${datasetName}!`);
     console.error(`Found coordinates: [${lng}, ${lat}]`);
-    console.error(`Expected Memphis area: lng -90 to -89, lat 34.9 to 35.3`);
+    console.error(`Expected ${orgName} area bounds:`, bounds);
     console.error(`Data appears to be in projected CRS, not WGS84!`);
 
     throw new Error(
@@ -689,7 +727,7 @@ async function onDrawCreated(event, drawnItems) {
   }
 
   // Show loading overlay while querying feature services
-  showLoading(true, 'Loading environmental datasets...');
+  showLoading(true, 'Loading feature service datasets...');
 
   try {
     // Load lazy-load datasets (feature services) before analysis
@@ -905,8 +943,8 @@ function escapeHtml(text) {
  */
 function createResultCard(datasetConfig, results) {
   // Feature service datasets (wetlands, flood zones) have display issues in sidebar
-  // Show simplified message instead (except for acreage results which we want to display)
-  if (datasetConfig.lazyLoad && datasetConfig.resultStyle !== 'acreage') {
+  // Show simplified message instead (except for area results which we want to display)
+  if (datasetConfig.lazyLoad && datasetConfig.resultStyle !== RESULT_STYLES.AREA) {
     let cardHtml = `<div class="results-card" data-dataset="${escapeHtml(datasetConfig.id)}">`;
     cardHtml += `<div class="section-heading">`;
     cardHtml += `${escapeHtml(datasetConfig.name)}`;
@@ -928,19 +966,21 @@ function createResultCard(datasetConfig, results) {
   }
 
   // Handle count results differently (object with total and breakdown)
-  const isCountResult = datasetConfig.resultStyle === 'count' && typeof results === 'object' && 'total' in results;
-  const isLengthByStatusResult = datasetConfig.resultStyle === 'lengthByStatus' && typeof results === 'object' && 'total' in results;
-  const isPercentageResult = datasetConfig.resultStyle === 'percentage' && typeof results === 'object' && 'percentage' in results;
-  const isAcreageResult = datasetConfig.resultStyle === 'acreage' && typeof results === 'object' && 'totalAcres' in results;
-  const isSumResult = datasetConfig.resultStyle === 'sum' && typeof results === 'object' && 'sum' in results;
-  const isNearestResult = datasetConfig.resultStyle === 'nearest' && Array.isArray(results);
+  const isCountResult = datasetConfig.resultStyle === RESULT_STYLES.COUNT && typeof results === 'object' && 'total' in results;
+  const isLengthByStatusResult = datasetConfig.resultStyle === RESULT_STYLES.LENGTH_BY_STATUS && typeof results === 'object' && 'total' in results;
+  const isPercentageResult = datasetConfig.resultStyle === RESULT_STYLES.PERCENTAGE && typeof results === 'object' && 'percentage' in results;
+  const isAreaResult = datasetConfig.resultStyle === RESULT_STYLES.AREA && typeof results === 'object' && 'totalArea' in results;
+  const isSumResult = datasetConfig.resultStyle === RESULT_STYLES.SUM && typeof results === 'object' && 'sum' in results;
+  const isNearestResult = datasetConfig.resultStyle === RESULT_STYLES.NEAREST && Array.isArray(results);
+  const isAverageValueResult = datasetConfig.resultStyle === RESULT_STYLES.AVERAGE_VALUE && typeof results === 'object' && 'avg' in results;
 
-  // For lengthByStatus, use features.length as count; for count results use total; for percentage/acreage/sum results use features.length; for nearest use array length; otherwise use array length
+  // For lengthByStatus, use features.length as count; for count results use total; for percentage/area/sum results use features.length; for nearest use array length; otherwise use array length
   const count = isLengthByStatusResult ? (results.features ? results.features.length : 0) :
                 isPercentageResult ? (results.features ? results.features.length : 0) :
-                isAcreageResult ? (results.features ? results.features.length : 0) :
+                isAreaResult ? (results.features ? results.features.length : 0) :
                 isSumResult ? (results.features ? results.features.length : 0) :
                 isNearestResult ? results.length :
+                isAverageValueResult ? results.count :
                 (isCountResult ? results.total : results.length);
   const hasResults = count > 0;
 
@@ -961,42 +1001,38 @@ function createResultCard(datasetConfig, results) {
 
   if (!hasResults) {
     cardHtml += `<p class="empty-state">No ${escapeHtml(datasetConfig.name.toLowerCase())} found</p>`;
-  } else if (datasetConfig.resultStyle === 'lengthByStatus') {
-    // Length by status format (for travel time reliability - show percentages and median LOTTR)
-    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
+  } else if (datasetConfig.resultStyle === RESULT_STYLES.LENGTH_BY_STATUS) {
+    // Length by status format — show percentages by category and optional weighted average
+    cardHtml += `<div class="result-card-body">`;
 
-    // Show mean LOTTR if available
-    if (results.meanLOTTR !== null && results.meanLOTTR !== undefined) {
-      cardHtml += `<p style="margin: 0 0 10px 0; font-size: 14px;">Mean LOTTR: ${escapeHtml(results.meanLOTTR.toFixed(2))}</p>`;
+    // Show weighted average of averageField if available
+    if (results.avg !== null && results.avg !== undefined && datasetConfig.averageField) {
+      const avgLabel = `Avg. ${(datasetConfig.properties?.fieldLabels?.[datasetConfig.averageField]) || datasetConfig.averageField.toUpperCase()}`;
+      cardHtml += `<p style="margin: 0 0 10px 0; font-size: 14px;">${escapeHtml(avgLabel)}: ${escapeHtml(results.avg.toFixed(2))}</p>`;
     }
 
     if (results.breakdown && Object.keys(results.breakdown).length > 0) {
       cardHtml += `<ul class="results-list" style="margin: 0; padding-left: 20px;">`;
 
-      // Sort breakdown by status (True first, then False)
-      const sortedBreakdown = Object.entries(results.breakdown).sort((a, b) => {
-        if (a[0] === 'True' && b[0] !== 'True') return -1;
-        if (a[0] !== 'True' && b[0] === 'True') return 1;
-        return 0;
-      });
+      // Sort breakdown by percentage descending
+      const sortedBreakdown = Object.entries(results.breakdown).sort((a, b) => b[1] - a[1]);
 
       sortedBreakdown.forEach(([status, percentage]) => {
-        const statusLabel = status === 'True' ? 'Reliable' : 'Unreliable';
-        cardHtml += `<li>${escapeHtml(statusLabel)}: ${escapeHtml(percentage.toFixed(1))}%</li>`;
+        cardHtml += `<li>${escapeHtml(status)}: ${escapeHtml(percentage.toFixed(1))}%</li>`;
       });
 
       cardHtml += `</ul>`;
     }
 
     cardHtml += `</div>`;
-  } else if (datasetConfig.resultStyle === 'percentage') {
-    // Percentage format (for project coverage analysis like HICs)
-    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
+  } else if (datasetConfig.resultStyle === RESULT_STYLES.PERCENTAGE) {
+    // Percentage format (for project coverage analysis)
+    cardHtml += `<div class="result-card-body">`;
     cardHtml += `<p style="margin: 0; font-size: 14px;">${escapeHtml(results.percentage)}% of project</p>`;
     cardHtml += `</div>`;
-  } else if (datasetConfig.resultStyle === 'count') {
+  } else if (datasetConfig.resultStyle === RESULT_STYLES.COUNT) {
     // Count format (for datasets that count features by category)
-    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
+    cardHtml += `<div class="result-card-body">`;
     cardHtml += `<p style="margin: 0 0 10px 0; font-size: 14px;">Total: ${escapeHtml(results.total)}</p>`;
 
     if (results.breakdown && Object.keys(results.breakdown).length > 0) {
@@ -1013,43 +1049,72 @@ function createResultCard(datasetConfig, results) {
     }
 
     cardHtml += `</div>`;
-  } else if (datasetConfig.resultStyle === 'acreage') {
-    // Acreage format (for area impact analysis - show only total)
-    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
-    const acreageLabel = datasetConfig.id === 'criticalWetlands'
-      ? `Total: ${results.totalAcres.toFixed(2)} acres of Freshwater Forested/Shrub Wetlands`
-      : `Total: ${results.totalAcres.toFixed(2)} acres`;
-    cardHtml += `<p style="margin: 0; font-size: 14px;">
-      ${acreageLabel}</p>`;
+  } else if (datasetConfig.resultStyle === RESULT_STYLES.AREA) {
+    // Area format (for area impact analysis - show only total)
+    cardHtml += `<div class="result-card-body">`;
+    const areaUnit = datasetConfig.resultUnit || 'acres';
+    const areaDesc = datasetConfig.areaLabel ? ` of ${datasetConfig.areaLabel}` : '';
+    cardHtml += `<p style="margin: 0; font-size: 14px;">Total: ${escapeHtml(results.totalArea.toFixed(2))} ${escapeHtml(areaUnit)}${escapeHtml(areaDesc)}</p>`;
     cardHtml += `</div>`;
-  } else if (datasetConfig.resultStyle === 'sum') {
+  } else if (datasetConfig.resultStyle === RESULT_STYLES.SUM) {
     // Sum format (for summing numeric values from nearby features)
-    cardHtml += `<div style="padding: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 10px;">`;
+    cardHtml += `<div class="result-card-body">`;
     // Determine if we should show integer or decimal places
     const displayValue = Number.isInteger(results.sum) ? results.sum : results.sum.toFixed(2);
-    const sumLabel = datasetConfig.sumField
-      ? `Total ${escapeHtml(datasetConfig.sumField)}: ${escapeHtml(displayValue)}`
-      : `Total: ${escapeHtml(displayValue)}`;
+    let sumLabel;
+    if (datasetConfig.sumUnit) {
+      sumLabel = `Total: ${escapeHtml(String(displayValue))} ${escapeHtml(datasetConfig.sumUnit)}`;
+    } else if (datasetConfig.sumField) {
+      sumLabel = `Total ${escapeHtml(datasetConfig.sumField)}: ${escapeHtml(String(displayValue))}`;
+    } else {
+      sumLabel = `Total: ${escapeHtml(String(displayValue))}`;
+    }
     cardHtml += `<p style="margin: 0; font-size: 14px;">${sumLabel}</p>`;
     cardHtml += `</div>`;
-  } else if (datasetConfig.resultStyle === 'nearest') {
+  } else if (datasetConfig.resultStyle === RESULT_STYLES.AVERAGE_VALUE) {
+    // Average value format — shows length-weighted average with optional color-coded tier badge
+    // Tier label and color come from displayThresholds in datasets.yaml (first threshold where avg < max wins)
+    let tierLabel = null;
+    let tierColor = '#888888';
+    if (datasetConfig.displayThresholds && results.avg !== null) {
+      for (const threshold of datasetConfig.displayThresholds) {
+        if (threshold.max == null || results.avg < threshold.max) {
+          tierLabel = threshold.label;
+          tierColor = threshold.color;
+          break;
+        }
+      }
+    }
+    const fieldLabel = datasetConfig.averageField ? `Avg. ${escapeHtml((datasetConfig.properties?.fieldLabels?.[datasetConfig.averageField]) || datasetConfig.averageField.toUpperCase())}` : 'Average';
+    cardHtml += `<div class="result-card-body">`;
+    cardHtml += `<p style="margin: 0 0 6px 0; font-size: 18px; font-weight: bold;">${fieldLabel}: ${escapeHtml(results.avg.toFixed(2))}</p>`;
+    if (tierLabel) {
+      cardHtml += `<span style="display:inline-block; background-color:${escapeHtml(tierColor)}; color:white; font-size:12px; font-weight:bold; padding:2px 8px; border-radius:3px;">${escapeHtml(tierLabel)}</span>`;
+    }
+    cardHtml += `<p style="margin: 8px 0 0 0; font-size: 12px; color: #666;">Based on ${escapeHtml(results.count)} parallel segments</p>`;
+    cardHtml += `</div>`;
+  } else if (datasetConfig.resultStyle === RESULT_STYLES.NEAREST) {
     // Nearest features format (for findNearestFeatures analysis)
     cardHtml += `<ul class="results-list">`;
     results.forEach(result => {
       const props = result.feature.properties || result.feature;
       const displayName = props._displayName || props[datasetConfig.properties.displayField] || 'Unknown';
-      const distanceFormatted = Math.round(result.distance).toLocaleString();
-      cardHtml += `<li>${escapeHtml(displayName)} - ${escapeHtml(distanceFormatted)} ft</li>`;
+      const distanceFormatted = Number.isInteger(result.distance)
+        ? result.distance.toLocaleString()
+        : result.distance.toFixed(2);
+      const distUnit = datasetConfig.resultUnit || 'ft';
+      cardHtml += `<li>${escapeHtml(displayName)} - ${escapeHtml(String(distanceFormatted))} ${escapeHtml(distUnit)}</li>`;
     });
     cardHtml += `</ul>`;
-  } else if (datasetConfig.resultStyle === 'table') {
+  } else if (datasetConfig.resultStyle === RESULT_STYLES.TABLE) {
     // Table format (for datasets with additional fields like bridges)
     cardHtml += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">`;
     cardHtml += `<thead><tr>`;
-    cardHtml += `<th style="background-color: #E6F2FF; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #CCCCCC; font-size: 12px;">${escapeHtml(datasetConfig.properties.displayField)}</th>`;
+    cardHtml += `<th style="background-color: #E6F2FF; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #CCCCCC; font-size: 12px;">${escapeHtml((datasetConfig.properties.fieldLabels?.[datasetConfig.properties.displayField]) || datasetConfig.properties.displayField)}</th>`;
 
     datasetConfig.properties.additionalFields.forEach(field => {
-      cardHtml += `<th style="background-color: #E6F2FF; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #CCCCCC; font-size: 12px;">${escapeHtml(field)}</th>`;
+      const headerLabel = (datasetConfig.properties.fieldLabels?.[field]) || field;
+      cardHtml += `<th style="background-color: #E6F2FF; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #CCCCCC; font-size: 12px;">${escapeHtml(headerLabel)}</th>`;
     });
 
     cardHtml += `</tr></thead><tbody>`;
@@ -1093,7 +1158,7 @@ function createResultCard(datasetConfig, results) {
               value = `${(value * 100).toFixed(1)}%`;
             }
 
-            const fieldLabel = field === 'F__Below_A' ? '% Below ALICE' : field;
+            const fieldLabel = (datasetConfig.properties.fieldLabels && datasetConfig.properties.fieldLabels[field]) || field;
             displayText += ` | ${fieldLabel}: ${value}`;
           });
         }
@@ -1125,7 +1190,7 @@ function displayResults(results) {
   resultsContainer.innerHTML = '';
 
   // Group datasets by category
-  const categoryOrder = ['Transportation', 'Economic Development', 'Environmental/Cultural'];
+  const configuredOrder = window.CONFIG_APP?.categoryOrder || ['Transportation', 'Economic Development', 'Environmental/Cultural'];
   const datasetsByCategory = {};
 
   Object.keys(DATASETS).forEach(datasetKey => {
@@ -1145,18 +1210,20 @@ function displayResults(results) {
     // Determine if results are empty based on result type
     let isEmpty = true; // Default to empty
 
-    if (config.resultStyle === 'binary' && typeof datasetResults === 'object' && 'detected' in datasetResults) {
+    if (config.resultStyle === RESULT_STYLES.BINARY && typeof datasetResults === 'object' && 'detected' in datasetResults) {
       isEmpty = !datasetResults.detected;
-    } else if (config.resultStyle === 'percentage' && typeof datasetResults === 'object' && 'percentage' in datasetResults) {
+    } else if (config.resultStyle === RESULT_STYLES.PERCENTAGE && typeof datasetResults === 'object' && 'percentage' in datasetResults) {
       isEmpty = datasetResults.percentage === 0;
-    } else if (config.resultStyle === 'acreage' && typeof datasetResults === 'object' && 'totalAcres' in datasetResults) {
-      isEmpty = datasetResults.totalAcres === 0;
-    } else if (config.resultStyle === 'sum' && typeof datasetResults === 'object' && 'sum' in datasetResults) {
+    } else if (config.resultStyle === RESULT_STYLES.AREA && typeof datasetResults === 'object' && 'totalArea' in datasetResults) {
+      isEmpty = datasetResults.totalArea === 0;
+    } else if (config.resultStyle === RESULT_STYLES.SUM && typeof datasetResults === 'object' && 'sum' in datasetResults) {
       isEmpty = datasetResults.sum === 0;
-    } else if (config.resultStyle === 'nearest' && Array.isArray(datasetResults)) {
+    } else if (config.resultStyle === RESULT_STYLES.NEAREST && Array.isArray(datasetResults)) {
       isEmpty = datasetResults.length === 0;
-    } else if (config.resultStyle === 'lengthByStatus' && typeof datasetResults === 'object' && 'total' in datasetResults) {
+    } else if (config.resultStyle === RESULT_STYLES.LENGTH_BY_STATUS && typeof datasetResults === 'object' && 'total' in datasetResults) {
       isEmpty = datasetResults.total === 0;
+    } else if (config.resultStyle === RESULT_STYLES.AVERAGE_VALUE && typeof datasetResults === 'object' && 'avg' in datasetResults) {
+      isEmpty = datasetResults.avg === null || datasetResults.count === 0;
     } else if (typeof datasetResults === 'object' && 'total' in datasetResults) {
       isEmpty = datasetResults.total === 0;
     } else if (Array.isArray(datasetResults)) {
@@ -1176,6 +1243,14 @@ function displayResults(results) {
       datasetsByCategory[category] = [];
     }
     datasetsByCategory[category].push({ key: datasetKey, config });
+  });
+
+  // Build full category order: configured order + any extra categories found in datasets
+  const categoryOrder = [...configuredOrder];
+  Object.keys(datasetsByCategory).forEach(cat => {
+    if (!categoryOrder.includes(cat)) {
+      categoryOrder.push(cat);
+    }
   });
 
   // Display results by category

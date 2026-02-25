@@ -1,5 +1,42 @@
 # Version History
 
+## v2.3 (2026-02-24)
+- Backport generic MPO tool v2.1.2 to Memphis: wholesale replacement of all 7 src/ files with cleaned-up generic versions
+- `RESULT_STYLES` constant in datasets.js replaces all string literals across app.js/pdf.js
+- `DEFAULT_MAX_RECORDS` constant in app.js replaces three hardcoded `5000` values
+- `matchesAnalysisFilter()` helper in analysis.js replaces four duplicated 17-line filter blocks
+- `.result-card-body` CSS class extracted from six inline style occurrences
+- `mapStyling` section in config.yaml for drawn line and measurement tool styles (with fallback defaults in config.js)
+- `fieldLabels` now used for table headers and averageField labels (e.g., `STRUCTURE_` -> "Bridge ID", `Level_of_Travel_Time_Reliability` -> "LOTTR")
+- `resultStyle: acreage` renamed to `resultStyle: area` across criticalWetlands, floodZones, and wetlands
+- `areaLabel` added to criticalWetlands for descriptive area totals ("of Freshwater Forested/Shrub Wetlands")
+- `fieldLabels` added to aliceZctas so "% Below ALICE" appears instead of raw field name `F__Below_A`
+- `offsetByDirection` now uses object format (`field`, `positiveValues`, `offset`) instead of simple boolean
+- `dataSource` added to all datasets for attribution tracking
+- Cleaned datasets.yaml: removed redundant `id:` fields, `null` values, and no-op `specialHandling` blocks
+- Sort bug fix in `listNearbyFeatures` and loading message updated from "environmental" to "feature service datasets"
+
+## v2.2 (2026-02-24)
+- Backport config-driven architecture from generic MPO port: new `config.yaml` for org settings and `src/config.js` loader with template interpolation
+- Map bounds, category order, PDF footer, and logo path are now read from `config.yaml` instead of hardcoded
+- Added unit conversion utilities (`CONVERSIONS`, `convertLength`, `convertArea`) to `analysis.js`
+- Added `averageParallelValue` analysis method: length-weighted average of a numeric field along parallel corridors
+- Added `averageValue` result style rendering in PDF output
+
+## v1.1 (2026-01-27)
+### New Analysis Types
+- **sumNearbyValues**: Sums numeric attributes from features within proximity buffer (e.g., total fatalities from crashes, total jobs from census tracts)
+  - Works for Point, LineString, and Polygon geometries
+  - Supports `analysisFilter` to filter features before summing
+
+- **findNearestFeatures**: Finds nearest X features to project and returns distance in feet (e.g., 3 nearest transit routes, nearest hospital)
+  - Works for Point, LineString, and Polygon geometries
+  - Calculates distance from project centroid to each feature
+  - Supports optional `maxDistance` parameter to limit search range (e.g., nearest bus stop within 1 mile)
+
+### Bug Fixes
+- Fixed PDF rendering to properly filter out empty results for percentage, acreage, sum, and nearest result types
+
 ## v1.0.1 (2026-01-27)
 - Improve PDF map zoom with fractional zoom levels
 - Fix STRAHNET deduplication to appear once in PDF

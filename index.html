@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Memphis MPO - Project Application Tool v1.1</title>
+  <title>Memphis MPO - Project Application Tool v2.3</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Leaflet CSS for map rendering -->
@@ -29,7 +29,7 @@
   <div id="app">
     <!-- Header -->
     <header>
-      <img src="./assets/MPO-RTP_Logo_Fullcolor_Landscape_FINAL.png" alt="RTP 2055 Logo">
+      <img id="header-logo" alt="MPO Logo">
       <h1><span class="header-year">2055 RTP</span> <span class="header-app">Application Mapping Tool</span></h1>
     </header>
 
@@ -131,6 +131,7 @@
   <!-- CDN Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet-polylineoffset@1.1.1/leaflet.polylineoffset.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"
     integrity="sha384-JP5UPxIO2Tm2o79Fb0tGYMa44jkWar53aBoCbd8ah0+LcCDoohTIYr+zIXyfGIJN" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"
@@ -145,10 +146,11 @@
 
   <!-- Application Scripts (load in order) -->
   <!-- Version string for cache busting - update when releasing new version (see README.md for current version) -->
-  <script src="src/datasets.js?v=1.1"></script>
-  <script src="src/map.js?v=1.1"></script>
-  <script src="src/analysis.js?v=1.1"></script>
-  <script src="src/pdf.js?v=1.1"></script>
-  <script src="src/app.js?v=1.1"></script>
+  <script src="src/config.js?v=2.3"></script>
+  <script src="src/datasets.js?v=2.3"></script>
+  <script src="src/map.js?v=2.3"></script>
+  <script src="src/analysis.js?v=2.3"></script>
+  <script src="src/pdf.js?v=2.3"></script>
+  <script src="src/app.js?v=2.3"></script>
 </body>
 </html>

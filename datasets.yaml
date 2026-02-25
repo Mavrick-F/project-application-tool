@@ -1,171 +1,208 @@
 # ============================================
 # DATASET CONFIGURATION FOR MEMPHIS MPO PROJECT APPLICATION TOOL
 # ============================================
-# This YAML file defines all datasets used in spatial analysis.
-# Each dataset specifies its file location, geometry type, analysis method, and styling.
+# This file defines all datasets used in spatial analysis.
+# To add a new dataset: copy an example below, paste it, and change the values.
+# No other files need to be edited — just save and refresh the browser.
 #
-# GEOMETRY TYPES:
-#   - Point: Single coordinate locations (bridges, employers, crash sites)
-#   - LineString: Connected line segments (roads, routes, corridors)
-#   - Polygon: Closed shapes defining areas (zones, wetlands, districts)
+# IMPORTANT: Indentation matters in YAML. Use spaces, not tabs.
+# Each level of indentation must be consistent (2 spaces recommended).
 #
-# ANALYSIS METHODS:
-#   - listParallelFeatures: For lines running parallel to project (requires bufferDistance & minSharedLength)
-#   - listIntersectingFeatures: For areas that overlap with project (polygons, geometric overlap)
-#   - listNearbyFeatures: For features near project (requires proximityBuffer distance)
-#   - countByCategory: Like listNearbyFeatures but counts features by a field (e.g., crash severity)
-#   - hasNearbyFeatures: Returns yes/no if ANY feature is within buffer (for large datasets)
-#   - measureProjectByCategory: Calculates total length broken down by status field
-#   - measureIntersectedArea: Calculates acreage of intersected polygon features
-#   - projectCoverage: Calculates percentage of project within coverage areas
-#   - sumNearbyValues: Sums a numeric attribute from features within buffer (e.g., sum jobs from census tracts)
-#   - findNearestFeatures: Finds nearest X features to project and returns distance in feet (e.g., 3 nearest hospitals, nearest bus stop within 1 mile)
+# ============================================
+# GEOMETRY TYPES
+# ============================================
+#   Point      - Single coordinate locations (crashes, hospitals, bus stops)
+#   LineString - Road segments, routes, corridors
+#   Polygon    - Areas (zones, districts, wetlands)
 #
-# PDF RENDERING OPTIONS:
-#   - showFullLayerInPdf: Set to true to show entire layer on PDF map (not just matched features) Default: False
+# ============================================
+# ANALYSIS METHODS AND REQUIRED FIELDS
+# ============================================
+# Pick the method that matches what you want to know, then provide the fields it needs.
 #
-# COLOR CODES: Use hex format (#RRGGBB) or named colors
-#   Examples: '#FF0000' (red), '#228B22' (forest green), '#0066CC' (blue)
+#  METHOD                    | WHAT IT DOES                                              | FIELDS REQUIRED
+#  --------------------------|-----------------------------------------------------------|-------------------------------------------------
+#  listParallelFeatures      | Lines running alongside the project (roads, routes)       | bufferDistance, minSharedLength
+#  averageParallelValue      | Length-weighted average of a number from parallel lines   | bufferDistance, minSharedLength, averageField
+#  listIntersectingFeatures  | Areas/lines that overlap the project geometry             | (none — uses direct geometry intersection)
+#  listNearbyFeatures        | Points or polygons within a set distance                  | proximityBuffer
+#  countByCategory           | Count nearby points, grouped by a field (e.g. severity)  | proximityBuffer, countByField (optional)
+#  hasNearbyFeatures         | Yes/No — does anything exist within the buffer?           | proximityBuffer
+#  measureProjectByCategory  | Total project length broken down by a status field        | bufferDistance, minSharedLength, statusField
+#  measureIntersectedArea    | Area of polygon features that overlap the project         | bufferDistance or proximityBuffer
+#  projectCoverage           | % of project that runs along a reference network          | bufferDistance
+#  sumNearbyValues           | Sum a numeric field from features within buffer            | proximityBuffer, sumField
+#  findNearestFeatures       | Distance-ranked list of nearest features                  | nearestCount, maxDistance (optional)
+#  measureNearbyArea         | Sum an area field from nearby polygons (acres, sq mi, etc) | proximityBuffer, sumField, sumUnit (optional)
 #
-# OPACITY VALUES: 0.0 (transparent) to 1.0 (fully opaque)
-#   Typical values: 0.3 (light), 0.6 (medium), 0.9 (strong)
+# ALL METHODS also require under properties:
+#   displayField  - The field name from your data file shown in results (case-sensitive)
 #
-# WEIGHT: Line thickness in pixels (1-5 typical, 10+ for emphasis)
+# ============================================
+# RESULT STYLES  (controls how results are displayed in the panel and PDF)
+# ============================================
+#   list          - Bulleted list of matched feature names          (use with: listParallelFeatures, listIntersectingFeatures, listNearbyFeatures)
+#   count         - Total count with breakdown by category          (use with: countByCategory)
+#   binary        - Yes / No                                        (use with: hasNearbyFeatures)
+#   lengthByStatus - Length of project per status category           (use with: measureProjectByCategory)
+#   area          - Total area with list of features                (use with: measureIntersectedArea)
+#   percentage    - Percent of project covered                      (use with: projectCoverage)
+#   sum           - Numeric total (add sumUnit: 'acres' to label units) (use with: sumNearbyValues, measureNearbyArea)
+#   nearest       - Ranked list with distances                      (use with: findNearestFeatures)
+#   averageValue  - Single averaged value with color-coded tier     (use with: averageParallelValue)
+#   table         - Multi-column table (requires additionalFields)  (use with: any method)
+#
+# ============================================
+# STYLE OPTIONS
+# ============================================
+# color / fillColor: Hex color code ('#FF0000') or named color ('red')
+# opacity / fillOpacity: 0.0 (invisible) to 1.0 (solid). Typical: 0.3–0.9
+# weight: Line thickness in pixels (1–5 typical). Points use radius instead.
+#
+# ============================================
+# OPTIONAL PROPERTIES (add only if needed)
+# ============================================
+# additionalFields: []         - Extra field names to show alongside displayField
+# staticLabel: 'Some Text'     - Override field value with a fixed label for all features
+# showFullLayerInPdf: true     - Show entire layer on PDF map, not just matched features
+# lazyLoad: true               - Only load data when analysis runs (use for large datasets)
+# featureServiceUrl: 'https://'- ArcGIS Feature Service URL (alternative to filePath)
+# styleByProperty:             - Color features differently based on a field value (see LOTTR example)
+# displayThresholds:           - Color-coded bands for averageValue results (see LOTTR example)
+# analysisFilter:              - Only analyze features matching a field/value condition
+# offsetByDirection:             - Offset features so directional pairs don't overlap on map
+#   field: direction             - Property field containing direction value
+#   positiveValues: [...]        - Direction values that get positive pixel offset (others get negative)
+#   offset: 2                    - Offset amount in pixels (default: 2)
+# maxRecords: 5000             - Maximum features to request from Feature Service (default: 5000)
+# fieldLabels:                 - Rename raw field names for display (e.g. F__Below_A: '% Below ALICE')
+# areaLabel: 'Wetlands'        - Description appended to area totals (e.g. 'Total: 4.2 acres of Wetlands')
+# bufferUnit: 'feet'           - Unit for bufferDistance, proximityBuffer, minSharedLength, maxDistance values.
+#                                Supported: 'feet' (default), 'miles', 'meters', 'kilometers'
+#                                Example: bufferUnit: miles with bufferDistance: 0.5 means a half-mile buffer.
+# resultUnit:                  - Unit for output measurements displayed in results panel and PDF.
+#                                For distance methods (findNearestFeatures): 'feet' (default), 'miles', 'meters', 'kilometers'
+#                                For area methods (measureIntersectedArea, measureNearbyArea): 'acres' (default), 'sq miles', 'sq ft', 'sq meters', 'sq km'
+#                                For length methods (measureProjectByCategory): 'miles' (default), 'feet', 'kilometers', 'meters'
+# sumUnit: 'acres'             - Unit label appended to sum results for sumNearbyValues and measureNearbyArea.
+#                                Use any label string (e.g. 'acres', 'sq miles', 'jobs', 'residents').
+# specialHandling:
+#   removeDirectionalSuffixes: true  - Remove " NB"/" SB"/" EB"/" WB"/" IB"/" OB" from route names
+#   deduplicate: true                - Merge features with the same display name
 #
 # ============================================
 
 # ========== TRANSPORTATION DATASETS ==========
 
+# ---------- Bridges (Point — listNearbyFeatures) ----------
 bridges:
-  id: bridges  # Unique identifier, must match the key name
-  name: Bridges  # Display name shown in UI and reports
+  name: Bridges
   description: Identifies bridges within 300 feet of project. Bridge IDs and condition ratings are sourced from the National Bridge Inventory
-  category: Transportation  # Groups datasets in sidebar (Transportation, Economic Development, Environmental/Cultural)
-  filePath: ./data/bridges.json  # Relative path from project root to GeoJSON file
-  geometryType: Point  # Point features (single lat/lon coordinates)
-  analysisMethod: listNearbyFeatures  # Find bridges within buffer distance of project
+  category: Transportation
+  dataSource: National Bridge Inventory
+  filePath: ./data/bridges.json
+  geometryType: Point
+  analysisMethod: listNearbyFeatures
 
-  # Buffer/distance parameters (set to null if not used by this analysis method)
-  bufferDistance: null  # Not used for proximity analysis
-  minSharedLength: null  # Not used for proximity analysis
-  proximityBuffer: 300  # Find bridges within 300 feet of project
+  proximityBuffer: 300   # Find bridges within 300 feet of project
 
-  # Feature properties configuration
   properties:
-    displayField: STRUCTURE_  # Main field shown in results (bridge structure ID)
-    additionalFields:  # Extra fields shown in tooltips and details
-      - Condition  # Bridge condition rating
+    displayField: STRUCTURE_
+    additionalFields:
+      - Condition
+    fieldLabels:
+      STRUCTURE_: Bridge ID
 
-  # Special data processing flags
-  specialHandling:
-    removeDirectionalSuffixes: false  # If true, removes " NB"/" SB" from names to merge duplicates
-    deduplicate: false  # If true, removes duplicate entries with same display name
-
-  # Base map style (can be overridden by styleByProperty)
   style:
-    color: '#999999'  # Gray - outline color
-    fillColor: '#999999'  # Fill color for points
-    radius: 4.5  # Point marker size in pixels
-    fillOpacity: 0.8  # Fill transparency (0.0-1.0)
-    weight: 1  # Border thickness in pixels
+    color: '#999999'
+    fillColor: '#999999'
+    radius: 4.5
+    fillOpacity: 0.8
+    weight: 1
 
-  # Conditional styling - different colors based on field value
   styleByProperty:
-    field: Condition  # Field to check for styling rules
-    values:  # Define style for each field value
+    field: Condition
+    values:
       Good:
-        color: '#228B22'  # Forest green outline
-        fillColor: '#228B22'  # Forest green fill
+        color: '#228B22'
+        fillColor: '#228B22'
       Fair:
-        color: '#FFD700'  # Gold outline
-        fillColor: '#FFD700'  # Gold fill
+        color: '#FFD700'
+        fillColor: '#FFD700'
       Poor:
-        color: '#CC0000'  # Bright red outline
-        fillColor: '#CC0000'  # Bright red fill
+        color: '#CC0000'
+        fillColor: '#CC0000'
 
-  legendColor: '#999999'  # Gray color for legend display (not used on map)
-  resultStyle: table  # How to display results: 'list', 'table', 'count', 'binary', 'lengthByStatus'
-  enabled: true  # Set to false to disable this dataset
+  legendColor: '#999999'
+  resultStyle: table
+  enabled: true
 
+# ---------- Crash Locations (Point — countByCategory) ----------
 crashLocations:
-  id: crashLocations
-  name: Crash Locations (KSI)  # KSI = Killed or Seriously Injured
+  name: Crash Locations (KSI)
   description: Shows fatal and serious injury crashes within 200 feet. Crashes are for the years 2020-2024 and are sourced from TITAN and SAMS.
   category: Transportation
+  dataSource: TITAN / SAMS (2020-2024)
   filePath: ./data/ksi_crashes.geojson
   geometryType: Point
-  analysisMethod: countByCategory  # Counts features and groups by field value
+  analysisMethod: countByCategory
 
-  bufferDistance: null
-  minSharedLength: null
-  proximityBuffer: 200  # 200 feet buffer around project
-
-  countByField: Severity  # Group count results by this field (Fatal vs Suspected Serious Injury)
+  proximityBuffer: 200
+  countByField: Severity
 
   properties:
-    displayField: Severity  # Show crash severity type
+    displayField: Severity
     additionalFields:
-      - Fatality_C  # Number of deaths
-      - Injured_Co  # Number of injuries
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
+      - Fatality_C
+      - Injured_Co
 
   style:
-    color: '#191970'  # Midnight blue
+    color: '#191970'
     fillColor: '#191970'
     radius: 2.5
     fillOpacity: 0.9
     weight: 1
 
-  resultStyle: count  # Special result style showing counts by category
+  resultStyle: count
   enabled: true
 
+# ---------- Greenprint Network (LineString — listParallelFeatures) ----------
 greenprintNetwork:
-  id: greenprintNetwork
   name: Greenprint Network
   description: Shows priority tiers for future bike & shared-use trail infrastructure from the Memphis MPO's Regional Greenprint.
   category: Transportation
+  dataSource: Memphis MPO Regional Greenprint
   filePath: ./data/greenprint.geojson
-  geometryType: LineString  # Line features (connected coordinate sequences)
-  analysisMethod: listParallelFeatures  # Find lines running parallel to project
+  geometryType: LineString
+  analysisMethod: listParallelFeatures
 
-  bufferDistance: 100  # Create 100ft buffer around project for initial intersection check
-  minSharedLength: 300  # Require 300ft of parallel overlap to count as match
-  proximityBuffer: null
+  bufferDistance: 100
+  minSharedLength: 300
 
   properties:
-    displayField: Priority_T  # Show priority tier (Regional, Intermediate, or Local)
-    additionalFields: []
+    displayField: Priority_T
 
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
-
-  # Base style (overridden by styleByProperty)
   style:
-    color: '#228B22'  # Forest green
-    weight: 2  # Line thickness in pixels
-    opacity: 0.8  # Line opacity (0.0-1.0)
-    dashArray: '10, 10'  # Dashed line pattern (10px dash, 10px gap)
+    color: '#228B22'
+    weight: 2
+    opacity: 0.8
+    dashArray: '10, 10'
 
-  # Style different priority tiers with different colors
   styleByProperty:
     field: Priority_T
     values:
       Regional:
-        color: '#006400'  # Dark green for highest priority
+        color: '#006400'
         weight: 3
         opacity: 0.8
         dashArray: '10, 10'
       Intermediate:
-        color: '#228B22'  # Medium green for medium priority
+        color: '#228B22'
         weight: 3
         opacity: 0.8
         dashArray: '10, 10'
       Local:
-        color: '#90EE90'  # Light green for local priority
+        color: '#90EE90'
         weight: 2
         opacity: 0.8
         dashArray: '10, 10'
@@ -173,285 +210,295 @@ greenprintNetwork:
   resultStyle: list
   enabled: true
 
+# ---------- High Injury Corridors (LineString — projectCoverage) ----------
 highInjuryCorridors:
-  id: highInjuryCorridors
   name: High Injury Corridors
-  description: Network of corridors with elevated crash rates identified in the Memphis MPO's Safety Action Plan. 
+  description: Network of corridors with elevated crash rates identified in the Memphis MPO's Safety Action Plan.
   category: Transportation
+  dataSource: Memphis MPO Safety Action Plan
   filePath: ./data/HIN_Corridors.geojson
   geometryType: LineString
   analysisMethod: projectCoverage
 
   bufferDistance: 100
-  minSharedLength: 100 # Short, to pick up small segments of performance data
-  proximityBuffer: null
+  minSharedLength: 100
 
   properties:
-    displayField: OBJECTID  # Technical ID field
-    staticLabel: High Injury Corridor  # Override field value with this constant text in results
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
+    displayField: OBJECTID
+    staticLabel: High Injury Corridor
 
   style:
-    color: '#7F00FF'  # Violet
+    color: '#7F00FF'
     weight: 3
     opacity: 0.9
 
   resultStyle: percentage
   enabled: true
 
+# ---------- MATA Routes (LineString — listParallelFeatures) ----------
 mataRoutes:
-  id: mataRoutes
-  name: MATA Routes  # Memphis Area Transit Authority
+  name: MATA Routes
   description: Memphis Area Transit Authority bus routes. Projects along transit corridors can improve multimodal access and may support transit-oriented development goals.
   category: Transportation
+  dataSource: Memphis MPO
   filePath: ./data/mata-routes.json
   geometryType: LineString
   analysisMethod: listParallelFeatures
 
   bufferDistance: 100
   minSharedLength: 300
-  proximityBuffer: null
 
   properties:
-    displayField: Name  # Route name
-    additionalFields: []
+    displayField: Name
 
-  # Special handling to clean up transit route data
   specialHandling:
-    removeDirectionalSuffixes: true  # Remove " NB"/" SB" from route names
-    deduplicate: true  # Merge routes with same name after removing suffixes
+    removeDirectionalSuffixes: true
+    deduplicate: true
 
   style:
-    color: '#0066CC'  # Blue
+    color: '#0066CC'
     weight: 2
     opacity: 0.7
 
   resultStyle: list
   enabled: true
 
+# ---------- Transit Demand (Polygon — listIntersectingFeatures) ----------
+transitDemand:
+  name: Transit Demand
+  description: Composite transit demand scores combining population density, employment density, and socioeconomic factors. Higher scores indicate areas where conditions are especially conducive to transit ridership and may warrant prioritization for transit investment.
+  category: Transportation
+  dataSource: Memphis MPO / Memphis Urban Area Transit Study
+  filePath: ./data/transit_demand.geojson
+  geometryType: Polygon
+  analysisMethod: listIntersectingFeatures
+
+  properties:
+    displayField: Demand
+    additionalFields:
+      - Composite_Score
+    fieldLabels:
+      Composite_Score: Composite Score
+
+  style:
+    color: '#90CAF9'
+    weight: 2
+    fillColor: '#90CAF9'
+    fillOpacity: 0.25
+
+  styleByProperty:
+    field: Demand
+    values:
+      Medium:
+        color: '#90CAF9'
+        weight: 2
+        fillColor: '#90CAF9'
+        fillOpacity: 0.25
+      High:
+        color: '#1E88E5'
+        weight: 2
+        fillColor: '#1E88E5'
+        fillOpacity: 0.45
+      Very High:
+        color: '#0D47A1'
+        weight: 2
+        fillColor: '#0D47A1'
+        fillOpacity: 0.6
+
+  resultStyle: list
+  enabled: true
+
+# ---------- STRAHNET (LineString — listIntersectingFeatures) ----------
 strahnet:
-  id: strahnet
-  name: STRAHNET Routes  # Strategic Highway Network for national defense
+  name: STRAHNET Routes
   description: Strategic Highway Network designated for national defense purposes. Projects impacting these routes may require coordination with federal agencies and must maintain mobility for military freight movements.
   category: Transportation
+  dataSource: FHWA
   filePath: ./data/strahnet.geojson
   geometryType: LineString
   analysisMethod: listIntersectingFeatures
 
-  bufferDistance: 100  # 100ft buffer for line intersection detection
-  minSharedLength: null
-  proximityBuffer: null
+  bufferDistance: 100
 
   properties:
     displayField: OBJECTID
-    staticLabel: STRAHNET  # Show constant label instead of object ID
-    additionalFields: []
+    staticLabel: STRAHNET
 
   specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: true  # Show STRAHNET only once instead of repeating for each segment
+    deduplicate: true
 
   style:
-    color: '#8B6914'  # Dark goldenrod (highway brown)
+    color: '#8B6914'
     weight: 3
     opacity: 0.8
 
   resultStyle: list
-  showFullLayerInPdf: true  # Show entire layer on PDF map (not just matched segments) for better context
+  showFullLayerInPdf: true
   enabled: true
 
+# ---------- Travel Time Reliability (LineString — measureProjectByCategory) ----------
 travelTimeReliability:
-  id: travelTimeReliability
   name: Travel Time Reliability
   description: Measures congestion and travel time predictability using Level of Travel Time Reliability (LOTTR) metrics, from the NPMRDS. Unreliable segments indicate recurring congestion that projects could address through capacity or operational improvements.
   category: Transportation
+  dataSource: NPMRDS / RITIS
   filePath: ./data/road_congestion.json
   geometryType: LineString
-  analysisMethod: measureProjectByCategory  # Calculate total length broken down by status
+  analysisMethod: measureProjectByCategory
 
   bufferDistance: 100
-  minSharedLength: 100 #Short, to pick up small segments of performance data
-  proximityBuffer: null
+  minSharedLength: 100
+  statusField: Reliable_Segment_
+  averageField: Level_of_Travel_Time_Reliability
 
   properties:
-    displayField: name  # Road name
+    displayField: name
     additionalFields:
-      - Travel_Time_Index  # Congestion metric
-      - Level_of_Travel_Time_Reliability  # Reliability metric
+      - Travel_Time_Index
+      - Level_of_Travel_Time_Reliability
+    fieldLabels:
+      Level_of_Travel_Time_Reliability: LOTTR
 
   specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: true  # Merge duplicate road segments
+    deduplicate: true
 
   style:
-    color: '#808080'  # Gray for reliable segments
+    color: '#808080'
     weight: 3
     opacity: 0.6
 
-  # Different styles for reliable vs unreliable segments
   styleByProperty:
-    field: Reliable_Segment_  # Boolean field (True/False)
+    field: Reliable_Segment_
     values:
       'True':
-        color: '#808080'  # Gray for reliable
+        color: '#808080'
         weight: 3
         opacity: 0.6
       'False':
-        color: '#FFD700'  # Gold for unreliable
+        color: '#FFD700'
         weight: 4
         opacity: 0.9
 
-  resultStyle: lengthByStatus  # Show total feet of reliable vs unreliable segments
-  hideInPdfRendering: true  # Don't show on map in PDF capture
+  resultStyle: lengthByStatus
+  hideInPdfRendering: true
   enabled: true
 
 # ========== ECONOMIC DEVELOPMENT DATASETS ==========
 
+# ---------- ALICE ZIP Codes (Polygon — listIntersectingFeatures) ----------
 aliceZctas:
-  id: aliceZctas
-  name: ALICE ZIP Codes  # Asset Limited, Income Constrained, Employed households by ZIP Code
-  description: Areas with high percentages (≥ 45%) of Asset Limited, Income Constrained, Employed (ALICE) households.
+  name: ALICE ZIP Codes
+  description: Areas with high percentages (>= 45%) of Asset Limited, Income Constrained, Employed (ALICE) households.
   category: Economic Development
+  dataSource: United Way ALICE Report
   filePath: ./data/alice_zctas.geojson
-  geometryType: Polygon  # Area features (closed shapes)
-  analysisMethod: listIntersectingFeatures  # Check if project overlaps with polygon areas
+  geometryType: Polygon
+  analysisMethod: listIntersectingFeatures
 
-  bufferDistance: null
-  minSharedLength: null
-  proximityBuffer: null
-
-  # Filter features by threshold value
   filterByThreshold:
-    field: F__Below_A  # Fraction of households below ALICE threshold (0.0-1.0)
-    operator: '>='  # Comparison operator: '>=', '>', '<=', '<', '='
-    value: 0.45  # Show only areas with 45%+ households below threshold
-    showTranslucentBelow: true  # Still render below-threshold areas with translucent style
+    field: F__Below_A
+    operator: '>='
+    value: 0.45
+    showTranslucentBelow: true
 
   properties:
-    displayField: GEOID20  # ZIP Code Tabulation Area ID
+    displayField: GEOID20
     additionalFields:
-      - F__Below_A  # Fraction below ALICE threshold
-    formatPercentage: F__Below_A  # Format this field as percentage in display
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
+      - F__Below_A
+    formatPercentage: F__Below_A
+    fieldLabels:
+      F__Below_A: '% Below ALICE'
 
   style:
-    color: '#9932CC'  # Dark orchid border
+    color: '#9932CC'
     weight: 2
-    fillColor: '#DDA0DD'  # Plum fill
+    fillColor: '#DDA0DD'
     fillOpacity: 0.4
 
-  # Style for areas below threshold (when showTranslucentBelow is true)
   styleTranslucent:
     color: '#9932CC'
     weight: 1
     fillColor: '#DDA0DD'
-    fillOpacity: 0.1  # Very translucent (almost invisible)
+    fillOpacity: 0.1
 
   resultStyle: list
   enabled: true
 
+# ---------- Freight Clusters (Polygon — listIntersectingFeatures) ----------
 freightClusters:
-  id: freightClusters
   name: Freight Clusters
   description: Concentrations of freight-intensive businesses and logistics facilities, identified in the Memphis MPO's Mid-South Freight Study. Projects serving these areas support regional freight mobility and economic competitiveness.
   category: Economic Development
+  dataSource: Memphis MPO Mid-South Freight Study
   filePath: ./data/freight_clusters.geojson
   geometryType: Polygon
   analysisMethod: listIntersectingFeatures
 
-  bufferDistance: null
-  minSharedLength: null
-  proximityBuffer: null
-
   properties:
-    displayField: N  # Zone name
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
+    displayField: N
 
   style:
-    color: '#20B2AA'  # Light sea green
+    color: '#20B2AA'
     weight: 2
-    fillColor: '#AFEEEE'  # Pale turquoise
+    fillColor: '#AFEEEE'
     fillOpacity: 0.3
 
   resultStyle: list
   enabled: true
 
+# ---------- Freight Routes (LineString — listParallelFeatures) ----------
 truckRoutes:
-  id: truckRoutes
   name: Freight Routes
   description: Regional and local truck routes, designated by the Memphis MPO. Projects on freight routes should accommodate truck turning movements and weight limits to maintain goods movement efficiency.
   category: Economic Development
+  dataSource: Memphis MPO
   filePath: ./data/freight_routes.json
   geometryType: LineString
   analysisMethod: listParallelFeatures
 
   bufferDistance: 100
   minSharedLength: 300
-  proximityBuffer: null
 
   properties:
-    displayField: Type  # Regional or Local
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
+    displayField: Type
 
   style:
-    color: '#20B2AA'  # Light sea green (default, overridden by styleByProperty)
+    color: '#20B2AA'
     weight: 2
     opacity: 0.7
 
-  # Different styles for regional vs local routes
   styleByProperty:
     field: Type
     values:
       Regional:
-        color: '#20B2AA'  # Light sea green (darker for major routes)
+        color: '#20B2AA'
         weight: 4
         opacity: 0.8
       Local:
-        color: '#00FFFF'  # Aqua (lighter for local routes)
+        color: '#00FFFF'
         weight: 2
         opacity: 0.7
 
   resultStyle: list
   enabled: true
 
+# ---------- Major Employers (Point — listNearbyFeatures) ----------
 majorEmployers:
-  id: majorEmployers
   name: Major Employers
   description: Businesses with 500+ employees within a quarter mile. Transportation improvements near major employment centers can reduce commute times and support economic development.
   category: Economic Development
+  dataSource: Memphis MPO
   filePath: ./data/major_employers.geojson
   geometryType: Point
   analysisMethod: listNearbyFeatures
 
-  bufferDistance: null
-  minSharedLength: null
-  proximityBuffer: 1320  # 1320 feet = 0.25 miles
+  proximityBuffer: 1320   # 1320 feet = 0.25 miles
 
   properties:
     displayField: company_name
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
 
   style:
-    color: '#4169E1'  # Royal blue
+    color: '#4169E1'
     fillColor: '#4169E1'
     radius: 4
     fillOpacity: 0.8
@@ -460,59 +507,45 @@ majorEmployers:
   resultStyle: list
   enabled: true
 
+# ---------- Opportunity Zones (Polygon — listIntersectingFeatures) ----------
 opportunityZones:
-  id: opportunityZones
-  name: Opportunity Zones  # Federal tax incentive areas
+  name: Opportunity Zones
   description: Federally designated census tracts eligible for tax incentives to spur investment. Projects in Opportunity Zones can leverage private investment and support revitalization efforts.
   category: Economic Development
+  dataSource: Memphis MPO
   filePath: ./data/opportunity-zones.json
   geometryType: Polygon
   analysisMethod: listIntersectingFeatures
 
-  bufferDistance: null
-  minSharedLength: null
-  proximityBuffer: null
-
   properties:
-    displayField: CENSUSTRAC  # Census tract identifier
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
+    displayField: CENSUSTRAC
 
   style:
-    color: '#FF8C00'  # Dark orange
+    color: '#FF8C00'
     weight: 2
-    fillColor: '#FFD700'  # Gold
+    fillColor: '#FFD700'
     fillOpacity: 0.3
 
   resultStyle: list
   enabled: true
 
+# ---------- Tourist Destinations (Point — listNearbyFeatures) ----------
 touristAttractions:
-  id: touristAttractions
   name: Tourist Destinations
   description: Major tourist attractions and destinations within a quarter mile. Transportation improvements near these sites support tourism economy and visitor experience.
   category: Economic Development
+  dataSource: Memphis MPO
   filePath: ./data/tourist_attractions.geojson
   geometryType: Point
   analysisMethod: listNearbyFeatures
 
-  bufferDistance: null
-  minSharedLength: null
-  proximityBuffer: 1320  # 0.25 miles
+  proximityBuffer: 1320   # 0.25 miles
 
   properties:
-    displayField: NAME  # Attraction name (case-sensitive field name)
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
+    displayField: NAME
 
   style:
-    color: '#FF1493'  # Deep pink
+    color: '#FF1493'
     fillColor: '#FF1493'
     radius: 4
     fillOpacity: 0.8
@@ -523,67 +556,57 @@ touristAttractions:
 
 # ========== ENVIRONMENTAL/CULTURAL DATASETS ==========
 
+# ---------- Critical Wetlands (Polygon — measureIntersectedArea, lazy load) ----------
 criticalWetlands:
-  id: criticalWetlands
   name: Critical Wetlands
   description: Freshwater forested/shrub wetlands within 200 feet. These areas are federally protected and require Section 404 permits for impacts. Mitigation may be required for unavoidable wetland disturbance.
   category: Environmental/Cultural
-  lazyLoad: true  # Don't load until analysis runs (for performance with large datasets)
-  featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0  # ArcGIS Feature Service URL (alternative to filePath)
+  dataSource: U.S. Fish & Wildlife Service NWI
+  lazyLoad: true
+  featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0
   geometryType: Polygon
-  analysisMethod: measureIntersectedArea  # Calculate acreage of intersected wetlands
+  analysisMethod: measureIntersectedArea
 
   bufferDistance: 200
-  minSharedLength: null
-  proximityBuffer: 200  # 200 feet
+  proximityBuffer: 200
 
-  # Filter which features to include in analysis
   analysisFilter:
-    field: WETLAND_TY  # Wetland type field
-    operator: '='  # Equals
-    value: Freshwater Forested/Shrub Wetland  # Only include this type
+    field: WETLAND_TY
+    operator: '='
+    value: Freshwater Forested/Shrub Wetland
 
   properties:
     displayField: WETLAND_TY
     additionalFields:
       - ACRES
 
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
-
   style:
-    color: '#32CD32'  # Lime green
+    color: '#32CD32'
     weight: 2
-    fillColor: '#32CD32' # Lime green
-    fillOpacity: 1.0  # Fully opaque/solid
+    fillColor: '#32CD32'
+    fillOpacity: 1.0
 
-  resultStyle: acreage
+  resultStyle: area
+  areaLabel: Freshwater Forested/Shrub Wetlands
   enabled: true
 
+# ---------- EPA Superfund Sites (Point — listNearbyFeatures) ----------
 epaSuperFundSites:
-  id: epaSuperFundSites
-  name: EPA Superfund Sites  # Contaminated sites requiring long-term cleanup
+  name: EPA Superfund Sites
   description: EPA-designated contaminated sites within 200 feet. Projects near Superfund sites may require additional environmental investigation and coordination with EPA remediation efforts.
   category: Environmental/Cultural
+  dataSource: EPA
   filePath: ./data/epa_superfund_sites.geojson
   geometryType: Point
   analysisMethod: listNearbyFeatures
 
-  bufferDistance: null
-  minSharedLength: null
   proximityBuffer: 200
 
   properties:
-    displayField: PRIMARY_NAME  # Site name
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
+    displayField: PRIMARY_NAME
 
   style:
-    color: '#000000'  # Black
+    color: '#000000'
     fillColor: '#000000'
     radius: 5
     fillOpacity: 0.8
@@ -592,61 +615,50 @@ epaSuperFundSites:
   resultStyle: list
   enabled: true
 
+# ---------- Flood Zones (Polygon — measureIntersectedArea, lazy load) ----------
 floodZones:
-  id: floodZones
   name: Flood Zones
   description: FEMA-designated 100-year flood hazard areas within 200 feet. Projects in flood zones must comply with floodplain regulations and may require hydraulic analysis and additional permits.
   category: Environmental/Cultural
+  dataSource: FEMA
   lazyLoad: true
   featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MPO_Flood_Zones/FeatureServer/0
   geometryType: Polygon
   analysisMethod: measureIntersectedArea
 
   bufferDistance: 200
-  minSharedLength: null
   proximityBuffer: 200
 
   properties:
-    displayField: FLD_ZONE  # Flood zone designation
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
+    displayField: FLD_ZONE
 
   style:
-    color: '#00008B'  # Dark blue
-    weight: 4  # Thick border for visibility
-    fillColor: '#87CEEB'  # Sky blue
+    color: '#00008B'
+    weight: 4
+    fillColor: '#87CEEB'
     fillOpacity: 0.35
-    dashArray: '5, 5'  # Dashed pattern (5px dash, 5px gap)
+    dashArray: '5, 5'
 
-  resultStyle: acreage
+  resultStyle: area
   enabled: true
 
+# ---------- NHRP Points (Point — listNearbyFeatures) ----------
 historicPoints:
-  id: historicPoints
-  name: NHRP Points  # National Historic Register of Places - point features
+  name: NHRP Points
   description: National Register of Historic Places sites within 200 feet. Projects near historic properties require Section 106 review and coordination with State Historic Preservation Office (SHPO).
   category: Environmental/Cultural
+  dataSource: National Register of Historic Places
   filePath: ./data/historic_points.geojson
   geometryType: Point
   analysisMethod: listNearbyFeatures
 
-  bufferDistance: null
-  minSharedLength: null
   proximityBuffer: 200
 
   properties:
-    displayField: RESNAME  # Resource name
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
+    displayField: RESNAME
 
   style:
-    color: '#8B4513'  # Saddle brown
+    color: '#8B4513'
     fillColor: '#8B4513'
     radius: 3
     fillOpacity: 0.8
@@ -655,78 +667,66 @@ historicPoints:
   resultStyle: list
   enabled: true
 
+# ---------- NHRP Polygons (Polygon — listNearbyFeatures) ----------
 historicPolygons:
-  id: historicPolygons
-  name: NHRP Polygons  # National Historic Register - area features (districts)
+  name: NHRP Polygons
   description: National Register historic districts within 200 feet. Projects affecting historic districts require Section 106 review and design considerations to maintain historic character.
   category: Environmental/Cultural
+  dataSource: National Register of Historic Places
   filePath: ./data/historic_polygons.geojson
   geometryType: Polygon
   analysisMethod: listNearbyFeatures
 
-  bufferDistance: null
-  minSharedLength: null
   proximityBuffer: 200
 
   properties:
     displayField: RESNAME
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
 
   style:
-    color: '#8B4513'  # Saddle brown
+    color: '#8B4513'
     weight: 2
-    fillColor: '#DEB887'  # Burlywood
+    fillColor: '#DEB887'
     fillOpacity: 0.3
 
   resultStyle: list
   enabled: true
 
+# ---------- Parks (Polygon — listNearbyFeatures) ----------
 parks:
-  id: parks
   name: Parks
   description: Public parks and recreation areas within 200 feet. Projects near parks should consider recreational access, pedestrian connectivity, and coordination with park management agencies.
   category: Environmental/Cultural
+  dataSource: Memphis MPO
   filePath: ./data/parks.json
   geometryType: Polygon
   analysisMethod: listNearbyFeatures
 
-  bufferDistance: null
-  minSharedLength: null
   proximityBuffer: 200
 
   properties:
     displayField: NAME
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
 
   style:
-    color: '#228B22'  # Forest green
+    color: '#228B22'
     weight: 2
-    fillColor: '#90EE90'  # Light green
+    fillColor: '#90EE90'
     fillOpacity: 0.3
 
   resultStyle: list
   enabled: true
 
+# ---------- Wetlands (Polygon — measureIntersectedArea, lazy load) ----------
 wetlands:
-  id: wetlands
   name: Wetlands
   description: All wetland types within 200 feet. Wetlands are federally protected under Section 404 of the Clean Water Act. Projects must avoid or minimize impacts and may require mitigation.
   category: Environmental/Cultural
+  dataSource: U.S. Fish & Wildlife Service NWI
   lazyLoad: true
   featureServiceUrl: https://services2.arcgis.com/saWmpKJIUAjyyNVc/arcgis/rest/services/MemphisMPO_Wetlands/FeatureServer/0
   geometryType: Polygon
   analysisMethod: measureIntersectedArea
 
   bufferDistance: 200
-  minSharedLength: null
   proximityBuffer: 200
 
   properties:
@@ -734,41 +734,30 @@ wetlands:
     additionalFields:
       - ACRES
 
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
-
   style:
-    color: '#6B8E23'  # Olive drab
+    color: '#6B8E23'
     weight: 2
-    fillColor: '#6B8E23'  # Olive drab
+    fillColor: '#6B8E23'
     fillOpacity: 0.4
 
-  resultStyle: acreage
+  resultStyle: area
   enabled: true
 
-# ========== EXAMPLE: SUM NEARBY VALUES ANALYSIS TYPE ==========
-# This example demonstrates the new sumNearbyValues analysis method.
-# This method is useful when you want to sum a numeric attribute from features
-# within a buffer distance instead of just counting them.
+# ========== DISABLED DATASETS ==========
 
-# EXAMPLE: Sum injuries from crashes (with category filter)
+# ---------- Sum Nearby Values Example (disabled) ----------
 crashInjuries:
-  id: crashInjuries
   name: Serious Injuries (Total)
   description: Total serious injuries from crashes within 200 feet. Demonstrates sumNearbyValues with analysisFilter to only count specific crash types.
   category: Transportation
+  dataSource: TITAN / SAMS (2020-2024)
   filePath: ./data/ksi_crashes.geojson
   geometryType: Point
   analysisMethod: sumNearbyValues
 
-  bufferDistance: null
-  minSharedLength: null
   proximityBuffer: 200
+  sumField: Injured_Co
 
-  sumField: Injured_Co  # Field to sum (number injured per crash)
-
-  # Filter to only include "Suspected Serious Injury" crashes
   analysisFilter:
     field: Severity
     operator: '='
@@ -779,55 +768,202 @@ crashInjuries:
     additionalFields:
       - Injured_Co
 
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
-
   style:
-    color: '#FF4500'  # Orange red
+    color: '#FF4500'
     fillColor: '#FF4500'
     radius: 3
     fillOpacity: 0.9
     weight: 1
 
   resultStyle: sum
-  enabled: false  # Set to true when you want to use this dataset
+  enabled: false
 
-# ========== EXAMPLE: FIND NEAREST FEATURES ANALYSIS TYPE ==========
-# This example demonstrates the findNearestFeatures analysis method.
-# This method finds the N nearest features to the project and returns
-# each feature with its distance in feet. Optional maxDistance parameter
-# filters results to only include features within that distance.
-
-# EXAMPLE: Find 3 nearest transit routes within 1 mile
+# ---------- Find Nearest Features Example (disabled) ----------
 nearestTransitRoutes:
-  id: nearestTransitRoutes
   name: Nearest Transit Routes
   description: Finds up to 3 nearest MATA transit routes within 1 mile of the project. Demonstrates findNearestFeatures with maxDistance.
   category: Transportation
+  dataSource: Memphis MPO
   filePath: ./data/mata_routes.geojson
   geometryType: LineString
   analysisMethod: findNearestFeatures
 
-  bufferDistance: null
-  minSharedLength: null
-  proximityBuffer: null
-
-  nearestCount: 3  # Number of nearest features to find
-  maxDistance: 5280  # Optional: Only include features within 1 mile (5280 feet). If omitted, includes all features.
+  nearestCount: 3
+  maxDistance: 5280
 
   properties:
     displayField: ROUTE_LONG
-    additionalFields: []
-
-  specialHandling:
-    removeDirectionalSuffixes: false
-    deduplicate: false
 
   style:
-    color: '#0066CC'  # Blue
+    color: '#0066CC'
     weight: 3
     opacity: 0.8
 
   resultStyle: nearest
-  enabled: false  # Set to true when you want to use this dataset
+  enabled: false
+
+# ============================================
+# TEMPLATE EXAMPLES
+# ============================================
+# Copy any block below, paste it above this line, uncomment it (remove the # from each line),
+# and fill in your values. The key (e.g. "myDatasetKey:") must be unique — no spaces allowed.
+#
+# TIP: The key becomes the internal dataset ID. Use camelCase (e.g. myRoads, floodZones).
+
+# ---------- TEMPLATE: Points within buffer (listNearbyFeatures) ----------
+# myPoints:
+#   name: My Point Layer
+#   description: What this layer represents and why it matters for project review.
+#   category: Transportation
+#   dataSource: My Agency (2024)
+#   filePath: ./data/my_points.geojson
+#   geometryType: Point
+#   analysisMethod: listNearbyFeatures
+#
+#   proximityBuffer: 500
+#
+#   properties:
+#     displayField: NAME
+#     additionalFields: []
+#
+#   style:
+#     color: '#CC0000'
+#     fillColor: '#CC0000'
+#     radius: 5
+#     fillOpacity: 0.8
+#     weight: 1
+#
+#   resultStyle: list
+#   enabled: true
+
+# ---------- TEMPLATE: Areas overlapping project (listIntersectingFeatures) ----------
+# myPolygons:
+#   name: My Polygon Layer
+#   description: Areas that overlap or cross the project alignment.
+#   category: Environmental/Cultural
+#   dataSource: My Agency (2024)
+#   filePath: ./data/my_polygons.geojson
+#   geometryType: Polygon
+#   analysisMethod: listIntersectingFeatures
+#
+#   properties:
+#     displayField: NAME
+#     additionalFields: []
+#
+#   style:
+#     color: '#228B22'
+#     weight: 2
+#     fillColor: '#228B22'
+#     fillOpacity: 0.3
+#
+#   resultStyle: list
+#   enabled: true
+
+# ---------- TEMPLATE: Yes/No presence check (hasNearbyFeatures) ----------
+# myBinaryLayer:
+#   name: My Binary Layer
+#   description: Checks if any features exist within the buffer distance.
+#   category: Environmental/Cultural
+#   dataSource: My Agency (2024)
+#   filePath: ./data/my_data.geojson
+#   geometryType: Polygon
+#   analysisMethod: hasNearbyFeatures
+#
+#   proximityBuffer: 500
+#
+#   properties:
+#     displayField: NAME
+#     additionalFields: []
+#
+#   style:
+#     color: '#0099CC'
+#     weight: 2
+#     fillColor: '#0099CC'
+#     fillOpacity: 0.3
+#
+#   resultStyle: binary
+#   enabled: true
+
+# ---------- TEMPLATE: Count nearby points by category (countByCategory) ----------
+# myCrashLayer:
+#   name: Crashes
+#   description: Counts crash points within buffer, broken down by severity.
+#   category: Safety
+#   dataSource: My Agency (2024)
+#   filePath: ./data/crashes.geojson
+#   geometryType: Point
+#   analysisMethod: countByCategory
+#
+#   proximityBuffer: 1000
+#   countByField: SEVERITY
+#
+#   properties:
+#     displayField: SEVERITY
+#     additionalFields: []
+#
+#   style:
+#     color: '#FF4500'
+#     fillColor: '#FF4500'
+#     radius: 4
+#     fillOpacity: 0.7
+#     weight: 1
+#
+#   resultStyle: count
+#   enabled: true
+
+# ---------- TEMPLATE: Sum a numeric field nearby (sumNearbyValues) ----------
+# myCensusTracts:
+#   name: Census Tracts — Population
+#   description: Total population within half a mile of the project.
+#   category: Demographics
+#   dataSource: U.S. Census (2020)
+#   filePath: ./data/census_tracts.geojson
+#   geometryType: Polygon
+#   analysisMethod: sumNearbyValues
+#
+#   proximityBuffer: 0.5
+#   bufferUnit: miles
+#   sumField: POP_2020
+#
+#   properties:
+#     displayField: TRACTCE
+#     additionalFields: []
+#
+#   style:
+#     color: '#9370DB'
+#     weight: 1
+#     fillColor: '#9370DB'
+#     fillOpacity: 0.2
+#
+#   resultStyle: sum
+#   enabled: true
+
+# ---------- TEMPLATE: Nearest X features with distance (findNearestFeatures) ----------
+# myHospitals:
+#   name: Hospitals
+#   description: Three nearest hospitals to the project, with distances.
+#   category: Community Facilities
+#   dataSource: My Agency (2024)
+#   filePath: ./data/hospitals.geojson
+#   geometryType: Point
+#   analysisMethod: findNearestFeatures
+#
+#   nearestCount: 3
+#   maxDistance: 5
+#   bufferUnit: miles
+#
+#   properties:
+#     displayField: NAME
+#     additionalFields:
+#       - ADDRESS
+#       - PHONE
+#
+#   style:
+#     color: '#E91E63'
+#     fillColor: '#E91E63'
+#     radius: 6
+#     fillOpacity: 0.9
+#     weight: 1
+#
+#   resultStyle: nearest
+#   enabled: true

@@ -28,6 +28,7 @@ let isMeasuring = false;      // Track measurement tool state
 // SHARED UTILITY FUNCTIONS
 // ============================================
 
+
 /**
  * Format distance with dynamic units (feet for short distances, miles for long)
  * Uses 528 feet (0.1 miles) as threshold for switching to miles
@@ -42,7 +43,7 @@ function formatDistance(feet) {
     return `${Math.round(feet).toLocaleString('en-US')} ft`;
   } else {
     // Long distances: display in miles rounded to 1 decimal place (starting at 528 ft = 0.1 mi)
-    const miles = feet / 5280;
+    const miles = feet / CONVERSIONS.FEET_PER_MILE;
     return `${miles.toFixed(1)} mi`;
   }
 }
@@ -55,7 +56,7 @@ function patchLeafletDrawFormatter() {
   if (L.GeometryUtil && L.GeometryUtil.readableDistance) {
     L.GeometryUtil.readableDistance = function(distance, isMetric, isFeet, isNauticalMile, precision) {
       // Convert meters to feet (Leaflet.draw internally uses meters)
-      const distanceInFeet = distance * 3.28084;
+      const distanceInFeet = distance * CONVERSIONS.FEET_PER_METER;
 
       // Use our unified formatDistance function
       return formatDistance(distanceInFeet);
@@ -138,14 +139,11 @@ function addReferenceLayers() {
         // ========== POINT LAYERS ==========
         layer = L.geoJSON(geoJsonData[datasetKey], {
           pointToLayer: (feature, latlng) => {
-            // Get style with conditional styling support
             let featureStyle = config.style;
             if (config.styleByProperty) {
               const propertyValue = feature.properties[config.styleByProperty.field];
               const propertyStyle = config.styleByProperty.values[propertyValue];
-              if (propertyStyle) {
-                featureStyle = { ...config.style, ...propertyStyle };
-              }
+              if (propertyStyle) featureStyle = { ...config.style, ...propertyStyle };
             }
             return L.circleMarker(latlng, featureStyle);
           },
@@ -170,25 +168,16 @@ function addReferenceLayers() {
               className: 'leaflet-tooltip'
             });
 
-            // Get current feature style for hover effects
+            // Hover effects
             let currentStyle = config.style;
             if (config.styleByProperty) {
               const propertyValue = feature.properties[config.styleByProperty.field];
               const propertyStyle = config.styleByProperty.values[propertyValue];
-              if (propertyStyle) {
-                currentStyle = { ...config.style, ...propertyStyle };
-              }
+              if (propertyStyle) currentStyle = { ...config.style, ...propertyStyle };
             }
-
-            // Hover effects
             const hoverStyle = { ...currentStyle, radius: (currentStyle.radius || 3) + 2 };
-            leafletLayer.on('mouseover', function() {
-              this.setStyle(hoverStyle);
-            });
-
-            leafletLayer.on('mouseout', function() {
-              this.setStyle(currentStyle);
-            });
+            leafletLayer.on('mouseover', function() { this.setStyle(hoverStyle); });
+            leafletLayer.on('mouseout',  function() { this.setStyle(currentStyle); });
           }
         });
 
@@ -196,15 +185,22 @@ function addReferenceLayers() {
         // ========== LINE LAYERS ==========
         layer = L.geoJSON(geoJsonData[datasetKey], {
           style: (feature) => {
-            // Check if style should vary by property
+            let featureStyle = config.style;
             if (config.styleByProperty) {
               const propertyValue = feature.properties[config.styleByProperty.field];
               const propertyStyle = config.styleByProperty.values[propertyValue];
-              if (propertyStyle) {
-                return { ...config.style, ...propertyStyle };
-              }
+              if (propertyStyle) featureStyle = { ...config.style, ...propertyStyle };
             }
-            return config.style;
+            if (config.offsetByDirection) {
+              const dirConfig = config.offsetByDirection;
+              const dirField = dirConfig.field || 'direction';
+              const dir = (feature.properties[dirField] || '').toUpperCase();
+              const positiveValues = (dirConfig.positiveValues || []).map(v => v.toUpperCase());
+              const offsetAmount = dirConfig.offset || 2;
+              const offsetPx = positiveValues.includes(dir) ? offsetAmount : -offsetAmount;
+              featureStyle = { ...featureStyle, offset: offsetPx };
+            }
+            return featureStyle;
           },
           onEachFeature: (feature, leafletLayer) => {
             // Use staticLabel if defined, otherwise use field value
@@ -227,25 +223,16 @@ function addReferenceLayers() {
               className: 'leaflet-tooltip'
             });
 
-            // Get current feature style for hover effects
+            // Hover effects
             let currentStyle = config.style;
             if (config.styleByProperty) {
               const propertyValue = feature.properties[config.styleByProperty.field];
               const propertyStyle = config.styleByProperty.values[propertyValue];
-              if (propertyStyle) {
-                currentStyle = { ...config.style, ...propertyStyle };
-              }
+              if (propertyStyle) currentStyle = { ...config.style, ...propertyStyle };
             }
-
-            // Hover effects
             const hoverStyle = { ...currentStyle, weight: (currentStyle.weight || 2) + 0.5, opacity: (currentStyle.opacity || 0.7) + 0.15 };
-            leafletLayer.on('mouseover', function() {
-              this.setStyle(hoverStyle);
-            });
-
-            leafletLayer.on('mouseout', function() {
-              this.setStyle(currentStyle);
-            });
+            leafletLayer.on('mouseover', function() { this.setStyle(hoverStyle); });
+            leafletLayer.on('mouseout',  function() { this.setStyle(currentStyle); });
           }
         });
 
@@ -268,6 +255,11 @@ function addReferenceLayers() {
               // Use translucent style for features below threshold
               return meetsThreshold ? config.style : config.styleTranslucent;
             }
+            if (config.styleByProperty) {
+              const propertyValue = feature.properties[config.styleByProperty.field];
+              const propertyStyle = config.styleByProperty.values[propertyValue];
+              if (propertyStyle) return { ...config.style, ...propertyStyle };
+            }
             return config.style;
           },
           onEachFeature: (feature, leafletLayer) => {
@@ -289,7 +281,7 @@ function addReferenceLayers() {
                   value = 'Unknown';
                 }
 
-                const fieldLabel = field === 'F__Below_A' ? '% Below ALICE' : field;
+                const fieldLabel = (config.properties.fieldLabels && config.properties.fieldLabels[field]) || field;
                 tooltipText += ` | ${fieldLabel}: ${value}`;
               });
             }
@@ -308,6 +300,10 @@ function addReferenceLayers() {
                 ? value >= config.filterByThreshold.value
                 : value > config.filterByThreshold.value;
               currentStyle = meetsThreshold ? config.style : config.styleTranslucent;
+            } else if (config.styleByProperty) {
+              const propertyValue = feature.properties[config.styleByProperty.field];
+              const propertyStyle = config.styleByProperty.values[propertyValue];
+              if (propertyStyle) currentStyle = { ...config.style, ...propertyStyle };
             }
 
             // Hover effects
@@ -352,7 +348,14 @@ function addReferenceLayers() {
   // ========== LAYER CONTROL ==========
   // Build overlay layers grouped by category (with spacing between categories)
   const overlayLayers = {};
-  const categoryOrder = ['Transportation', 'Economic Development', 'Environmental/Cultural'];
+  const configuredOrder = window.CONFIG_APP?.categoryOrder || ['Transportation', 'Economic Development', 'Environmental/Cultural'];
+  // Append any categories found in datasets that aren't in the configured list
+  const categoryOrder = [...configuredOrder];
+  Object.keys(layersByCategory).forEach(cat => {
+    if (!categoryOrder.includes(cat)) {
+      categoryOrder.push(cat);
+    }
+  });
 
   categoryOrder.forEach((category, catIndex) => {
     if (layersByCategory[category]) {
@@ -379,20 +382,18 @@ function addReferenceLayers() {
 }
 
 /**
- * Fit map to Memphis MPO area extent
- * Uses fixed bounds for consistent viewport
+ * Fit map to MPO area extent
+ * Uses bounds from CONFIG_APP or defaults
  */
 function fitMapToBounds() {
-  // Memphis MPO area bounds
-  // Southwest corner: [34.9, -90.1]
-  // Northeast corner: [35.3, -89.6]
-  const memphisBounds = L.latLngBounds(
-    [34.9, -90.1],  // Southwest
-    [35.3, -89.6]   // Northeast
-  );
+  // Get bounds from configuration or use defaults
+  const sw = window.CONFIG_APP.geography.mapBounds.southwest;
+  const ne = window.CONFIG_APP.geography.mapBounds.northeast;
 
-  // Fit map to Memphis bounds with padding
-  map.fitBounds(memphisBounds, { padding: [50, 50] });
+  const mpoBounds = L.latLngBounds(sw, ne);
+
+  // Fit map to bounds with padding
+  map.fitBounds(mpoBounds, { padding: [50, 50] });
 }
 
 /**
@@ -500,8 +501,8 @@ function setupMeasurementTool() {
 
   // Create measurement drawer with distinctive orange dashed style
   measurementDrawer = new L.Draw.Polyline(map, {
-    shapeOptions: {
-      color: '#FF8C00',      // Dark orange
+    shapeOptions: window.CONFIG_APP?.mapStyling?.measurementLine || {
+      color: '#FF8C00',
       weight: 4,
       opacity: 0.8,
       dashArray: '8, 8'

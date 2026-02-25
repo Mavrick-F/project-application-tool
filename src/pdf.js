@@ -30,12 +30,10 @@ const ENABLE_COLOR_CODED_TEXT = true;
 function getFeatureStyle(feature, config) {
   let style = { ...config.style };
 
-  // Apply conditional styling if configured
   if (config.styleByProperty && feature.properties) {
     const propertyField = config.styleByProperty.field;
     const propertyValue = feature.properties[propertyField];
     const styleMap = config.styleByProperty.values;
-
     if (styleMap && styleMap[propertyValue]) {
       style = { ...style, ...styleMap[propertyValue] };
     }
@@ -213,6 +211,9 @@ async function generatePDF() {
       if (results.features) {
         // proximityCount results have a features array
         features = results.features;
+      } else if (Array.isArray(results) && results.length > 0 && results[0] && results[0].feature && results[0].feature.geometry) {
+        // findNearestFeatures results are arrays of { feature, distance } objects
+        features = results.map(r => r.feature);
       } else if (Array.isArray(results) && results.length > 0 && results[0] && results[0].geometry) {
         // corridor, intersection, proximity results are arrays of features
         features = results;
@@ -383,13 +384,13 @@ async function generatePDF() {
       const results = currentResults[datasetKey];
       if (!results) return false;
 
-      // Handle count results (object with total property)
-      if (typeof results === 'object' && 'total' in results) {
-        return results.total > 0;
-      }
-
-      // Handle array results
-      return results.length > 0;
+      if (Array.isArray(results)) return results.length > 0;
+      if ('total' in results) return results.total > 0;
+      if ('detected' in results) return results.detected;
+      if ('totalArea' in results) return results.totalArea > 0;
+      if ('percentage' in results) return results.percentage > 0;
+      if ('avg' in results) return results.avg !== null && results.count > 0;
+      return false;
     });
 
     if (hasAnyResults) {
@@ -401,7 +402,7 @@ async function generatePDF() {
     }
 
     // Group datasets by category
-    const categoryOrder = ['Transportation', 'Economic Development', 'Environmental/Cultural'];
+    const configuredOrder = window.CONFIG_APP?.categoryOrder || ['Transportation', 'Economic Development', 'Environmental/Cultural'];
     const datasetsByCategory = {};
 
     Object.keys(DATASETS).forEach(datasetKey => {
@@ -415,17 +416,19 @@ async function generatePDF() {
 
       // Check if results are empty (handle different result types)
       let isEmpty = false;
-      if (config.resultStyle === 'binary' && typeof results === 'object' && 'detected' in results) {
+      if (config.resultStyle === RESULT_STYLES.BINARY && typeof results === 'object' && 'detected' in results) {
         isEmpty = !results.detected;
-      } else if (config.resultStyle === 'percentage' && typeof results === 'object' && 'percentage' in results) {
+      } else if (config.resultStyle === RESULT_STYLES.PERCENTAGE && typeof results === 'object' && 'percentage' in results) {
         isEmpty = results.percentage === 0;
-      } else if (config.resultStyle === 'acreage' && typeof results === 'object' && 'totalAcres' in results) {
-        isEmpty = results.totalAcres === 0;
-      } else if (config.resultStyle === 'sum' && typeof results === 'object' && 'sum' in results) {
+      } else if (config.resultStyle === RESULT_STYLES.AREA && typeof results === 'object' && 'totalArea' in results) {
+        isEmpty = results.totalArea === 0;
+      } else if (config.resultStyle === RESULT_STYLES.SUM && typeof results === 'object' && 'sum' in results) {
         isEmpty = results.sum === 0;
-      } else if (config.resultStyle === 'nearest' && Array.isArray(results)) {
+      } else if (config.resultStyle === RESULT_STYLES.NEAREST && Array.isArray(results)) {
         isEmpty = results.length === 0;
-      } else if (config.resultStyle === 'lengthByStatus' && typeof results === 'object' && 'total' in results) {
+      } else if (config.resultStyle === RESULT_STYLES.AVERAGE_VALUE && typeof results === 'object' && 'avg' in results) {
+        isEmpty = results.avg === null || results.count === 0;
+      } else if (config.resultStyle === RESULT_STYLES.LENGTH_BY_STATUS && typeof results === 'object' && 'total' in results) {
         isEmpty = results.total === 0;
       } else if (typeof results === 'object' && 'total' in results) {
         isEmpty = results.total === 0;
@@ -446,6 +449,14 @@ async function generatePDF() {
         datasetsByCategory[category] = [];
       }
       datasetsByCategory[category].push({ config, results });
+    });
+
+    // Build full category order: configured order + any extra categories found in datasets
+    const categoryOrder = [...configuredOrder];
+    Object.keys(datasetsByCategory).forEach(cat => {
+      if (!categoryOrder.includes(cat)) {
+        categoryOrder.push(cat);
+      }
     });
 
     // Loop through categories in order
@@ -488,7 +499,7 @@ async function generatePDF() {
       pdf.setFont('helvetica', 'normal');
 
       // Render based on resultStyle
-      if (config.resultStyle === 'binary') {
+      if (config.resultStyle === RESULT_STYLES.BINARY) {
         // Binary format (for flood zones and wetlands - just show Yes)
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'normal');
@@ -496,71 +507,96 @@ async function generatePDF() {
         yPosition += 0.2;
         yPosition += 0.1;  // Add spacing between datasets
 
-      } else if (config.resultStyle === 'acreage') {
-        // Acreage format (for wetlands/flood zones - show total acreage only)
+      } else if (config.resultStyle === RESULT_STYLES.AREA) {
+        // Area format (for area impact analysis - show total only)
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'normal');
-        const acreageLabel = config.id === 'criticalWetlands'
-          ? `  Total: ${results.totalAcres.toFixed(2)} acres of Freshwater Forested/Shrub Wetlands`
-          : `  Total: ${results.totalAcres.toFixed(2)} acres`;
-        pdf.text(acreageLabel, margin, yPosition);
+        const areaUnit = config.resultUnit || 'acres';
+        const areaDesc = config.areaLabel ? ` of ${config.areaLabel}` : '';
+        const areaLabelText = `  Total: ${results.totalArea.toFixed(2)} ${areaUnit}${areaDesc}`;
+        pdf.text(areaLabelText, margin, yPosition);
         yPosition += 0.2;
         yPosition += 0.1;  // Add spacing between datasets
 
-      } else if (config.resultStyle === 'sum') {
+      } else if (config.resultStyle === RESULT_STYLES.SUM) {
         // Sum format (for summing numeric values from nearby features)
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'normal');
         const displayValue = Number.isInteger(results.sum) ? results.sum : results.sum.toFixed(2);
-        const sumLabel = config.sumField
-          ? `  Total ${config.sumField}: ${displayValue}`
-          : `  Total: ${displayValue}`;
+        let sumLabel;
+        if (config.sumUnit) {
+          sumLabel = `  Total: ${displayValue} ${config.sumUnit}`;
+        } else if (config.sumField) {
+          sumLabel = `  Total ${config.sumField}: ${displayValue}`;
+        } else {
+          sumLabel = `  Total: ${displayValue}`;
+        }
         pdf.text(sumLabel, margin, yPosition);
         yPosition += 0.2;
         yPosition += 0.1;  // Add spacing between datasets
 
-      } else if (config.resultStyle === 'nearest') {
+      } else if (config.resultStyle === RESULT_STYLES.NEAREST) {
         // Nearest features format (for findNearestFeatures analysis)
         results.forEach(result => {
           checkPageBreak(0.2);
           pdf.setFont('helvetica', 'normal');
           const props = result.feature.properties || result.feature;
           const displayName = props._displayName || props[config.properties.displayField] || 'Unknown';
-          const distanceFormatted = Math.round(result.distance).toLocaleString();
-          pdf.text(`  • ${displayName} - ${distanceFormatted} ft`, margin, yPosition);
+          const distanceFormatted = Number.isInteger(result.distance)
+            ? result.distance.toLocaleString()
+            : result.distance.toFixed(2);
+          const distUnit = config.resultUnit || 'ft';
+          pdf.text(`  • ${displayName} - ${distanceFormatted} ${distUnit}`, margin, yPosition);
           yPosition += 0.16;
         });
         yPosition += 0.2;  // Add spacing between datasets
 
-      } else if (config.resultStyle === 'lengthByStatus') {
+      } else if (config.resultStyle === RESULT_STYLES.AVERAGE_VALUE) {
+        // Average value format (for averageParallelValue — e.g. LOTTR)
+        checkPageBreak(0.3);
+        pdf.setFont('helvetica', 'normal');
+        const fieldLabel = config.averageField ? `Avg. ${(config.properties?.fieldLabels?.[config.averageField]) || config.averageField.toUpperCase()}` : 'Average';
+        pdf.text(`  ${fieldLabel}: ${results.avg.toFixed(2)}`, margin, yPosition);
+        yPosition += 0.18;
+
+        // Show tier label if displayThresholds are configured
+        if (config.displayThresholds && results.avg !== null) {
+          for (const threshold of config.displayThresholds) {
+            if (threshold.max == null || results.avg < threshold.max) {
+              checkPageBreak(0.2);
+              pdf.text(`  Reliability: ${threshold.label}`, margin, yPosition);
+              yPosition += 0.16;
+              break;
+            }
+          }
+        }
+        yPosition += 0.1;  // Add spacing between datasets
+
+      } else if (config.resultStyle === RESULT_STYLES.LENGTH_BY_STATUS) {
         // Length by status format (for travel time reliability - show percentages and median LOTTR)
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'normal');
 
-        // Show mean LOTTR if available
-        if (results.meanLOTTR !== null && results.meanLOTTR !== undefined) {
-          pdf.text(`  Mean LOTTR: ${results.meanLOTTR.toFixed(2)}`, margin, yPosition);
+        // Show weighted average if available
+        if (results.avg !== null && results.avg !== undefined) {
+          const avgLabel = config.averageField ? `Avg. ${(config.properties?.fieldLabels?.[config.averageField]) || config.averageField.toUpperCase()}` : 'Average';
+          pdf.text(`  ${avgLabel}: ${results.avg.toFixed(2)}`, margin, yPosition);
           yPosition += 0.18;
         }
 
         if (results.breakdown && Object.keys(results.breakdown).length > 0) {
-          // Sort breakdown by status (True first, then False)
-          const sortedBreakdown = Object.entries(results.breakdown).sort((a, b) => {
-            if (a[0] === 'True' && b[0] !== 'True') return -1;
-            if (a[0] !== 'True' && b[0] === 'True') return 1;
-            return 0;
-          });
+          // Sort breakdown by percentage descending
+          const sortedBreakdown = Object.entries(results.breakdown).sort((a, b) => b[1] - a[1]);
 
           sortedBreakdown.forEach(([status, percentage]) => {
             checkPageBreak(0.2);
-            const statusLabel = status === 'True' ? 'Reliable' : 'Unreliable';
-            pdf.text(`    • ${statusLabel}: ${percentage.toFixed(1)}%`, margin, yPosition);
+            pdf.text(`    • ${status}: ${percentage.toFixed(1)}%`, margin, yPosition);
             yPosition += 0.16;
           });
         }
         yPosition += 0.2;  // Add spacing between datasets
 
-      } else if (config.resultStyle === 'count') {
+      } else if (config.resultStyle === RESULT_STYLES.COUNT) {
         // Count format
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'normal');
@@ -579,15 +615,15 @@ async function generatePDF() {
         }
         yPosition += 0.2;  // Add spacing between datasets
 
-      } else if (config.resultStyle === 'percentage') {
-        // Percentage format (for project coverage analysis like HICs)
+      } else if (config.resultStyle === RESULT_STYLES.PERCENTAGE) {
+        // Percentage format (for project coverage analysis)
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'normal');
         pdf.text(`  ${results.percentage}% of project`, margin, yPosition);
         yPosition += 0.2;
         yPosition += 0.1;  // Add spacing between datasets
 
-      } else if (config.resultStyle === 'table' && config.properties.additionalFields.length > 0) {
+      } else if (config.resultStyle === RESULT_STYLES.TABLE && config.properties.additionalFields.length > 0) {
         // Table format
         pdf.setFont('helvetica', 'bold');
 
@@ -595,11 +631,12 @@ async function generatePDF() {
         const columnWidth = 2.5;
         let xOffset = margin + 0.2;
 
-        pdf.text(config.properties.displayField, xOffset, yPosition);
+        pdf.text((config.properties.fieldLabels?.[config.properties.displayField]) || config.properties.displayField, xOffset, yPosition);
         xOffset += columnWidth;
 
         config.properties.additionalFields.forEach(field => {
-          pdf.text(field, xOffset, yPosition);
+          const headerLabel = (config.properties.fieldLabels?.[field]) || field;
+          pdf.text(headerLabel, xOffset, yPosition);
           xOffset += columnWidth;
         });
 
@@ -653,7 +690,7 @@ async function generatePDF() {
                   value = `${(value * 100).toFixed(1)}%`;
                 }
 
-                const fieldLabel = field === 'F__Below_A' ? '% Below ALICE' : field;
+                const fieldLabel = (config.properties.fieldLabels && config.properties.fieldLabels[field]) || field;
                 displayText += ` | ${fieldLabel}: ${value}`;
               });
             }
@@ -671,17 +708,19 @@ async function generatePDF() {
 
     // ========== FOOTER (on each page) ==========
     const totalPages = pdf.internal.getNumberOfPages();
+    const footerText = window.CONFIG_APP?.branding?.pdfFooter || 'Generated by MPO Project Application Tool';
+    const disclaimerText = window.CONFIG_APP?.branding?.pdfDisclaimer || 'For preliminary analysis';
+
     for (let i = 1; i <= totalPages; i++) {
       pdf.setPage(i);
       pdf.setFontSize(8);
       pdf.setTextColor(128, 128, 128);
       const footerY = pageHeight - 0.4;
-      pdf.text('Generated by Memphis MPO Project Application Tool', pageWidth / 2, footerY, { align: 'center' });
+      pdf.text(footerText, pageWidth / 2, footerY, { align: 'center' });
 
       // Add disclaimer
       pdf.setFontSize(7);
-      pdf.text('For preliminary analysis in support of 2055 Regional Transportation Plan applications',
-               pageWidth / 2, footerY + 0.12, { align: 'center' });
+      pdf.text(disclaimerText, pageWidth / 2, footerY + 0.12, { align: 'center' });
 
       if (totalPages > 1) {
         pdf.setFontSize(8);
@@ -811,17 +850,17 @@ function waitForTilesToLoad() {
     tileLayer.on('load', onLoad);
     tileLayer.on('tileerror', onTileError);
 
-    // Timeout fallback (5 seconds max wait - increased from 3s)
+    // Timeout fallback (10 seconds max wait for slower connections)
     timeoutHandle = setTimeout(() => {
       if (!resolved) {
         resolved = true;
         tileLayer.off('load', onLoad);
         tileLayer.off('tileerror', onTileError);
         const finalPending = checkTiles();
-        console.warn(`⚠ Tile load timeout after 5s - ${finalPending} tiles still pending - proceeding anyway`);
+        console.warn(`⚠ Tile load timeout after 10s - ${finalPending} tiles still pending - proceeding anyway`);
         resolve();
       }
-    }, 5000);
+    }, 10000);
   });
 }
 

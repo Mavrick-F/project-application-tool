@@ -228,6 +228,13 @@ header h1 .header-app {
 .results-card.zones .result-count { background-color: #FFF3E0; color: #E65100; }
 .results-card.bridges .result-count { background-color: #FFEBEE; color: #C62828; }
 
+.result-card-body {
+  padding: 10px;
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  margin-top: 10px;
+}
+
 /* Bridges table */
 #bridgesTable {
   width: 100%;

@@ -12,6 +12,55 @@ let drawnGeometry = null;         // GeoJSON of drawn line or point
 const currentResults = {};        // Analysis results keyed by dataset ID
 
 // ============================================
+// UNIT CONVERSION CONSTANTS AND HELPERS
+// ============================================
+
+const CONVERSIONS = {
+  FEET_PER_MILE:          5280,
+  FEET_PER_KM:            3280.84,
+  FEET_PER_METER:         3.28084,
+  SQ_METERS_PER_ACRE:     4046.86,
+  SQ_METERS_PER_SQ_MILE:  2589988.11,
+  SQ_METERS_PER_SQ_FT:    0.092903,
+  SQ_METERS_PER_SQ_KM:    1000000,
+};
+
+/**
+ * Convert a length value between any two supported units.
+ * Supported: 'feet', 'miles', 'meters', 'kilometers'
+ */
+function convertLength(value, fromUnit, toUnit) {
+  if (fromUnit === toUnit) return value;
+  const toFeet = {
+    feet:       1,
+    miles:      CONVERSIONS.FEET_PER_MILE,
+    meters:     CONVERSIONS.FEET_PER_METER,
+    kilometers: CONVERSIONS.FEET_PER_KM,
+  };
+  const fromFeet = {
+    feet:       1,
+    miles:      1 / CONVERSIONS.FEET_PER_MILE,
+    meters:     1 / CONVERSIONS.FEET_PER_METER,
+    kilometers: 1 / CONVERSIONS.FEET_PER_KM,
+  };
+  return value * (toFeet[fromUnit] || 1) * (fromFeet[toUnit] || 1);
+}
+
+/**
+ * Convert an area value from square meters to a display unit.
+ * Supported: 'acres' (default), 'sq miles', 'sq ft', 'sq meters', 'sq km'
+ */
+function convertArea(sqMeters, toUnit) {
+  switch (toUnit) {
+    case 'sq miles':  return sqMeters / CONVERSIONS.SQ_METERS_PER_SQ_MILE;
+    case 'sq ft':     return sqMeters / CONVERSIONS.SQ_METERS_PER_SQ_FT;
+    case 'sq km':     return sqMeters / CONVERSIONS.SQ_METERS_PER_SQ_KM;
+    case 'sq meters': return sqMeters;
+    default:          return sqMeters / CONVERSIONS.SQ_METERS_PER_ACRE; // acres
+  }
+}
+
+// ============================================
 // HELPER FUNCTIONS
 // ============================================
 
@@ -26,6 +75,21 @@ function hasValidGeometry(feature) {
          feature.geometry.coordinates &&
          Array.isArray(feature.geometry.coordinates) &&
          feature.geometry.coordinates.length > 0;
+}
+
+/**
+ * Check if a feature passes the dataset's analysisFilter (if any).
+ * @param {Object} feature - GeoJSON Feature
+ * @param {Object} datasetConfig - Configuration object from DATASETS
+ * @returns {boolean} True if feature passes filter or no filter is configured
+ */
+function matchesAnalysisFilter(feature, datasetConfig) {
+  if (!datasetConfig.analysisFilter) return true;
+  const { field, value, operator } = datasetConfig.analysisFilter;
+  const featureValue = feature.properties[field];
+  if (operator === '=')  return featureValue === value;
+  if (operator === '!=') return featureValue !== value;
+  return true; // unknown operator = no filter
 }
 
 /**
@@ -61,9 +125,9 @@ function cleanCorridorName(name) {
   if (!name) return 'Unknown';
 
   // Remove common directional suffixes (with optional space/dash before)
-  // Handles: "Route 50 IB", "Route 50-OB", "Route 50IB", etc.
+  // Handles: "Route 50 NB", "Route 50-SB", "Route 50IB", etc.
   return name
-    .replace(/[\s\-]*(IB|OB|EB|WB)$/i, '')
+    .replace(/[\s\-]*(NB|SB|EB|WB|IB|OB)$/i, '')
     .trim();
 }
 
@@ -92,13 +156,13 @@ function normalizeToLineStrings(feature) {
  * @param {Object} buffer - Turf.js Polygon (the corridor buffer)
  * @returns {number} Length in feet of segment inside the buffer
  */
-function measureSegmentInsideBuffer(segment, buffer) {
+function measureSegmentInsideBuffer(segment, buffer, units = 'feet') {
   const coords = turf.getCoords(segment);
   if (coords.length < 2) return 0;
 
   const startPt = turf.point(coords[0]);
   const endPt = turf.point(coords[coords.length - 1]);
-  const segmentLength = turf.length(segment, { units: 'feet' });
+  const segmentLength = turf.length(segment, { units });
 
   if (segmentLength === 0) return 0;
 
@@ -125,7 +189,7 @@ function measureSegmentInsideBuffer(segment, buffer) {
   const distances = [];
   for (const pt of intersections.features) {
     // Find the nearest point on the segment to this intersection
-    const nearest = turf.nearestPointOnLine(segment, pt, { units: 'feet' });
+    const nearest = turf.nearestPointOnLine(segment, pt, { units });
     distances.push(nearest.properties.location);
   }
 
@@ -153,6 +217,34 @@ function measureSegmentInsideBuffer(segment, buffer) {
   return Math.max(0, totalInside); // Ensure non-negative
 }
 
+/**
+ * Return cos(angle) between a segment and the overall project line direction.
+ * 1.0 = fully parallel, 0.0 = fully perpendicular.
+ * Prevents perpendicular crossings from accumulating as "parallel overlap".
+ * @param {Object} segment - Turf.js LineString
+ * @param {Array} projectCoords - Coordinate array of the project LineString
+ * @returns {number} Parallel factor 0.0–1.0
+ */
+function segmentParallelFactor(segment, projectCoords) {
+  if (!projectCoords || projectCoords.length < 2) return 1;
+  const segCoords = turf.getCoords(segment);
+  if (segCoords.length < 2) return 0;
+
+  const [sx1, sy1] = segCoords[0];
+  const [sx2, sy2] = segCoords[segCoords.length - 1];
+  if (sx1 === sx2 && sy1 === sy2) return 0; // Zero-length segment
+
+  const segBearing     = turf.bearing(turf.point(segCoords[0]),    turf.point(segCoords[segCoords.length - 1]));
+  const projectBearing = turf.bearing(turf.point(projectCoords[0]), turf.point(projectCoords[projectCoords.length - 1]));
+
+  // Normalize to 0–180, then fold to 0–90 (parallel in either direction counts)
+  let angleDeg = Math.abs(segBearing - projectBearing);
+  if (angleDeg > 180) angleDeg = 360 - angleDeg;
+  if (angleDeg > 90)  angleDeg = 180 - angleDeg;
+
+  return Math.cos(angleDeg * Math.PI / 180);
+}
+
 // ============================================
 // ANALYSIS FUNCTIONS
 // ============================================
@@ -178,10 +270,12 @@ function analyzeListParallelFeatures(drawnGeometry, datasetConfig, geoJsonData) 
     ? drawnGeometry.geometry
     : drawnGeometry;
 
+  const bufferUnit = datasetConfig.bufferUnit || 'feet';
+
   // Handle Point geometry separately (simple buffer intersection)
   if (geometry.type === 'Point') {
     const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
-      units: 'feet'
+      units: bufferUnit
     });
 
     geoJsonData.features.forEach(feature => {
@@ -223,31 +317,17 @@ function analyzeListParallelFeatures(drawnGeometry, datasetConfig, geoJsonData) 
 
   // Create buffer around drawn line for corridor tolerance
   const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
-    units: 'feet'
+    units: bufferUnit
   });
+
+  const projectCoords = turf.getCoords(geometry);
 
   geoJsonData.features.forEach(feature => {
     try {
       if (!hasValidGeometry(feature)) return;
 
       // Apply analysis filter if configured (e.g., only unreliable segments)
-      if (datasetConfig.analysisFilter) {
-        const filterField = datasetConfig.analysisFilter.field;
-        const filterValue = datasetConfig.analysisFilter.value;
-        const filterOperator = datasetConfig.analysisFilter.operator;
-        const featureValue = feature.properties[filterField];
-
-        let matchesFilter = false;
-        if (filterOperator === '=') {
-          matchesFilter = featureValue === filterValue;
-        } else if (filterOperator === '!=') {
-          matchesFilter = featureValue !== filterValue;
-        }
-
-        if (!matchesFilter) {
-          return; // Skip features that don't match the filter
-        }
-      }
+      if (!matchesAnalysisFilter(feature, datasetConfig)) return;
 
       // Quick check: does route intersect buffer at all?
       if (!turf.booleanIntersects(corridorBuffer, feature)) {
@@ -272,10 +352,10 @@ function analyzeListParallelFeatures(drawnGeometry, datasetConfig, geoJsonData) 
               continue;
             }
 
-            // FIX: Calculate actual length inside buffer, not full segment length
-            // This prevents false positives from perpendicular crossings
-            const insideLength = measureSegmentInsideBuffer(segment, corridorBuffer);
-            totalOverlap += insideLength;
+            // Weight by parallel factor: perpendicular crossings contribute ~0,
+            // fully parallel segments contribute their full inside length.
+            const insideLength = measureSegmentInsideBuffer(segment, corridorBuffer, bufferUnit);
+            totalOverlap += insideLength * segmentParallelFactor(segment, projectCoords);
           }
 
           // Early exit optimization: if we've already met the threshold, no need to continue
@@ -338,6 +418,8 @@ function analyzeListIntersectingFeatures(drawnGeometry, datasetConfig, geoJsonDa
   const useDedupe = datasetConfig.specialHandling?.deduplicate;
   const intersectingFeatures = useDedupe ? new Map() : [];
 
+  const bufferUnit = datasetConfig.bufferUnit || 'feet';
+
   // Extract actual geometry from GeoJSON Feature if needed
   const geometry = drawnGeometry.type === 'Feature'
     ? drawnGeometry.geometry
@@ -348,7 +430,7 @@ function analyzeListIntersectingFeatures(drawnGeometry, datasetConfig, geoJsonDa
   let geometryToTest = geometry;
   if (datasetConfig.bufferDistance && datasetConfig.bufferDistance > 0) {
     geometryToTest = turf.buffer(geometry, datasetConfig.bufferDistance, {
-      units: 'feet'
+      units: bufferUnit
     });
   }
 
@@ -433,6 +515,8 @@ function analyzeListIntersectingFeatures(drawnGeometry, datasetConfig, geoJsonDa
 function analyzeListNearbyFeatures(drawnGeometry, datasetConfig, geoJsonData) {
   const nearbyFeatures = [];
 
+  const bufferUnit = datasetConfig.bufferUnit || 'feet';
+
   try {
     // Extract actual geometry from GeoJSON Feature if needed
     const geometry = drawnGeometry.type === 'Feature'
@@ -441,7 +525,7 @@ function analyzeListNearbyFeatures(drawnGeometry, datasetConfig, geoJsonData) {
 
     // Create buffer around the drawn geometry
     const buffered = turf.buffer(geometry, datasetConfig.proximityBuffer, {
-      units: 'feet'
+      units: bufferUnit
     });
 
     // Check each feature against the buffer
@@ -487,8 +571,8 @@ function analyzeListNearbyFeatures(drawnGeometry, datasetConfig, geoJsonData) {
 
     // Sort by display field
     nearbyFeatures.sort((a, b) => {
-      const aVal = String(a[datasetConfig.properties.displayField]);
-      const bVal = String(b[datasetConfig.properties.displayField]);
+      const aVal = String(a.properties[datasetConfig.properties.displayField]);
+      const bVal = String(b.properties[datasetConfig.properties.displayField]);
       return aVal.localeCompare(bVal);
     });
 
@@ -497,85 +581,6 @@ function analyzeListNearbyFeatures(drawnGeometry, datasetConfig, geoJsonData) {
   }
 
   return nearbyFeatures;
-}
-
-/**
- * Analyze proximity with acreage summation for Polygon datasets
- * Creates buffer around drawn geometry and sums acreage of intersecting features
- * Optionally filters features by a property value (e.g., wetland type)
- * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
- * @param {Object} datasetConfig - Configuration object from DATASETS
- * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
- * @returns {Object} Object with total count, acreage sum, and matched features
- */
-function analyzeProximityWithAcreage(drawnGeometry, datasetConfig, geoJsonData) {
-  const matchedFeatures = [];
-  let totalAcreage = 0;
-
-  try {
-    // Extract actual geometry from GeoJSON Feature if needed
-    const geometry = drawnGeometry.type === 'Feature'
-      ? drawnGeometry.geometry
-      : drawnGeometry;
-
-    // Create buffer around the drawn geometry
-    const buffered = turf.buffer(geometry, datasetConfig.proximityBuffer, {
-      units: 'feet'
-    });
-
-    // Check each feature against the buffer
-    geoJsonData.features.forEach(feature => {
-      try {
-        // Apply analysis filter if configured (e.g., wetland type filter)
-        if (datasetConfig.analysisFilter) {
-          const filterField = datasetConfig.analysisFilter.field;
-          const filterValue = datasetConfig.analysisFilter.value;
-          const filterOperator = datasetConfig.analysisFilter.operator;
-          const featureValue = feature.properties[filterField];
-
-          let matchesFilter = false;
-          if (filterOperator === '=') {
-            matchesFilter = featureValue === filterValue;
-          } else if (filterOperator === '!=') {
-            matchesFilter = featureValue !== filterValue;
-          }
-
-          if (!matchesFilter) {
-            return; // Skip features that don't match the filter
-          }
-        }
-
-        // Check if polygon intersects buffer
-        const isNearby = turf.booleanIntersects(feature, buffered);
-
-        if (isNearby) {
-          // Store matched feature
-          matchedFeatures.push({
-            type: 'Feature',
-            geometry: feature.geometry,
-            properties: { ...feature.properties }
-          });
-
-          // Sum acreage if sumField is configured
-          if (datasetConfig.sumField) {
-            const acreage = parseFloat(feature.properties[datasetConfig.sumField]) || 0;
-            totalAcreage += acreage;
-          }
-        }
-      } catch (error) {
-        console.warn('Error checking proximity for acreage:', error);
-      }
-    });
-
-  } catch (error) {
-    console.error('Error in proximity acreage analysis:', error);
-  }
-
-  return {
-    total: matchedFeatures.length,
-    sum: totalAcreage,
-    features: matchedFeatures
-  };
 }
 
 /**
@@ -590,6 +595,8 @@ function analyzeProximityWithAcreage(drawnGeometry, datasetConfig, geoJsonData) 
 function analyzeHasNearbyFeatures(drawnGeometry, datasetConfig, geoJsonData) {
   const matchedFeatures = [];
 
+  const bufferUnit = datasetConfig.bufferUnit || 'feet';
+
   try {
     // Extract actual geometry from GeoJSON Feature if needed
     const geometry = drawnGeometry.type === 'Feature'
@@ -598,30 +605,14 @@ function analyzeHasNearbyFeatures(drawnGeometry, datasetConfig, geoJsonData) {
 
     // Create buffer around the drawn geometry
     const buffered = turf.buffer(geometry, datasetConfig.proximityBuffer, {
-      units: 'feet'
+      units: bufferUnit
     });
 
     // Check each feature against the buffer
     for (const feature of geoJsonData.features) {
       try {
         // Apply analysis filter if configured (e.g., filter by wetland type)
-        if (datasetConfig.analysisFilter) {
-          const filterField = datasetConfig.analysisFilter.field;
-          const filterValue = datasetConfig.analysisFilter.value;
-          const filterOperator = datasetConfig.analysisFilter.operator;
-          const featureValue = feature.properties[filterField];
-
-          let matchesFilter = false;
-          if (filterOperator === '=') {
-            matchesFilter = featureValue === filterValue;
-          } else if (filterOperator === '!=') {
-            matchesFilter = featureValue !== filterValue;
-          }
-
-          if (!matchesFilter) {
-            continue; // Skip features that don't match the filter
-          }
-        }
+        if (!matchesAnalysisFilter(feature, datasetConfig)) continue;
 
         const isNearby = turf.booleanIntersects(feature, buffered);
 
@@ -654,11 +645,14 @@ function analyzeHasNearbyFeatures(drawnGeometry, datasetConfig, geoJsonData) {
  * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
  * @param {Object} datasetConfig - Configuration object from DATASETS
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
- * @returns {Object} Object with totalAcres and array of features with calculated acreage
+ * @returns {Object} Object with totalArea (in resultUnit) and array of features with calculatedArea
  */
 function analyzeMeasureIntersectedArea(drawnGeometry, datasetConfig, geoJsonData) {
   const intersectedFeatures = [];
-  let totalAcres = 0;
+  let totalArea = 0;
+
+  const bufferUnit = datasetConfig.bufferUnit || 'feet';
+  const resultUnit = datasetConfig.resultUnit || 'acres';
 
   try {
     // Extract actual geometry from GeoJSON Feature if needed
@@ -669,7 +663,7 @@ function analyzeMeasureIntersectedArea(drawnGeometry, datasetConfig, geoJsonData
     // Create buffer around the drawn geometry
     const bufferDistance = datasetConfig.bufferDistance || datasetConfig.proximityBuffer || 200;
     const buffered = turf.buffer(geometry, bufferDistance, {
-      units: 'feet'
+      units: bufferUnit
     });
 
     // Get buffer coordinates for Martinez (must be a Polygon or MultiPolygon)
@@ -681,7 +675,7 @@ function analyzeMeasureIntersectedArea(drawnGeometry, datasetConfig, geoJsonData
       bufferCoords = buffered.geometry.coordinates[0];
     } else {
       console.warn('Unexpected buffer geometry type:', buffered.geometry.type);
-      return { totalAcres: 0, features: [] };
+      return { totalArea: 0, features: [] };
     }
 
     // Check each feature against the buffer
@@ -693,23 +687,7 @@ function analyzeMeasureIntersectedArea(drawnGeometry, datasetConfig, geoJsonData
         }
 
         // Apply analysis filter if configured (e.g., filter by wetland type)
-        if (datasetConfig.analysisFilter) {
-          const filterField = datasetConfig.analysisFilter.field;
-          const filterValue = datasetConfig.analysisFilter.value;
-          const filterOperator = datasetConfig.analysisFilter.operator;
-          const featureValue = feature.properties[filterField];
-
-          let matchesFilter = false;
-          if (filterOperator === '=') {
-            matchesFilter = featureValue === filterValue;
-          } else if (filterOperator === '!=') {
-            matchesFilter = featureValue !== filterValue;
-          }
-
-          if (!matchesFilter) {
-            continue; // Skip features that don't match the filter
-          }
-        }
+        if (!matchesAnalysisFilter(feature, datasetConfig)) continue;
 
         // Check if feature intersects buffer
         const intersects = turf.booleanIntersects(feature, buffered);
@@ -732,13 +710,9 @@ function analyzeMeasureIntersectedArea(drawnGeometry, datasetConfig, geoJsonData
                   // Convert Martinez output to Turf polygon
                   const intersectedPolygon = turf.polygon(intersection[0]);
 
-                  // Calculate area in square meters
+                  // Calculate area in square meters and convert to resultUnit
                   const areaSquareMeters = turf.area(intersectedPolygon);
-
-                  // Convert to acres (1 acre = 4046.86 square meters)
-                  const acres = areaSquareMeters / 4046.86;
-
-                  multiPolygonTotalAcres += acres;
+                  multiPolygonTotalAcres += convertArea(areaSquareMeters, resultUnit);
                 }
               } catch (martinezError) {
                 console.warn('Martinez clipping failed for MultiPolygon part:', martinezError);
@@ -753,11 +727,11 @@ function analyzeMeasureIntersectedArea(drawnGeometry, datasetConfig, geoJsonData
                 geometry: feature.geometry, // Keep original geometry for display
                 properties: {
                   [datasetConfig.properties.displayField]: displayValue,
-                  calculatedAcres: multiPolygonTotalAcres
+                  calculatedArea: multiPolygonTotalAcres
                 }
               });
 
-              totalAcres += multiPolygonTotalAcres;
+              totalArea += multiPolygonTotalAcres;
             }
 
             continue; // Skip to next feature
@@ -774,14 +748,12 @@ function analyzeMeasureIntersectedArea(drawnGeometry, datasetConfig, geoJsonData
               // Convert Martinez output to Turf polygon
               const intersectedPolygon = turf.polygon(intersection[0]);
 
-              // Calculate area in square meters
+              // Calculate area in square meters and convert to resultUnit
               const areaSquareMeters = turf.area(intersectedPolygon);
+              const calculatedArea = convertArea(areaSquareMeters, resultUnit);
 
-              // Convert to acres (1 acre = 4046.86 square meters)
-              const acres = areaSquareMeters / 4046.86;
-
-              // Only include if area is non-zero (threshold: 0.001 acres)
-              if (acres > 0.001) {
+              // Only include if area is non-zero (threshold: 0.001 of resultUnit)
+              if (calculatedArea > 0.001) {
                 const displayValue = feature.properties[datasetConfig.properties.displayField] || 'Unknown';
 
                 intersectedFeatures.push({
@@ -789,11 +761,11 @@ function analyzeMeasureIntersectedArea(drawnGeometry, datasetConfig, geoJsonData
                   geometry: feature.geometry, // Keep original full geometry for display
                   properties: {
                     [datasetConfig.properties.displayField]: displayValue,
-                    calculatedAcres: acres
+                    calculatedArea: calculatedArea
                   }
                 });
 
-                totalAcres += acres;
+                totalArea += calculatedArea;
               }
             }
           } catch (martinezError) {
@@ -810,7 +782,7 @@ function analyzeMeasureIntersectedArea(drawnGeometry, datasetConfig, geoJsonData
   }
 
   return {
-    totalAcres: totalAcres,
+    totalArea: totalArea,
     features: intersectedFeatures
   };
 }
@@ -829,6 +801,8 @@ function analyzeCountByCategory(drawnGeometry, datasetConfig, geoJsonData) {
   let totalCount = 0;
   const matchedFeatures = []; // Store matched features for PDF rendering
 
+  const bufferUnit = datasetConfig.bufferUnit || 'feet';
+
   try {
     // Extract actual geometry from GeoJSON Feature if needed
     const geometry = drawnGeometry.type === 'Feature'
@@ -837,7 +811,7 @@ function analyzeCountByCategory(drawnGeometry, datasetConfig, geoJsonData) {
 
     // Create buffer around the drawn geometry
     const buffered = turf.buffer(geometry, datasetConfig.proximityBuffer, {
-      units: 'feet'
+      units: bufferUnit
     });
 
     // Check each feature against the buffer
@@ -862,9 +836,10 @@ function analyzeCountByCategory(drawnGeometry, datasetConfig, geoJsonData) {
             properties: { ...feature.properties }
           });
 
-          // Count by category if countByField is specified
-          if (datasetConfig.countByField) {
-            const category = feature.properties[datasetConfig.countByField] || 'Unknown';
+          // Count by category — uses countByField if set, otherwise falls back to displayField
+          const countField = datasetConfig.countByField || datasetConfig.properties?.displayField;
+          if (countField) {
+            const category = feature.properties[countField] || 'Unknown';
             counts[category] = (counts[category] || 0) + 1;
           }
         }
@@ -886,21 +861,24 @@ function analyzeCountByCategory(drawnGeometry, datasetConfig, geoJsonData) {
 }
 
 /**
- * Analyze corridor with length summation by reliability status
+ * Analyze corridor with length summation by a status/category field
  * Sums up the total length of segments that fall within the corridor buffer,
- * grouped by reliability status (reliable vs unreliable)
- * Calculates percentages and median LOTTR for all captured segments
- * Used specifically for Travel Time Reliability dataset
+ * grouped by a configurable status field (e.g. "Reliable_Segment_", "ownership", etc.)
+ * Optionally computes a length-weighted average of a numeric field (e.g. LOTTR, speed).
+ * Requires datasetConfig.statusField. Optionally uses datasetConfig.averageField.
  * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
  * @param {Object} datasetConfig - Configuration object from DATASETS
  * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
- * @returns {Object} Object with percentages by reliability status, median LOTTR, and matched features
+ * @returns {Object} { total, breakdown, avg, features }
  */
 function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonData) {
-  const lengthsByStatus = {};  // Track lengths by Reliable_Segment_ value
+  const lengthsByStatus = {};  // Track lengths by statusField value
   const matchedFeatures = [];  // Store matched features for map rendering
   let totalLength = 0;
-  let lottrWeightedSum = 0;  // Sum of (LOTTR * segment length) for weighted mean calculation
+  let weightedSum = 0;   // Sum of (value * segment length) for weighted average
+
+  const bufferUnit = datasetConfig.bufferUnit || 'feet';
+  const resultUnit = datasetConfig.resultUnit || 'miles';
 
   // Extract actual geometry from GeoJSON Feature if needed
   const geometry = drawnGeometry.type === 'Feature'
@@ -910,7 +888,7 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
   // Handle Point geometry separately (simple buffer intersection)
   if (geometry.type === 'Point') {
     const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
-      units: 'feet'
+      units: bufferUnit
     });
 
     geoJsonData.features.forEach(feature => {
@@ -918,15 +896,15 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
         if (!hasValidGeometry(feature)) return;
 
         if (turf.booleanIntersects(corridorBuffer, feature)) {
-          const status = feature.properties['Reliable_Segment_'] || 'Unknown';
-          const length = turf.length(feature, { units: 'miles' });
+          const status = feature.properties[datasetConfig.statusField] || 'Unknown';
+          const length = turf.length(feature, { units: resultUnit });
           lengthsByStatus[status] = (lengthsByStatus[status] || 0) + length;
           totalLength += length;
 
-          // Collect LOTTR for weighted mean calculation
-          const lottr = parseFloat(feature.properties['Level_of_Travel_Time_Reliability']);
-          if (!isNaN(lottr)) {
-            lottrWeightedSum += lottr * length;
+          // Collect weighted average of averageField if configured
+          if (datasetConfig.averageField) {
+            const val = parseFloat(feature.properties[datasetConfig.averageField]);
+            if (!isNaN(val)) weightedSum += val * length;
           }
 
           matchedFeatures.push({
@@ -948,13 +926,13 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
       });
     }
 
-    // Calculate length-weighted mean LOTTR
-    const meanLOTTR = totalLength > 0 ? lottrWeightedSum / totalLength : null;
+    // Calculate length-weighted average of averageField if configured
+    const avg = (datasetConfig.averageField && totalLength > 0) ? weightedSum / totalLength : null;
 
     return {
       total: totalLength,
       breakdown: percentageBreakdown,
-      meanLOTTR: meanLOTTR,
+      avg: avg,
       features: matchedFeatures
     };
   }
@@ -967,8 +945,9 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
 
   // Create buffer around drawn line
   const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
-    units: 'feet'
+    units: bufferUnit
   });
+  const projectCoords = turf.getCoords(geometry);
 
   geoJsonData.features.forEach(feature => {
     try {
@@ -997,9 +976,9 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
               continue;
             }
 
-            // Calculate actual length inside buffer
-            const insideLength = measureSegmentInsideBuffer(segment, corridorBuffer);
-            featureOverlapLength += insideLength;
+            // Weight by parallel factor: perpendicular crossings contribute ~0
+            const insideLength = measureSegmentInsideBuffer(segment, corridorBuffer, bufferUnit);
+            featureOverlapLength += insideLength * segmentParallelFactor(segment, projectCoords);
           }
 
           // Early exit if we found significant overlap
@@ -1014,15 +993,15 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
 
       // Feature matches if total overlap meets minimum threshold
       if (featureOverlapLength >= datasetConfig.minSharedLength) {
-        const status = feature.properties['Reliable_Segment_'] || 'Unknown';
-        const lengthInMiles = featureOverlapLength / 5280;  // Convert feet to miles
-        lengthsByStatus[status] = (lengthsByStatus[status] || 0) + lengthInMiles;
-        totalLength += lengthInMiles;
+        const status = feature.properties[datasetConfig.statusField] || 'Unknown';
+        const lengthInResultUnit = convertLength(featureOverlapLength, bufferUnit, resultUnit);
+        lengthsByStatus[status] = (lengthsByStatus[status] || 0) + lengthInResultUnit;
+        totalLength += lengthInResultUnit;
 
-        // Collect LOTTR for weighted mean calculation
-        const lottr = parseFloat(feature.properties['Level_of_Travel_Time_Reliability']);
-        if (!isNaN(lottr)) {
-          lottrWeightedSum += lottr * lengthInMiles;
+        // Collect weighted average of averageField if configured
+        if (datasetConfig.averageField) {
+          const val = parseFloat(feature.properties[datasetConfig.averageField]);
+          if (!isNaN(val)) weightedSum += val * lengthInResultUnit;
         }
 
         matchedFeatures.push({
@@ -1045,14 +1024,13 @@ function analyzeMeasureProjectByCategory(drawnGeometry, datasetConfig, geoJsonDa
     });
   }
 
-  // Calculate length-weighted mean LOTTR
-  // Segments with greater length have more influence on the final LOTTR value
-  const meanLOTTR = totalLength > 0 ? lottrWeightedSum / totalLength : null;
+  // Calculate length-weighted average of averageField if configured
+  const avg = (datasetConfig.averageField && totalLength > 0) ? weightedSum / totalLength : null;
 
   return {
     total: totalLength,
     breakdown: percentageBreakdown,
-    meanLOTTR: meanLOTTR,
+    avg: avg,
     features: matchedFeatures
   };
 }
@@ -1071,6 +1049,8 @@ function analyzeSumNearbyValues(drawnGeometry, datasetConfig, geoJsonData) {
   const matchedFeatures = [];
   let totalSum = 0;
 
+  const bufferUnit = datasetConfig.bufferUnit || 'feet';
+
   try {
     // Extract actual geometry from GeoJSON Feature if needed
     const geometry = drawnGeometry.type === 'Feature'
@@ -1079,7 +1059,7 @@ function analyzeSumNearbyValues(drawnGeometry, datasetConfig, geoJsonData) {
 
     // Create buffer around the drawn geometry
     const buffered = turf.buffer(geometry, datasetConfig.proximityBuffer, {
-      units: 'feet'
+      units: bufferUnit
     });
 
     // Check each feature against the buffer
@@ -1088,23 +1068,7 @@ function analyzeSumNearbyValues(drawnGeometry, datasetConfig, geoJsonData) {
         if (!hasValidGeometry(feature)) return;
 
         // Apply analysis filter if configured (e.g., filter by category)
-        if (datasetConfig.analysisFilter) {
-          const filterField = datasetConfig.analysisFilter.field;
-          const filterValue = datasetConfig.analysisFilter.value;
-          const filterOperator = datasetConfig.analysisFilter.operator;
-          const featureValue = feature.properties[filterField];
-
-          let matchesFilter = false;
-          if (filterOperator === '=') {
-            matchesFilter = featureValue === filterValue;
-          } else if (filterOperator === '!=') {
-            matchesFilter = featureValue !== filterValue;
-          }
-
-          if (!matchesFilter) {
-            return; // Skip features that don't match the filter
-          }
-        }
+        if (!matchesAnalysisFilter(feature, datasetConfig)) return;
 
         let isNearby = false;
 
@@ -1160,6 +1124,8 @@ function analyzeSumNearbyValues(drawnGeometry, datasetConfig, geoJsonData) {
 function analyzeFindNearestFeatures(drawnGeometry, datasetConfig, geoJsonData) {
   const featuresWithDistance = [];
 
+  const resultUnit = datasetConfig.resultUnit || 'feet';
+
   try {
     // Extract actual geometry from GeoJSON Feature if needed
     const geometry = drawnGeometry.type === 'Feature'
@@ -1178,14 +1144,14 @@ function analyzeFindNearestFeatures(drawnGeometry, datasetConfig, geoJsonData) {
         // Calculate distance based on feature geometry type
         if (datasetConfig.geometryType === 'Point') {
           // Distance from drawn centroid to point
-          distance = turf.distance(drawnCentroid, feature, { units: 'feet' });
+          distance = turf.distance(drawnCentroid, feature, { units: resultUnit });
         } else if (datasetConfig.geometryType === 'LineString') {
           // Distance from drawn centroid to nearest point on line
-          distance = turf.pointToLineDistance(drawnCentroid, feature, { units: 'feet' });
+          distance = turf.pointToLineDistance(drawnCentroid, feature, { units: resultUnit });
         } else if (datasetConfig.geometryType === 'Polygon') {
           // Distance from drawn centroid to polygon centroid
           const featureCentroid = turf.centroid(feature);
-          distance = turf.distance(drawnCentroid, featureCentroid, { units: 'feet' });
+          distance = turf.distance(drawnCentroid, featureCentroid, { units: resultUnit });
         }
 
         featuresWithDistance.push({
@@ -1238,12 +1204,14 @@ function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
     ? drawnGeometry.geometry
     : drawnGeometry;
 
+  const bufferUnit = datasetConfig.bufferUnit || 'feet';
+
   // Phase 1: Find ALL features that intersect the project buffer (no minSharedLength filter)
   // This is critical - we need to include all segments, even short ones, for accurate coverage
   const matchedFeatures = [];
 
   const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, {
-    units: 'feet'
+    units: bufferUnit
   });
 
   geoJsonData.features.forEach(feature => {
@@ -1270,7 +1238,7 @@ function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
   console.log(`  └─ Found ${matchedFeatures.length} intersecting segments, calculating coverage...`);
 
   // Phase 2: Use point sampling for accurate coverage measurement
-  // Sample points along the project and check what % are within buffer distance of ANY HIC
+  // Sample points along the project and check what % are within buffer distance of ANY matched feature
   try {
     const projectLength = turf.length(geometry, { units: 'feet' });
 
@@ -1278,41 +1246,41 @@ function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
     const sampleInterval = 10; // feet
     const numSamples = Math.max(Math.ceil(projectLength / sampleInterval), 10);
 
-    let samplesNearHIC = 0;
+    let samplesNearFeature = 0;
 
     for (let i = 0; i <= numSamples; i++) {
       const distance = (i / numSamples) * projectLength;
-      const samplePoint = turf.along(geometry, distance / 5280, { units: 'miles' }); // Convert feet to miles for turf.along
+      const samplePoint = turf.along(geometry, distance / CONVERSIONS.FEET_PER_MILE, { units: 'miles' }); // Convert feet to miles for turf.along
 
-      // Check if this point is within buffer distance of ANY matched HIC
-      let isNearHIC = false;
+      // Check if this point is within buffer distance of ANY matched feature
+      let isNearMatch = false;
 
-      for (const hicFeature of matchedFeatures) {
+      for (const matchedFeature of matchedFeatures) {
         try {
-          const distanceToHIC = turf.pointToLineDistance(
+          const distanceToFeature = turf.pointToLineDistance(
             samplePoint,
-            hicFeature,
-            { units: 'feet' }
+            matchedFeature,
+            { units: bufferUnit }
           );
 
-          if (distanceToHIC <= datasetConfig.bufferDistance) {
-            isNearHIC = true;
+          if (distanceToFeature <= datasetConfig.bufferDistance) {
+            isNearMatch = true;
             break;
           }
         } catch (err) {
-          // Skip this HIC if there's an error
+          // Skip this feature if there's an error
           continue;
         }
       }
 
-      if (isNearHIC) {
-        samplesNearHIC++;
+      if (isNearMatch) {
+        samplesNearFeature++;
       }
     }
 
-    const percentage = (samplesNearHIC / (numSamples + 1)) * 100;
+    const percentage = (samplesNearFeature / (numSamples + 1)) * 100;
 
-    console.log(`  └─ Sampled ${numSamples + 1} points, ${samplesNearHIC} near HICs (${percentage.toFixed(1)}%)`);
+    console.log(`  └─ Sampled ${numSamples + 1} points, ${samplesNearFeature} near matched features (${percentage.toFixed(1)}%)`);
 
     return {
       percentage: Math.round(percentage),
@@ -1326,6 +1294,86 @@ function analyzeProjectCoverage(drawnGeometry, datasetConfig, geoJsonData) {
       features: matchedFeatures
     };
   }
+}
+
+/**
+ * Find parallel line features and compute a length-weighted average of a numeric field.
+ * Uses the same corridor matching logic as listParallelFeatures but returns an average
+ * instead of a list. Overlap length (feet inside buffer) is used as the weight so that
+ * segments with more shared length with the project have more influence on the result.
+ *
+ * @param {Object} drawnGeometry - GeoJSON geometry (LineString or Point)
+ * @param {Object} datasetConfig - Config object; must include averageField
+ * @param {Object} geoJsonData - GeoJSON FeatureCollection to analyze
+ * @returns {Object} { avg, count, tier, features }
+ */
+function analyzeAverageParallelValue(drawnGeometry, datasetConfig, geoJsonData) {
+  const matchedFeatures = [];
+  let weightedSum = 0;
+  let totalWeight = 0;
+
+  const bufferUnit = datasetConfig.bufferUnit || 'feet';
+  const geometry = drawnGeometry.type === 'Feature' ? drawnGeometry.geometry : drawnGeometry;
+  const averageField = datasetConfig.averageField;
+
+  if (!averageField) {
+    console.warn(`averageParallelValue: averageField not configured for ${datasetConfig.name}`);
+    return { avg: null, count: 0, tier: null, features: [] };
+  }
+
+  const corridorBuffer = turf.buffer(geometry, datasetConfig.bufferDistance, { units: bufferUnit });
+
+  if (geometry.type === 'Point') {
+    geoJsonData.features.forEach(feature => {
+      try {
+        if (!hasValidGeometry(feature)) return;
+        if (!turf.booleanIntersects(corridorBuffer, feature)) return;
+        const val = parseFloat(feature.properties[averageField]);
+        const weight = turf.length(feature, { units: bufferUnit });
+        if (!isNaN(val) && weight > 0) {
+          weightedSum += val * weight;
+          totalWeight += weight;
+        }
+        matchedFeatures.push({ type: 'Feature', geometry: feature.geometry, properties: { ...feature.properties } });
+      } catch (e) { console.warn('averageParallelValue point error:', e); }
+    });
+
+  } else if (geometry.type === 'LineString') {
+    const projectCoords = turf.getCoords(geometry);
+
+    geoJsonData.features.forEach(feature => {
+      try {
+        if (!hasValidGeometry(feature)) return;
+        if (!turf.booleanIntersects(corridorBuffer, feature)) return;
+
+        const routeLines = normalizeToLineStrings(feature);
+        let totalOverlap = 0;
+
+        for (const routeLine of routeLines) {
+          const routeCoords = turf.getCoords(routeLine);
+          for (let i = 0; i < routeCoords.length - 1; i++) {
+            const segment = turf.lineString([routeCoords[i], routeCoords[i + 1]]);
+            if (!turf.booleanIntersects(segment, corridorBuffer)) continue;
+            totalOverlap += measureSegmentInsideBuffer(segment, corridorBuffer, bufferUnit) * segmentParallelFactor(segment, projectCoords);
+          }
+          if (totalOverlap >= datasetConfig.minSharedLength) break;
+        }
+
+        if (totalOverlap >= datasetConfig.minSharedLength) {
+          const val = parseFloat(feature.properties[averageField]);
+          if (!isNaN(val)) {
+            weightedSum += val * totalOverlap;
+            totalWeight += totalOverlap;
+          }
+          matchedFeatures.push({ type: 'Feature', geometry: feature.geometry, properties: { ...feature.properties } });
+        }
+      } catch (e) { console.warn('averageParallelValue line error:', e); }
+    });
+  }
+
+  const avg = totalWeight > 0 ? weightedSum / totalWeight : null;
+
+  return { avg, count: matchedFeatures.length, features: matchedFeatures };
 }
 
 /**
@@ -1381,8 +1429,8 @@ function analyzeAllDatasets(drawnGeometry) {
           datasetResults = analyzeCountByCategory(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
-        case 'proximityAcreage':
-          datasetResults = analyzeProximityWithAcreage(drawnGeometry, config, geoJsonData[datasetKey]);
+        case 'measureNearbyArea':
+          datasetResults = analyzeSumNearbyValues(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         case 'hasNearbyFeatures':
@@ -1399,6 +1447,10 @@ function analyzeAllDatasets(drawnGeometry) {
 
         case 'findNearestFeatures':
           datasetResults = analyzeFindNearestFeatures(drawnGeometry, config, geoJsonData[datasetKey]);
+          break;
+
+        case 'averageParallelValue':
+          datasetResults = analyzeAverageParallelValue(drawnGeometry, config, geoJsonData[datasetKey]);
           break;
 
         default:
