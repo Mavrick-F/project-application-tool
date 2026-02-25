@@ -275,6 +275,7 @@ transitDemand:
 
   proximityBuffer: 100
   countByField: Demand
+  countLabel: block groups
 
   properties:
     displayField: Demand

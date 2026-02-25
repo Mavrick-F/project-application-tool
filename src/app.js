@@ -1033,7 +1033,8 @@ function createResultCard(datasetConfig, results) {
   } else if (datasetConfig.resultStyle === RESULT_STYLES.COUNT) {
     // Count format (for datasets that count features by category)
     cardHtml += `<div class="result-card-body">`;
-    cardHtml += `<p style="margin: 0 0 10px 0; font-size: 14px;">Total: ${escapeHtml(results.total)}</p>`;
+    const countLabel = datasetConfig.countLabel ? `Total ${escapeHtml(datasetConfig.countLabel)}` : 'Total';
+    cardHtml += `<p style="margin: 0 0 10px 0; font-size: 14px;">${countLabel}: ${escapeHtml(results.total)}</p>`;
 
     if (results.breakdown && Object.keys(results.breakdown).length > 0) {
       cardHtml += `<ul class="results-list" style="margin: 0; padding-left: 20px;">`;

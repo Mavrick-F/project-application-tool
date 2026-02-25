@@ -600,7 +600,8 @@ async function generatePDF() {
         // Count format
         checkPageBreak(0.3);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(`  Total: ${results.total}`, margin, yPosition);
+        const countLabel = config.countLabel ? `Total ${config.countLabel}` : 'Total';
+        pdf.text(`  ${countLabel}: ${results.total}`, margin, yPosition);
         yPosition += 0.18;
 
         if (results.breakdown && Object.keys(results.breakdown).length > 0) {
