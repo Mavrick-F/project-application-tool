@@ -53,10 +53,10 @@ Web-based spatial analysis tool for Memphis MPO's RTP 2055. Users draw project a
 ## Configuration-Driven System (v0.6.0+)
 
 **v0.9.3+: YAML Configuration**
-New datasets = just edit `datasets.yaml` in the root directory. The file is self-documenting with inline comments explaining every field and valid values.
+New datasets = just edit `datasets.txt` in the root directory. The file is self-documenting with inline comments explaining every field and valid values.
 
 **How to add a dataset:**
-1. Open `datasets.yaml`
+1. Open `datasets.txt`
 2. Copy an existing dataset that matches your geometry type (Point, LineString, or Polygon)
 3. Modify the values (file path, field names, colors, analysis method)
 4. Save - no code changes needed, just refresh the browser
@@ -88,7 +88,7 @@ python -m http.server 5000
 ## Quick Reference
 
 **File Structure:**
-- `datasets.yaml` - Dataset configuration (self-documenting with inline comments)
+- `datasets.txt` - Dataset configuration (self-documenting with inline comments)
 - `src/datasets.js` - CONFIG object and YAML loader
 - `src/map.js` - Leaflet map, layers, drawing controls
 - `src/analysis.js` - Generic analysis functions for all 8 methods

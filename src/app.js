@@ -1074,7 +1074,7 @@ function createResultCard(datasetConfig, results) {
     cardHtml += `</div>`;
   } else if (datasetConfig.resultStyle === RESULT_STYLES.AVERAGE_VALUE) {
     // Average value format — shows length-weighted average with optional color-coded tier badge
-    // Tier label and color come from displayThresholds in datasets.yaml (first threshold where avg < max wins)
+    // Tier label and color come from displayThresholds in datasets.txt (first threshold where avg < max wins)
     let tierLabel = null;
     let tierColor = '#888888';
     if (datasetConfig.displayThresholds && results.avg !== null) {

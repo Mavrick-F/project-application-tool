@@ -143,7 +143,7 @@ crashLocations:
   description: Shows fatal and serious injury crashes within 200 feet. Crashes are for the years 2020-2024 and are sourced from TITAN and SAMS.
   category: Transportation
   dataSource: TITAN / SAMS (2020-2024)
-  filePath: ./data/ksi_crashes.geojson
+  filePath: ./data/ksi_crashes.json
   geometryType: Point
   analysisMethod: countByCategory
 
@@ -172,7 +172,7 @@ greenprintNetwork:
   description: Shows priority tiers for future bike & shared-use trail infrastructure from the Memphis MPO's Regional Greenprint.
   category: Transportation
   dataSource: Memphis MPO Regional Greenprint
-  filePath: ./data/greenprint.geojson
+  filePath: ./data/greenprint.json
   geometryType: LineString
   analysisMethod: listParallelFeatures
 
@@ -216,7 +216,7 @@ highInjuryCorridors:
   description: Network of corridors with elevated crash rates identified in the Memphis MPO's Safety Action Plan.
   category: Transportation
   dataSource: Memphis MPO Safety Action Plan
-  filePath: ./data/HIN_Corridors.geojson
+  filePath: ./data/HIN_Corridors.json
   geometryType: LineString
   analysisMethod: projectCoverage
 
@@ -269,7 +269,7 @@ transitDemand:
   description: Composite transit demand scores combining population density, employment density, and socioeconomic factors. Higher scores indicate areas where conditions are especially conducive to transit ridership and may warrant prioritization for transit investment.
   category: Transportation
   dataSource: Memphis MPO / Memphis Urban Area Transit Study
-  filePath: ./data/transit_demand.geojson
+  filePath: ./data/transit_demand.json
   geometryType: Polygon
   analysisMethod: countByCategory
 
@@ -314,7 +314,7 @@ strahnet:
   description: Strategic Highway Network designated for national defense purposes. Projects impacting these routes may require coordination with federal agencies and must maintain mobility for military freight movements.
   category: Transportation
   dataSource: FHWA
-  filePath: ./data/strahnet.geojson
+  filePath: ./data/strahnet.json
   geometryType: LineString
   analysisMethod: listIntersectingFeatures
 
@@ -391,7 +391,7 @@ aliceZctas:
   description: Areas with high percentages (>= 45%) of Asset Limited, Income Constrained, Employed (ALICE) households.
   category: Economic Development
   dataSource: United Way ALICE Report
-  filePath: ./data/alice_zctas.geojson
+  filePath: ./data/alice_zctas.json
   geometryType: Polygon
   analysisMethod: listIntersectingFeatures
 
@@ -430,7 +430,7 @@ freightClusters:
   description: Concentrations of freight-intensive businesses and logistics facilities, identified in the Memphis MPO's Mid-South Freight Study. Projects serving these areas support regional freight mobility and economic competitiveness.
   category: Economic Development
   dataSource: Memphis MPO Mid-South Freight Study
-  filePath: ./data/freight_clusters.geojson
+  filePath: ./data/freight_clusters.json
   geometryType: Polygon
   analysisMethod: listIntersectingFeatures
 
@@ -488,7 +488,7 @@ majorEmployers:
   description: Businesses with 500+ employees within a quarter mile. Transportation improvements near major employment centers can reduce commute times and support economic development.
   category: Economic Development
   dataSource: Memphis MPO
-  filePath: ./data/major_employers.geojson
+  filePath: ./data/major_employers.json
   geometryType: Point
   analysisMethod: listNearbyFeatures
 
@@ -535,7 +535,7 @@ touristAttractions:
   description: Major tourist attractions and destinations within a quarter mile. Transportation improvements near these sites support tourism economy and visitor experience.
   category: Economic Development
   dataSource: Memphis MPO
-  filePath: ./data/tourist_attractions.geojson
+  filePath: ./data/tourist_attractions.json
   geometryType: Point
   analysisMethod: listNearbyFeatures
 
@@ -596,7 +596,7 @@ epaSuperFundSites:
   description: EPA-designated contaminated sites within 200 feet. Projects near Superfund sites may require additional environmental investigation and coordination with EPA remediation efforts.
   category: Environmental/Cultural
   dataSource: EPA
-  filePath: ./data/epa_superfund_sites.geojson
+  filePath: ./data/epa_superfund_sites.json
   geometryType: Point
   analysisMethod: listNearbyFeatures
 
@@ -648,7 +648,7 @@ historicPoints:
   description: National Register of Historic Places sites within 200 feet. Projects near historic properties require Section 106 review and coordination with State Historic Preservation Office (SHPO).
   category: Environmental/Cultural
   dataSource: National Register of Historic Places
-  filePath: ./data/historic_points.geojson
+  filePath: ./data/historic_points.json
   geometryType: Point
   analysisMethod: listNearbyFeatures
 
@@ -673,7 +673,7 @@ historicPolygons:
   description: National Register historic districts within 200 feet. Projects affecting historic districts require Section 106 review and design considerations to maintain historic character.
   category: Environmental/Cultural
   dataSource: National Register of Historic Places
-  filePath: ./data/historic_polygons.geojson
+  filePath: ./data/historic_polygons.json
   geometryType: Polygon
   analysisMethod: listNearbyFeatures
 
@@ -751,7 +751,7 @@ crashInjuries:
   description: Total serious injuries from crashes within 200 feet. Demonstrates sumNearbyValues with analysisFilter to only count specific crash types.
   category: Transportation
   dataSource: TITAN / SAMS (2020-2024)
-  filePath: ./data/ksi_crashes.geojson
+  filePath: ./data/ksi_crashes.json
   geometryType: Point
   analysisMethod: sumNearbyValues
 
@@ -784,7 +784,7 @@ nearestTransitRoutes:
   description: Finds up to 3 nearest MATA transit routes within 1 mile of the project. Demonstrates findNearestFeatures with maxDistance.
   category: Transportation
   dataSource: Memphis MPO
-  filePath: ./data/mata_routes.geojson
+  filePath: ./data/mata_routes.json
   geometryType: LineString
   analysisMethod: findNearestFeatures
 
@@ -816,7 +816,7 @@ nearestTransitRoutes:
 #   description: What this layer represents and why it matters for project review.
 #   category: Transportation
 #   dataSource: My Agency (2024)
-#   filePath: ./data/my_points.geojson
+#   filePath: ./data/my_points.json
 #   geometryType: Point
 #   analysisMethod: listNearbyFeatures
 #
@@ -842,7 +842,7 @@ nearestTransitRoutes:
 #   description: Areas that overlap or cross the project alignment.
 #   category: Environmental/Cultural
 #   dataSource: My Agency (2024)
-#   filePath: ./data/my_polygons.geojson
+#   filePath: ./data/my_polygons.json
 #   geometryType: Polygon
 #   analysisMethod: listIntersectingFeatures
 #
@@ -865,7 +865,7 @@ nearestTransitRoutes:
 #   description: Checks if any features exist within the buffer distance.
 #   category: Environmental/Cultural
 #   dataSource: My Agency (2024)
-#   filePath: ./data/my_data.geojson
+#   filePath: ./data/my_data.json
 #   geometryType: Polygon
 #   analysisMethod: hasNearbyFeatures
 #
@@ -890,7 +890,7 @@ nearestTransitRoutes:
 #   description: Counts crash points within buffer, broken down by severity.
 #   category: Safety
 #   dataSource: My Agency (2024)
-#   filePath: ./data/crashes.geojson
+#   filePath: ./data/crashes.json
 #   geometryType: Point
 #   analysisMethod: countByCategory
 #
@@ -917,7 +917,7 @@ nearestTransitRoutes:
 #   description: Total population within half a mile of the project.
 #   category: Demographics
 #   dataSource: U.S. Census (2020)
-#   filePath: ./data/census_tracts.geojson
+#   filePath: ./data/census_tracts.json
 #   geometryType: Polygon
 #   analysisMethod: sumNearbyValues
 #
@@ -944,7 +944,7 @@ nearestTransitRoutes:
 #   description: Three nearest hospitals to the project, with distances.
 #   category: Community Facilities
 #   dataSource: My Agency (2024)
-#   filePath: ./data/hospitals.geojson
+#   filePath: ./data/hospitals.json
 #   geometryType: Point
 #   analysisMethod: findNearestFeatures
 #

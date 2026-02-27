@@ -1,6 +1,6 @@
 /**
  * Configuration Loader
- * Loads and parses config.yaml, provides template string interpolation
+ * Loads and parses config.txt, provides template string interpolation
  */
 
 // Global configuration object (populated after loading)
@@ -60,10 +60,10 @@ function interpolateObject(obj, config) {
  */
 async function loadConfig() {
   try {
-    // Fetch config.yaml
-    const response = await fetch('./config.yaml', { cache: 'no-store' });
+    // Fetch config.txt
+    const response = await fetch('./config.txt', { cache: 'no-store' });
     if (!response.ok) {
-      throw new Error(`Failed to load config.yaml: ${response.statusText}`);
+      throw new Error(`Failed to load config.txt: ${response.statusText}`);
     }
 
     const yamlText = await response.text();
@@ -77,10 +77,10 @@ async function loadConfig() {
 
     // Validate required fields
     if (!config.organization || !config.organization.name) {
-      throw new Error('config.yaml missing required field: organization.name');
+      throw new Error('config.txt missing required field: organization.name');
     }
     if (!config.geography || !config.geography.mapBounds) {
-      throw new Error('config.yaml missing required field: geography.mapBounds');
+      throw new Error('config.txt missing required field: geography.mapBounds');
     }
 
     // Interpolate all template strings

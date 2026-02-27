@@ -106,7 +106,7 @@ python -m http.server 5050
 ```
 project-application-tool/
 ├── index.html                    # Main HTML (stays at root)
-├── datasets.yaml                 # Dataset configuration (self-documenting)
+├── datasets.txt                 # Dataset configuration (self-documenting)
 ├── assets/                       # Logos and images
 ├── data/                         # GeoJSON datasets
 ├── src/                          # Application code
@@ -119,7 +119,7 @@ project-application-tool/
 ```
 
 **Configuration System (v0.9.3):**
-- `datasets.yaml` - YAML-based configuration (replaces hardcoded JavaScript)
+- `datasets.txt` - YAML-based configuration (replaces hardcoded JavaScript)
 - Self-documenting with inline comments explaining every field
 - Planners can add datasets by copying/modifying YAML entries
 - Zero code changes required for new datasets
@@ -134,16 +134,16 @@ project-application-tool/
 
 ### Adding New Datasets
 
-**Configuration-driven** - add datasets by updating `datasets.yaml`:
+**Configuration-driven** - add datasets by updating `datasets.txt`:
 
-1. **Open `datasets.yaml`** in the root directory
+1. **Open `datasets.txt`** in the root directory
 2. **Find a similar dataset** (matching your geometry type)
 3. **Copy and modify** the YAML entry:
 4. **Save and refresh** - no code changes needed
 
 **Available config options:**
 - `geometryType`: Point, LineString, Polygon, MultiLineString
-- `analysisMethod`: see datasets.yaml for complete list
+- `analysisMethod`: see datasets.txt for complete list
 - `styleByProperty` - Conditional colors/styles based on field values
 - `staticLabel` - Show constant text instead of field value
 - `filterByThreshold` - Filter by field value with translucent below-threshold display
@@ -187,7 +187,7 @@ python optimize_geojson.py input.json output.json --tolerance 0.001
 **Typical workflow:**
 1. Export GeoJSON from GIS tool (ArcGIS, QGIS, etc.)
 2. Run `optimize_geojson.py input.json data/my_dataset.json`
-3. Add dataset entry to `datasets.yaml`
+3. Add dataset entry to `datasets.txt`
 4. Refresh browser to see new data on map
 
 ## Known Limitations

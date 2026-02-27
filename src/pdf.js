@@ -297,7 +297,7 @@ async function generatePDF() {
 
     showLoading(true, 'Building PDF document...');
 
-    const mapImageData = canvas.toDataURL('image/png');
+    const mapImageData = canvas.toDataURL('image/jpeg', 0.92);
 
     // Create PDF using jsPDF
     const { jsPDF } = window.jspdf;
@@ -362,7 +362,7 @@ async function generatePDF() {
     const mapHeight = (canvas.height / canvas.width) * mapWidth;
     const mapX = (pageWidth - mapWidth) / 2;
 
-    pdf.addImage(mapImageData, 'PNG', mapX, yPosition, mapWidth, mapHeight);
+    pdf.addImage(mapImageData, 'JPEG', mapX, yPosition, mapWidth, mapHeight);
     yPosition += mapHeight + 0.4;
 
     // ========== RESULTS SECTION ==========

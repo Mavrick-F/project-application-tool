@@ -18,7 +18,7 @@ const CONFIG = {
   basemapUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   basemapAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
 
-  // Drawn geometry style - read from config.yaml or use defaults
+  // Drawn geometry style - read from config.txt or use defaults
   drawnLineStyle: window.CONFIG_APP?.mapStyling?.drawnLine || {
     color: '#FF0000',
     weight: 12,
@@ -50,7 +50,7 @@ const RESULT_STYLES = {
 // ============================================
 /**
  * Configuration object for all datasets in the application
- * Loaded dynamically from datasets.yaml
+ * Loaded dynamically from datasets.txt
  * Each dataset defines its file path, geometry type, analysis method,
  * display properties, and styling options
  */
@@ -60,19 +60,19 @@ let DATASETS = {};
 // YAML DATASET LOADER
 // ============================================
 /**
- * Loads dataset configuration from datasets.yaml file
+ * Loads dataset configuration from datasets.txt file
  * Populates the DATASETS object with parsed YAML data
  * @returns {Promise<void>} Resolves when datasets are loaded
  */
 async function loadDatasets() {
   try {
     console.log('Loading datasets from YAML...');
-    const response = await fetch('./datasets.yaml', { cache: 'no-store' });
+    const response = await fetch('./datasets.txt', { cache: 'no-store' });
 
     if (!response.ok) {
-      console.error(`Failed to fetch datasets.yaml: ${response.status} ${response.statusText}`);
+      console.error(`Failed to fetch datasets.txt: ${response.status} ${response.statusText}`);
       console.error('Fetch URL was:', response.url);
-      throw new Error(`Failed to load datasets.yaml: ${response.statusText}`);
+      throw new Error(`Failed to load datasets.txt: ${response.statusText}`);
     }
 
     const yamlText = await response.text();
